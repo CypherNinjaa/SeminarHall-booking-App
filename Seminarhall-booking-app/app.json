@@ -7,36 +7,23 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    "scheme": "seminarhall",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.amity.seminarhall"
+      "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true,
-      "package": "com.amity.seminarhall"
+      "edgeToEdgeEnabled": true
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    },
-    "linking": {
-      "prefixes": ["seminarhall://", "https://seminarhall-ivory.vercel.app"],
-      "config": {
-        "screens": {
-          "EmailVerification": "auth/verify",
-          "Login": "auth/login",
-          "Signup": "auth/signup"
-        }
-      }
     }
   }
 }
