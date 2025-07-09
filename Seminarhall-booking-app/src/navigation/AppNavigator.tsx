@@ -5,17 +5,23 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { ThemeProvider } from "../contexts/ThemeContext";
+import { useAuthStore } from "../stores/authStore";
 
-// Import screens (to be created)
+// Import screens
 import HomeScreen from "../screens/HomeScreen";
 import LoginScreen from "../screens/LoginScreen";
 import HallListScreen from "../screens/HallListScreen";
 import BookingScreen from "../screens/BookingScreen";
 import ProfileScreen from "../screens/ProfileScreen";
+import SignupScreen from "../screens/SignupScreen";
+import SuperAdminScreen from "../screens/SuperAdminScreen";
+import LoadingScreen from "../components/LoadingScreen";
 
 export type RootStackParamList = {
 	Login: undefined;
+	Signup: undefined;
 	MainTabs: undefined;
+	SuperAdmin: undefined;
 	HallDetails: { hallId: string };
 	Booking: { hallId: string };
 };
@@ -65,21 +71,42 @@ function MainTabNavigator() {
 }
 
 export default function AppNavigator() {
+	const { isAuthenticated, isLoading, user } = useAuthStore();
+
+	// Show loading spinner while initializing auth
+	if (isLoading) {
+		return (
+			<ThemeProvider>
+				<SafeAreaProvider>
+					<LoadingScreen />
+				</SafeAreaProvider>
+			</ThemeProvider>
+		);
+	}
+
 	return (
 		<ThemeProvider>
 			<SafeAreaProvider>
 				<NavigationContainer>
-					<Stack.Navigator initialRouteName="Login">
-						<Stack.Screen
-							name="Login"
-							component={LoginScreen}
-							options={{ headerShown: false }}
-						/>
-						<Stack.Screen
-							name="MainTabs"
-							component={MainTabNavigator}
-							options={{ headerShown: false }}
-						/>
+					<Stack.Navigator screenOptions={{ headerShown: false }}>
+						{isAuthenticated ? (
+							// Authenticated screens
+							<>
+								<Stack.Screen name="MainTabs" component={MainTabNavigator} />
+								{(user?.role === "super_admin" || user?.role === "admin") && (
+									<Stack.Screen
+										name="SuperAdmin"
+										component={SuperAdminScreen}
+									/>
+								)}
+							</>
+						) : (
+							// Non-authenticated screens
+							<>
+								<Stack.Screen name="Login" component={LoginScreen} />
+								<Stack.Screen name="Signup" component={SignupScreen} />
+							</>
+						)}
 					</Stack.Navigator>
 				</NavigationContainer>
 			</SafeAreaProvider>

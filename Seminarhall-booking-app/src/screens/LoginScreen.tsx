@@ -58,7 +58,8 @@ export default function LoginScreen({ navigation }: Props) {
 		try {
 			await login(email, password);
 			Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-			navigation.navigate("MainTabs");
+			// Remove manual navigation - let the auth state change handle navigation automatically
+			// navigation.navigate("MainTabs");
 		} catch (error) {
 			Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
 			Alert.alert(
@@ -232,8 +233,8 @@ export default function LoginScreen({ navigation }: Props) {
 					{/* Footer */}
 					<View style={styles.footer}>
 						<Text style={styles.footerText}>Don't have an account? </Text>
-						<TouchableOpacity>
-							<Text style={styles.signUpText}>Contact Admin</Text>
+						<TouchableOpacity onPress={() => navigation.navigate("Signup")}>
+							<Text style={styles.signUpText}>Sign Up</Text>
 						</TouchableOpacity>
 					</View>
 				</ScrollView>

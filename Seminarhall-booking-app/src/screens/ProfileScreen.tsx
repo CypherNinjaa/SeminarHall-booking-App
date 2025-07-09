@@ -10,14 +10,30 @@ import {
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
+import { StackNavigationProp } from "@react-navigation/stack";
+import { RootStackParamList } from "../navigation/AppNavigator";
+import { useAuthStore } from "../stores/authStore";
 
-export default function ProfileScreen() {
-	const user = {
-		name: "John Doe",
-		email: "john.doe@example.com",
-		phone: "+1 234 567 8890",
-		role: "Faculty",
-		avatar: "https://via.placeholder.com/100x100/007AFF/FFFFFF?text=JD",
+type ProfileScreenNavigationProp = StackNavigationProp<
+	RootStackParamList,
+	"MainTabs"
+>;
+
+interface Props {
+	navigation: ProfileScreenNavigationProp;
+}
+
+export default function ProfileScreen({ navigation }: Props) {
+	const { user, logout } = useAuthStore();
+
+	const handleLogout = async () => {
+		try {
+			await logout();
+			// Remove manual navigation - let the auth state change handle navigation automatically
+			// navigation.navigate("Login");
+		} catch (error) {
+			console.error("Logout failed:", error);
+		}
 	};
 
 	const menuItems = [
@@ -25,28 +41,43 @@ export default function ProfileScreen() {
 			icon: "person-outline",
 			title: "Edit Profile",
 			description: "Update your personal information",
+			action: () => {},
 		},
 		{
 			icon: "calendar-outline",
 			title: "Booking History",
 			description: "View all your past bookings",
+			action: () => {},
 		},
 		{
 			icon: "notifications-outline",
 			title: "Notifications",
 			description: "Manage notification preferences",
+			action: () => {},
 		},
 		{
 			icon: "help-circle-outline",
 			title: "Help & Support",
 			description: "Get help and contact support",
+			action: () => {},
 		},
 		{
 			icon: "settings-outline",
 			title: "Settings",
 			description: "App settings and preferences",
+			action: () => {},
 		},
 	];
+
+	// Add super admin option if user has super_admin role
+	if (user?.role === "super_admin") {
+		menuItems.unshift({
+			icon: "shield-outline",
+			title: "Admin Dashboard",
+			description: "Manage users and system settings",
+			action: () => navigation.navigate("SuperAdmin"),
+		});
+	}
 
 	return (
 		<SafeAreaView style={styles.container}>
@@ -54,10 +85,13 @@ export default function ProfileScreen() {
 			<ScrollView showsVerticalScrollIndicator={false}>
 				{/* Profile Header */}
 				<View style={styles.profileHeader}>
-					<Image source={{ uri: user.avatar }} style={styles.avatar} />
-					<Text style={styles.userName}>{user.name}</Text>
-					<Text style={styles.userRole}>{user.role}</Text>
-					<Text style={styles.userEmail}>{user.email}</Text>
+					<Image
+						source={{ uri: user?.avatar || "https://via.placeholder.com/100" }}
+						style={styles.avatar}
+					/>
+					<Text style={styles.userName}>{user?.name || "User"}</Text>
+					<Text style={styles.userRole}>{user?.role || "Guest"}</Text>
+					<Text style={styles.userEmail}>{user?.email || "No email"}</Text>
 				</View>
 
 				{/* Stats Section */}
@@ -79,7 +113,11 @@ export default function ProfileScreen() {
 				{/* Menu Items */}
 				<View style={styles.menuContainer}>
 					{menuItems.map((item, index) => (
-						<TouchableOpacity key={index} style={styles.menuItem}>
+						<TouchableOpacity
+							key={index}
+							style={styles.menuItem}
+							onPress={item.action}
+						>
 							<View style={styles.menuItemLeft}>
 								<View style={styles.iconContainer}>
 									<Ionicons name={item.icon as any} size={24} color="#007AFF" />
@@ -97,7 +135,7 @@ export default function ProfileScreen() {
 				</View>
 
 				{/* Logout Button */}
-				<TouchableOpacity style={styles.logoutButton}>
+				<TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
 					<Ionicons name="log-out-outline" size={20} color="#DC3545" />
 					<Text style={styles.logoutText}>Sign Out</Text>
 				</TouchableOpacity>
