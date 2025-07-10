@@ -13,6 +13,7 @@ import {
 	Modal,
 	Switch,
 	ScrollView,
+	Dimensions,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
@@ -32,7 +33,10 @@ import {
 	Shadows,
 } from "../constants/theme";
 import { useAuthStore } from "../stores/authStore";
+import { useTheme } from "../contexts/ThemeContext";
 import { RootStackParamList } from "../navigation/AppNavigator";
+
+const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
 // Types for user management
 interface User {
@@ -114,6 +118,8 @@ const UserItem: React.FC<UserItemProps> = ({
 	onToggleActive,
 	onDeleteUser,
 }) => {
+	const { isDark } = useTheme();
+
 	const getRoleColor = (role: string): string => {
 		switch (role) {
 			case "super_admin":
@@ -130,23 +136,31 @@ const UserItem: React.FC<UserItemProps> = ({
 	};
 
 	return (
-		<View style={styles.userCard}>
-			<View style={styles.userHeader}>
+		<View style={[styles.userCard, isDark && styles.userCardDark]}>
+			<View style={[styles.userHeader, isDark && styles.userHeaderDark]}>
 				<View style={styles.avatarContainer}>
 					<Text style={styles.avatarText}>
 						{user.name ? user.name.charAt(0).toUpperCase() : "?"}
 					</Text>
 				</View>
 				<View style={styles.userInfo}>
-					<Text style={styles.userName}>{user.name}</Text>
-					<Text style={styles.userEmail}>{user.email}</Text>
+					<Text style={[styles.userName, isDark && styles.userNameDark]}>
+						{user.name}
+					</Text>
+					<Text style={[styles.userEmail, isDark && styles.userEmailDark]}>
+						{user.email}
+					</Text>
 				</View>
 			</View>
 
-			<View style={styles.userDetails}>
+			<View style={[styles.userDetails, isDark && styles.userDetailsDark]}>
 				<View style={styles.detailRow}>
 					<View style={styles.detailItem}>
-						<Text style={styles.detailLabel}>Role</Text>
+						<Text
+							style={[styles.detailLabel, isDark && styles.detailLabelDark]}
+						>
+							Role
+						</Text>
 						<View
 							style={[
 								styles.roleBadge,
@@ -162,7 +176,11 @@ const UserItem: React.FC<UserItemProps> = ({
 					</View>
 
 					<View style={styles.detailItem}>
-						<Text style={styles.detailLabel}>Status</Text>
+						<Text
+							style={[styles.detailLabel, isDark && styles.detailLabelDark]}
+						>
+							Status
+						</Text>
 						<View
 							style={[
 								styles.statusBadge,
@@ -184,21 +202,37 @@ const UserItem: React.FC<UserItemProps> = ({
 				<View style={styles.detailRow}>
 					{user.employee_id && (
 						<View style={styles.detailItem}>
-							<Text style={styles.detailLabel}>ID</Text>
-							<Text style={styles.detailValue}>{user.employee_id}</Text>
+							<Text
+								style={[styles.detailLabel, isDark && styles.detailLabelDark]}
+							>
+								ID
+							</Text>
+							<Text
+								style={[styles.detailValue, isDark && styles.detailValueDark]}
+							>
+								{user.employee_id}
+							</Text>
 						</View>
 					)}
 
 					{user.department && (
 						<View style={styles.detailItem}>
-							<Text style={styles.detailLabel}>Dept.</Text>
-							<Text style={styles.detailValue}>{user.department}</Text>
+							<Text
+								style={[styles.detailLabel, isDark && styles.detailLabelDark]}
+							>
+								Dept.
+							</Text>
+							<Text
+								style={[styles.detailValue, isDark && styles.detailValueDark]}
+							>
+								{user.department}
+							</Text>
 						</View>
 					)}
 				</View>
 			</View>
 
-			<View style={styles.actionButtons}>
+			<View style={[styles.actionButtons, isDark && styles.actionButtonsDark]}>
 				<TouchableOpacity
 					style={[styles.actionButton, styles.manageButton]}
 					onPress={() => onManage(user)}
@@ -265,6 +299,7 @@ const UserManagementModal: React.FC<UserManagementModalProps> = ({
 	onClose,
 	onSave,
 }) => {
+	const { isDark } = useTheme();
 	const [name, setName] = useState("");
 	const [role, setRole] = useState("");
 	const [department, setDepartment] = useState("");
@@ -275,6 +310,7 @@ const UserManagementModal: React.FC<UserManagementModalProps> = ({
 
 	useEffect(() => {
 		if (user) {
+			console.log("Modal user data:", user); // Debug log
 			setName(user.name || "");
 			setRole(user.role || "");
 			setDepartment(user.department || "");
@@ -350,31 +386,78 @@ const UserManagementModal: React.FC<UserManagementModalProps> = ({
 			animationType="slide"
 			transparent={true}
 			onRequestClose={onClose}
+			statusBarTranslucent={true}
 		>
 			<View style={styles.modalOverlay}>
-				<View style={styles.modalContainer}>
-					<View style={styles.modalHeader}>
-						<Text style={styles.modalTitle}>Manage User</Text>
-						<TouchableOpacity onPress={onClose}>
-							<Ionicons name="close" size={24} color={Colors.gray[600]} />
+				<View
+					style={[
+						styles.modalContainer,
+						isDark && styles.modalContainerDark,
+						{
+							width: Math.min(screenWidth * 0.95, 500), // Better width calculation
+							maxHeight: screenHeight * 0.9, // Increase max height to 90%
+						},
+					]}
+				>
+					{/* Modal Header */}
+					<View style={[styles.modalHeader, isDark && styles.modalHeaderDark]}>
+						<Text style={[styles.modalTitle, isDark && styles.modalTitleDark]}>
+							Manage User{user ? ` - ${user.name}` : ""}
+						</Text>
+						<TouchableOpacity onPress={onClose} style={styles.closeButton}>
+							<Ionicons
+								name="close"
+								size={24}
+								color={isDark ? Colors.dark.text.secondary : Colors.gray[600]}
+							/>
 						</TouchableOpacity>
 					</View>
 
-					<View style={styles.modalContent}>
+					{/* Modal Content */}
+					<ScrollView
+						style={styles.modalScrollContent}
+						contentContainerStyle={[
+							styles.modalContent,
+							isDark && styles.modalContentDark,
+							{ flexGrow: 1 }, // Ensure content fills available space
+						]}
+						showsVerticalScrollIndicator={false}
+						keyboardShouldPersistTaps="handled"
+						bounces={false}
+						nestedScrollEnabled={true}
+					>
+						{/* Debug info - remove in production */}
+						{__DEV__ && (
+							<Text style={{ fontSize: 12, color: "red", marginBottom: 10 }}>
+								Debug: User {user ? "loaded" : "not loaded"}, Role:{" "}
+								{role || "none"}
+							</Text>
+						)}
 						{/* User details form */}
 						<View style={styles.formGroup}>
-							<Text style={styles.inputLabel}>Full Name</Text>
+							<Text
+								style={[styles.inputLabel, isDark && styles.inputLabelDark]}
+							>
+								Full Name
+							</Text>
 							<TextInput
-								style={styles.input}
+								style={[styles.input, isDark && styles.inputDark]}
 								value={name}
 								onChangeText={setName}
 								placeholder="Enter name"
+								placeholderTextColor={
+									isDark ? Colors.dark.text.tertiary : Colors.gray[400]
+								}
 							/>
 						</View>
 
 						{user && user.role !== "super_admin" && (
 							<View style={styles.formGroup}>
-								<Text style={styles.inputLabel}>Role</Text>
+								<Text
+									style={[styles.inputLabel, isDark && styles.inputLabelDark]}
+								>
+									Role
+								</Text>
 								<View style={styles.roleSelector}>
 									<TouchableOpacity
 										style={[
@@ -434,38 +517,63 @@ const UserManagementModal: React.FC<UserManagementModalProps> = ({
 						)}
 
 						<View style={styles.formGroup}>
-							<Text style={styles.inputLabel}>Department</Text>
+							<Text
+								style={[styles.inputLabel, isDark && styles.inputLabelDark]}
+							>
+								Department
+							</Text>
 							<TextInput
-								style={styles.input}
+								style={[styles.input, isDark && styles.inputDark]}
 								value={department}
 								onChangeText={setDepartment}
 								placeholder="Enter department"
+								placeholderTextColor={
+									isDark ? Colors.dark.text.tertiary : Colors.gray[400]
+								}
 							/>
 						</View>
 
 						<View style={styles.formGroup}>
-							<Text style={styles.inputLabel}>Employee ID</Text>
+							<Text
+								style={[styles.inputLabel, isDark && styles.inputLabelDark]}
+							>
+								Employee ID
+							</Text>
 							<TextInput
-								style={styles.input}
+								style={[styles.input, isDark && styles.inputDark]}
 								value={employeeId}
 								onChangeText={setEmployeeId}
 								placeholder="Enter employee ID"
+								placeholderTextColor={
+									isDark ? Colors.dark.text.tertiary : Colors.gray[400]
+								}
 							/>
 						</View>
 
 						<View style={styles.formGroup}>
-							<Text style={styles.inputLabel}>Phone</Text>
+							<Text
+								style={[styles.inputLabel, isDark && styles.inputLabelDark]}
+							>
+								Phone
+							</Text>
 							<TextInput
-								style={styles.input}
+								style={[styles.input, isDark && styles.inputDark]}
 								value={phone}
 								onChangeText={setPhone}
 								placeholder="Enter phone number"
 								keyboardType="phone-pad"
+								placeholderTextColor={
+									isDark ? Colors.dark.text.tertiary : Colors.gray[400]
+								}
 							/>
 						</View>
 
 						<View style={styles.switchContainer}>
-							<Text style={styles.inputLabel}>Account Active</Text>
+							<Text
+								style={[styles.inputLabel, isDark && styles.inputLabelDark]}
+							>
+								Account Active
+							</Text>
 							<Switch
 								value={isActive}
 								onValueChange={setIsActive}
@@ -477,7 +585,9 @@ const UserManagementModal: React.FC<UserManagementModalProps> = ({
 							/>
 						</View>
 
-						<View style={styles.modalButtons}>
+						<View
+							style={[styles.modalButtons, isDark && styles.modalButtonsDark]}
+						>
 							<TouchableOpacity
 								style={styles.resetPasswordButton}
 								onPress={handleResetPassword}
@@ -498,7 +608,7 @@ const UserManagementModal: React.FC<UserManagementModalProps> = ({
 								)}
 							</TouchableOpacity>
 						</View>
-					</View>
+					</ScrollView>
 				</View>
 			</View>
 		</Modal>
@@ -511,19 +621,37 @@ const AnalyticsCard: React.FC<AnalyticsCardProps> = ({
 	value,
 	icon,
 	color,
-}) => (
-	<View style={[styles.analyticsCard, { borderLeftColor: color }]}>
+}) => {
+	const { isDark } = useTheme();
+	const displayValue = typeof value === "number" && !isNaN(value) ? value : 0;
+
+	return (
 		<View
-			style={[styles.analyticsIconContainer, { backgroundColor: color + "20" }]}
+			style={[
+				styles.analyticsCard,
+				{ borderLeftColor: color },
+				isDark && styles.analyticsCardDark,
+			]}
 		>
-			<Ionicons name={icon} size={20} color={color} />
+			<View
+				style={[
+					styles.analyticsIconContainer,
+					{ backgroundColor: color + "20" },
+				]}
+			>
+				<Ionicons name={icon} size={20} color={color} />
+			</View>
+			<View style={styles.analyticsContent}>
+				<Text style={[styles.analyticsTitle, isDark && styles.analyticsTitle]}>
+					{title}
+				</Text>
+				<Text style={[styles.analyticsValue, { color }, isDark && { color }]}>
+					{displayValue}
+				</Text>
+			</View>
 		</View>
-		<View style={styles.analyticsContent}>
-			<Text style={styles.analyticsTitle}>{title}</Text>
-			<Text style={[styles.analyticsValue, { color }]}>{value}</Text>
-		</View>
-	</View>
-);
+	);
+};
 
 // Main Super Admin Screen
 export default function SuperAdminScreen({
@@ -531,6 +659,8 @@ export default function SuperAdminScreen({
 }: {
 	navigation: StackNavigationProp<RootStackParamList, "SuperAdmin">;
 }) {
+	const { user } = useAuthStore();
+	const { isDark } = useTheme();
 	const [users, setUsers] = useState<User[]>([]);
 	const [selectedUser, setSelectedUser] = useState<User | null>(null);
 	const [isModalVisible, setIsModalVisible] = useState(false);
@@ -584,13 +714,35 @@ export default function SuperAdminScreen({
 		[searchQuery, pagination.pageSize]
 	);
 
-	// Load analytics
+	// Load analytics with error handling and fallback values
 	const loadAnalytics = useCallback(async () => {
 		try {
 			const data = await userManagementService.getUserAnalytics();
-			setAnalytics(data);
+
+			// Provide fallback values if the API returns invalid data
+			const safeAnalytics = {
+				total_users: Number(data?.total_users) || 0,
+				super_admins: Number(data?.super_admins) || 0,
+				admins: Number(data?.admins) || 0,
+				faculty: Number(data?.faculty) || 0,
+				active_users: Number(data?.active_users) || 0,
+				inactive_users: Number(data?.inactive_users) || 0,
+				new_users_last_30_days: Number(data?.new_users_last_30_days) || 0,
+			};
+
+			setAnalytics(safeAnalytics);
 		} catch (error) {
 			console.error("Error loading analytics:", error);
+			// Set fallback values on error
+			setAnalytics({
+				total_users: 0,
+				super_admins: 0,
+				admins: 0,
+				faculty: 0,
+				active_users: 0,
+				inactive_users: 0,
+				new_users_last_30_days: 0,
+			});
 		}
 	}, []);
 
@@ -624,6 +776,7 @@ export default function SuperAdminScreen({
 
 	// Handle manage user
 	const handleManageUser = (user: User) => {
+		console.log("Opening modal for user:", user); // Debug log
 		setSelectedUser(user);
 		setIsModalVisible(true);
 		Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -713,15 +866,16 @@ export default function SuperAdminScreen({
 		try {
 			if (!selectedUser) return;
 
-			// If role has changed, use the special function
-			if (updates.role && updates.role !== selectedUser.role) {
-				await userManagementService.changeUserRole(
-					selectedUser.id,
-					updates.role
-				);
-			}
+			// Use the new updateUser service method that handles all updates securely
+			await userManagementService.updateUser(selectedUser.id, {
+				name: updates.name,
+				department: updates.department,
+				employee_id: updates.employee_id,
+				phone: updates.phone,
+				role: updates.role,
+			});
 
-			// If active status has changed, use the special function
+			// If active status has changed, use the toggle function
 			if (
 				updates.is_active !== undefined &&
 				updates.is_active !== selectedUser.is_active
@@ -731,19 +885,6 @@ export default function SuperAdminScreen({
 					updates.is_active
 				);
 			}
-
-			// Update the other fields using the service
-			const { data, error } = await supabase
-				.from("profiles")
-				.update({
-					name: updates.name,
-					department: updates.department,
-					employee_id: updates.employee_id,
-					phone: updates.phone,
-				})
-				.eq("id", selectedUser.id);
-
-			if (error) throw error;
 
 			// Update local state
 			setUsers(
@@ -861,32 +1002,91 @@ export default function SuperAdminScreen({
 	};
 
 	return (
-		<SafeAreaView style={styles.container}>
-			<StatusBar style="dark" />
+		<SafeAreaView style={[styles.container, isDark && styles.containerDark]}>
+			<StatusBar style={isDark ? "light" : "dark"} />
 
-			{/* Header */}
+			{/* Enhanced Header */}
 			<View style={styles.header}>
 				<LinearGradient
-					colors={["#1e40af", "#3b82f6"]}
+					colors={
+						isDark
+							? [
+									Colors.dark.background.secondary,
+									Colors.dark.background.tertiary,
+							  ]
+							: [Colors.primary[700], Colors.primary[500]]
+					}
 					style={styles.headerGradient}
 					start={{ x: 0, y: 0 }}
 					end={{ x: 1, y: 0 }}
 				>
-					<Text style={styles.headerTitle}>User Management</Text>
-					<Text style={styles.headerSubtitle}>Manage all system users</Text>
+					<View style={styles.headerContent}>
+						<View style={styles.headerTop}>
+							<View style={styles.headerTitleContainer}>
+								<Ionicons
+									name="shield-checkmark"
+									size={24}
+									color="white"
+									style={styles.headerIcon}
+								/>
+								<Text style={styles.headerTitle}>Super Admin Portal</Text>
+							</View>
+							<TouchableOpacity
+								style={styles.profileButton}
+								onPress={() => navigation.navigate("MainTabs")}
+							>
+								<View style={styles.profileAvatar}>
+									<Text style={styles.profileAvatarText}>
+										{user?.name?.charAt(0).toUpperCase() || "A"}
+									</Text>
+								</View>
+							</TouchableOpacity>
+						</View>
+						<Text style={styles.headerSubtitle}>
+							User Management & Analytics
+						</Text>
+						<View style={styles.headerStats}>
+							<View style={styles.headerStat}>
+								<Text style={styles.headerStatNumber}>
+									{analytics.total_users}
+								</Text>
+								<Text style={styles.headerStatLabel}>Total Users</Text>
+							</View>
+							<View style={styles.headerStat}>
+								<Text style={styles.headerStatNumber}>
+									{analytics.active_users}
+								</Text>
+								<Text style={styles.headerStatLabel}>Active</Text>
+							</View>
+							<View style={styles.headerStat}>
+								<Text style={styles.headerStatNumber}>
+									{analytics.new_users_last_30_days}
+								</Text>
+								<Text style={styles.headerStatLabel}>New (30d)</Text>
+							</View>
+						</View>
+					</View>
 				</LinearGradient>
 			</View>
 
 			{/* Search Bar */}
-			<View style={styles.searchContainer}>
-				<View style={styles.searchBar}>
-					<Ionicons name="search" size={20} color={Colors.gray[400]} />
+			<View
+				style={[styles.searchContainer, isDark && styles.searchContainerDark]}
+			>
+				<View style={[styles.searchBar, isDark && styles.searchBarDark]}>
+					<Ionicons
+						name="search"
+						size={20}
+						color={isDark ? Colors.dark.text.secondary : Colors.gray[400]}
+					/>
 					<TextInput
-						style={styles.searchInput}
+						style={[styles.searchInput, isDark && styles.searchInputDark]}
 						value={searchQuery}
 						onChangeText={handleSearch}
 						placeholder="Search by name, email, department..."
-						placeholderTextColor={Colors.gray[400]}
+						placeholderTextColor={
+							isDark ? Colors.dark.text.tertiary : Colors.gray[400]
+						}
 						clearButtonMode="always"
 					/>
 				</View>
@@ -938,15 +1138,35 @@ const styles = StyleSheet.create({
 		flex: 1,
 		backgroundColor: Colors.background.secondary,
 	},
+	containerDark: {
+		backgroundColor: Colors.dark.background.primary,
+	},
 	header: {
 		width: "100%",
 		overflow: "hidden",
 	},
 	headerGradient: {
 		padding: Spacing[5],
-		paddingBottom: Spacing[6],
+		paddingBottom: Spacing[4], // Reduce bottom padding since search is no longer overlapping
 		borderBottomLeftRadius: 20,
 		borderBottomRightRadius: 20,
+	},
+	headerContent: {
+		flex: 1,
+	},
+	headerTop: {
+		flexDirection: "row",
+		justifyContent: "space-between",
+		alignItems: "center",
+		marginBottom: Spacing[3],
+	},
+	headerTitleContainer: {
+		flexDirection: "row",
+		alignItems: "center",
+		flex: 1,
+	},
+	headerIcon: {
+		marginRight: Spacing[2],
 	},
 	headerTitle: {
 		fontSize: Typography.fontSize["2xl"],
@@ -957,12 +1177,53 @@ const styles = StyleSheet.create({
 		fontSize: Typography.fontSize.base,
 		fontWeight: Typography.fontWeight.normal,
 		color: "rgba(255, 255, 255, 0.8)",
-		marginTop: Spacing[1],
+		marginBottom: Spacing[4],
+	},
+	profileButton: {
+		padding: Spacing[2],
+	},
+	profileAvatar: {
+		width: 40,
+		height: 40,
+		borderRadius: 20,
+		backgroundColor: "rgba(255, 255, 255, 0.2)",
+		justifyContent: "center",
+		alignItems: "center",
+	},
+	profileAvatarText: {
+		color: "white",
+		fontWeight: Typography.fontWeight.bold,
+		fontSize: Typography.fontSize.base,
+	},
+	headerStats: {
+		flexDirection: "row",
+		justifyContent: "space-around",
+		backgroundColor: "rgba(255, 255, 255, 0.1)",
+		borderRadius: BorderRadius.lg,
+		padding: Spacing[3],
+	},
+	headerStat: {
+		alignItems: "center",
+	},
+	headerStatNumber: {
+		fontSize: Typography.fontSize.lg,
+		fontWeight: Typography.fontWeight.bold,
+		color: "white",
+		marginBottom: 2,
+	},
+	headerStatLabel: {
+		fontSize: Typography.fontSize.xs,
+		color: "rgba(255, 255, 255, 0.8)",
+		textAlign: "center",
 	},
 	searchContainer: {
 		paddingHorizontal: Spacing[5],
-		marginTop: -Spacing[5],
+		marginTop: Spacing[2], // Add positive margin to create gap from header
 		marginBottom: Spacing[4],
+		paddingTop: Spacing[3], // Add extra padding for better spacing
+	},
+	searchContainerDark: {
+		backgroundColor: Colors.dark.background.primary,
 	},
 	searchBar: {
 		backgroundColor: "white",
@@ -973,11 +1234,19 @@ const styles = StyleSheet.create({
 		alignItems: "center",
 		...Shadows.md,
 	},
+	searchBarDark: {
+		backgroundColor: Colors.dark.background.secondary,
+		borderWidth: 1,
+		borderColor: Colors.dark.border.light,
+	},
 	searchInput: {
 		flex: 1,
 		marginLeft: Spacing[2],
 		fontSize: Typography.fontSize.base,
 		color: Colors.text.primary,
+	},
+	searchInputDark: {
+		color: Colors.dark.text.primary,
 	},
 	listContent: {
 		paddingHorizontal: Spacing[5],
@@ -1000,6 +1269,10 @@ const styles = StyleSheet.create({
 		flex: 0.48,
 		borderLeftWidth: 4,
 		...Shadows.sm,
+	},
+	analyticsCardDark: {
+		backgroundColor: Colors.dark.background.secondary,
+		borderColor: Colors.dark.border.light,
 	},
 	analyticsIconContainer: {
 		width: 40,
@@ -1028,12 +1301,19 @@ const styles = StyleSheet.create({
 		overflow: "hidden",
 		...Shadows.sm,
 	},
+	userCardDark: {
+		backgroundColor: Colors.dark.background.secondary,
+		borderColor: Colors.dark.border.light,
+	},
 	userHeader: {
 		flexDirection: "row",
 		alignItems: "center",
 		padding: Spacing[4],
 		borderBottomWidth: 1,
 		borderBottomColor: Colors.border.light,
+	},
+	userHeaderDark: {
+		borderBottomColor: Colors.dark.border.light,
 	},
 	avatarContainer: {
 		width: 50,
@@ -1058,13 +1338,22 @@ const styles = StyleSheet.create({
 		color: Colors.text.primary,
 		marginBottom: 2,
 	},
+	userNameDark: {
+		color: Colors.dark.text.primary,
+	},
 	userEmail: {
 		fontSize: Typography.fontSize.sm,
 		color: Colors.text.secondary,
 	},
+	userEmailDark: {
+		color: Colors.dark.text.secondary,
+	},
 	userDetails: {
 		padding: Spacing[4],
 		backgroundColor: Colors.background.tertiary,
+	},
+	userDetailsDark: {
+		backgroundColor: Colors.dark.background.tertiary,
 	},
 	detailRow: {
 		flexDirection: "row",
@@ -1079,10 +1368,16 @@ const styles = StyleSheet.create({
 		color: Colors.text.tertiary,
 		marginBottom: 2,
 	},
+	detailLabelDark: {
+		color: Colors.dark.text.tertiary,
+	},
 	detailValue: {
 		fontSize: Typography.fontSize.sm,
 		fontWeight: Typography.fontWeight.medium,
 		color: Colors.text.secondary,
+	},
+	detailValueDark: {
+		color: Colors.dark.text.secondary,
 	},
 	roleBadge: {
 		alignSelf: "flex-start",
@@ -1103,6 +1398,10 @@ const styles = StyleSheet.create({
 		backgroundColor: "white",
 		borderTopWidth: 1,
 		borderTopColor: Colors.border.light,
+	},
+	actionButtonsDark: {
+		backgroundColor: Colors.dark.background.secondary,
+		borderTopColor: Colors.dark.border.light,
 	},
 	actionButton: {
 		flexDirection: "row",
@@ -1186,17 +1485,27 @@ const styles = StyleSheet.create({
 	},
 	modalOverlay: {
 		flex: 1,
-		backgroundColor: "rgba(0, 0, 0, 0.5)",
+		backgroundColor: "rgba(0, 0, 0, 0.6)",
 		justifyContent: "center",
 		alignItems: "center",
-		padding: Spacing[5],
+		padding: Spacing[4],
 	},
 	modalContainer: {
 		backgroundColor: "white",
 		borderRadius: BorderRadius.xl,
 		width: "100%",
-		maxHeight: "80%",
+		maxHeight: "85%",
+		minHeight: 400, // Ensure minimum height for content visibility
 		...Shadows.lg,
+		overflow: "hidden", // Ensure content doesn't overflow
+	},
+	modalContainerDark: {
+		backgroundColor: Colors.dark.background.secondary,
+		borderColor: Colors.dark.border.light,
+		borderWidth: 1,
+	},
+	modalScrollContent: {
+		flex: 1,
 	},
 	modalHeader: {
 		flexDirection: "row",
@@ -1205,14 +1514,31 @@ const styles = StyleSheet.create({
 		padding: Spacing[4],
 		borderBottomWidth: 1,
 		borderBottomColor: Colors.border.light,
+		backgroundColor: "white", // Ensure header has background
+	},
+	modalHeaderDark: {
+		borderBottomColor: Colors.dark.border.light,
+		backgroundColor: Colors.dark.background.secondary,
+	},
+	closeButton: {
+		padding: Spacing[2],
+		borderRadius: BorderRadius.md,
 	},
 	modalTitle: {
 		fontSize: Typography.fontSize.xl,
 		fontWeight: Typography.fontWeight.bold,
 		color: Colors.text.primary,
 	},
+	modalTitleDark: {
+		color: Colors.dark.text.primary,
+	},
 	modalContent: {
 		padding: Spacing[5],
+		paddingBottom: Spacing[6], // Adequate bottom padding
+		minHeight: 400, // Ensure minimum height for content visibility
+	},
+	modalContentDark: {
+		backgroundColor: Colors.dark.background.secondary,
 	},
 	formGroup: {
 		marginBottom: Spacing[4],
@@ -1227,11 +1553,19 @@ const styles = StyleSheet.create({
 		fontSize: Typography.fontSize.base,
 		color: Colors.text.primary,
 	},
+	inputDark: {
+		backgroundColor: Colors.dark.background.tertiary,
+		borderColor: Colors.dark.border.light,
+		color: Colors.dark.text.primary,
+	},
 	inputLabel: {
 		fontSize: Typography.fontSize.sm,
 		fontWeight: Typography.fontWeight.semibold,
 		color: Colors.text.secondary,
 		marginBottom: Spacing[2],
+	},
+	inputLabelDark: {
+		color: Colors.dark.text.secondary,
 	},
 	roleSelector: {
 		flexDirection: "row",
@@ -1266,6 +1600,13 @@ const styles = StyleSheet.create({
 		flexDirection: "row",
 		justifyContent: "space-between",
 		marginTop: Spacing[4],
+		marginBottom: Spacing[4], // Add bottom margin to prevent overlap
+		paddingTop: Spacing[3], // Add top padding for better separation
+		borderTopWidth: 1, // Add subtle border to separate from content
+		borderTopColor: Colors.border.light,
+	},
+	modalButtonsDark: {
+		borderTopColor: Colors.dark.border.light,
 	},
 	resetPasswordButton: {
 		flex: 0.48,
@@ -1274,6 +1615,7 @@ const styles = StyleSheet.create({
 		borderWidth: 1,
 		borderColor: Colors.primary[500],
 		borderRadius: BorderRadius.lg,
+		minHeight: 44, // Ensure minimum touch target
 	},
 	resetPasswordText: {
 		color: Colors.primary[600],
@@ -1285,6 +1627,7 @@ const styles = StyleSheet.create({
 		paddingVertical: Spacing[3],
 		alignItems: "center",
 		borderRadius: BorderRadius.lg,
+		minHeight: 44, // Ensure minimum touch target
 	},
 	disabledButton: {
 		backgroundColor: Colors.gray[400],

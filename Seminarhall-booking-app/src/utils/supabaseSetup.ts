@@ -1,5 +1,4 @@
 import { createClient } from "@supabase/supabase-js";
-import { setupServiceClient } from "../services/userManagementService";
 
 // Get environment variables
 const supabaseUrl =
@@ -10,7 +9,6 @@ const supabaseAnonKey =
 	process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
 	process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
 	"";
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 
 // Initialize the main Supabase client
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
@@ -18,21 +16,14 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 // Initialize Supabase
 export const initializeSupabase = (
 	customUrl?: string,
-	customAnonKey?: string,
-	customServiceRoleKey?: string
+	customAnonKey?: string
 ) => {
 	// Use custom values or fall back to environment variables
 	const url = customUrl || supabaseUrl;
 	const anonKey = customAnonKey || supabaseAnonKey;
-	const serviceKey = customServiceRoleKey || supabaseServiceRoleKey;
 
 	// Create the main client
 	const client = createClient(url, anonKey);
-
-	// Set up the service role client if provided
-	if (serviceKey) {
-		setupServiceClient(serviceKey);
-	}
 
 	return client;
 };

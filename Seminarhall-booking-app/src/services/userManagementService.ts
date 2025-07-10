@@ -10,28 +10,9 @@ let supabaseAnonKey =
 	process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
 	process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
 	"";
-let supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ""; // This should be set only server-side
 
-// Initialize Supabase client
+// Initialize Supabase client for regular operations
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
-let serviceClient: SupabaseClient | null = null;
-
-// Set up service role client (should only be used in secure server-side contexts)
-// NEVER expose this client in client-side code
-export const setupServiceClient = (serviceKey: string) => {
-	supabaseServiceKey = serviceKey;
-	serviceClient = createClient(supabaseUrl, supabaseServiceKey);
-};
-
-// Service role client for admin operations
-const getServiceClient = (): SupabaseClient => {
-	if (!serviceClient) {
-		throw new Error(
-			"Service role client not initialized. Call setupServiceClient first."
-		);
-	}
-	return serviceClient;
-};
 
 // Types for user management
 export interface User {
@@ -259,29 +240,36 @@ export const userManagementService = {
 	},
 
 	/**
-	 * Delete user - requires service role
-	 * This should only be used server-side in a secure context
+	 * Delete user - Complete deletion flow (profile + auth user)
 	 */
 	deleteUser: async (userId: string) => {
 		try {
-			// First call the RPC function to log the activity
-			const { data: rpcData, error: rpcError } = await supabase.rpc(
-				"delete_user",
+			// Step 1: Delete the profile and related data via database function
+			const { data: profileData, error: profileError } = await supabase.rpc(
+				"admin_delete_user",
+				{ user_id: userId }
+			);
+
+			if (profileError) throw profileError;
+
+			// Step 2: Delete the auth user via Edge Function
+			const { data: authData, error: authError } = await supabase.functions.invoke(
+				"admin-auth-operations",
 				{
-					user_id: userId,
+					body: {
+						operation: "deleteUser",
+						userId: userId,
+					},
 				}
 			);
 
-			if (rpcError) throw rpcError;
+			if (authError) throw authError;
 
-			// Then use the service client to actually delete the user from auth.users
-			// This should only happen server-side with the service key
-			const serviceClient = getServiceClient();
-			const { error } = await serviceClient.auth.admin.deleteUser(userId);
+			if (!authData?.success) {
+				throw new Error(authData?.error || "Failed to delete auth user");
+			}
 
-			if (error) throw error;
-
-			return true;
+			return { success: true, message: "User completely deleted" };
 		} catch (error) {
 			console.error("Error deleting user:", error);
 			throw error;
@@ -378,8 +366,111 @@ export const userManagementService = {
 	},
 
 	/**
-	 * Create a new user with initial profile
-	 * Requires service role - should only be used server-side
+	 * Update user profile
+	 */
+	updateUser: async (
+		userId: string,
+		updates: {
+			name?: string;
+			department?: string;
+			employee_id?: string;
+			phone?: string;
+			role?: "super_admin" | "admin" | "faculty";
+		}
+	) => {
+		try {
+			const { data, error } = await supabase.rpc("admin_update_user", {
+				user_id: userId,
+				user_name: updates.name,
+				user_department: updates.department,
+				user_employee_id: updates.employee_id,
+				user_phone: updates.phone,
+				user_role: updates.role,
+			});
+
+			if (error) throw error;
+
+			return data;
+		} catch (error) {
+			console.error("Error updating user:", error);
+			throw error;
+		}
+	},
+
+	/**
+	 * Invite a new user - Creates user and sends invitation email
+	 */
+	inviteUser: async ({
+		email,
+		name,
+		role,
+		department,
+		employeeId,
+		phone,
+	}: {
+		email: string;
+		name: string;
+		role?: "super_admin" | "admin" | "faculty";
+		department?: string;
+		employeeId?: string;
+		phone?: string;
+	}) => {
+		try {
+			// Step 1: Create auth user and generate reset link via Edge Function
+			const { data: authData, error: authError } = await supabase.functions.invoke(
+				"admin-auth-operations",
+				{
+					body: {
+						operation: "inviteUser",
+						email,
+						userData: {
+							name,
+							role: role || "faculty",
+							department,
+							employee_id: employeeId,
+							phone,
+						},
+					},
+				}
+			);
+
+			if (authError) throw authError;
+
+			if (!authData?.success) {
+				throw new Error(authData?.error || "Failed to invite user");
+			}
+
+			// Step 2: Create the profile via database function
+			const { data: profileData, error: profileError } = await supabase.rpc(
+				"admin_create_user",
+				{
+					user_email: email,
+					user_password: "temporary", // Will be changed by user via reset link
+					user_name: name,
+					user_role: role || "faculty",
+					user_department: department,
+					user_employee_id: employeeId,
+					user_phone: phone,
+				}
+			);
+
+			if (profileError) throw profileError;
+
+			return {
+				success: true,
+				user: authData.data?.user,
+				profile: profileData,
+				resetLink: authData.data?.resetLink,
+				message: "User invited successfully. Invitation email sent.",
+			};
+		} catch (error) {
+			console.error("Error inviting user:", error);
+			throw error;
+		}
+	},
+
+	/**
+	 * Create a new user - Complete creation flow (auth user + profile)
 	 */
 	createUser: async ({
 		email,
@@ -399,40 +490,63 @@ export const userManagementService = {
 		phone?: string;
 	}) => {
 		try {
-			// This should only be used server-side with service role
-			const serviceClient = getServiceClient();
-
-			// Create the user in auth.users
-			const { data: authData, error: authError } =
-				await serviceClient.auth.admin.createUser({
-					email,
-					password,
-					email_confirm: true, // Auto-confirm the email
-				});
+			// Step 1: Create the auth user via Edge Function
+			const { data: authData, error: authError } = await supabase.functions.invoke(
+				"admin-auth-operations",
+				{
+					body: {
+						operation: "createUser",
+						email,
+						password,
+						userData: {
+							name,
+							role: role || "faculty",
+							department,
+							employee_id: employeeId,
+							phone,
+						},
+					},
+				}
+			);
 
 			if (authError) throw authError;
 
-			// Create the profile
-			const { data: profileData, error: profileError } = await serviceClient
-				.from("profiles")
-				.insert({
-					id: authData.user.id,
-					email,
-					name,
-					role: role || "faculty",
-					department,
-					employee_id: employeeId,
-					phone,
-					is_active: true,
-				});
-
-			if (profileError) {
-				// If profile creation fails, attempt to clean up the auth user
-				await serviceClient.auth.admin.deleteUser(authData.user.id);
-				throw profileError;
+			if (!authData?.success) {
+				throw new Error(authData?.error || "Failed to create auth user");
 			}
 
-			return authData.user;
+			// Step 2: Create the profile via database function
+			// Use the actual user ID from the auth operation if available
+			const actualUserId = authData?.data?.user?.id;
+			
+			const { data: profileData, error: profileError } = await supabase.rpc(
+				"admin_create_user",
+				{
+					user_email: email,
+					user_password: password,
+					user_name: name,
+					user_role: role || "faculty",
+					user_department: department,
+					user_employee_id: employeeId,
+					user_phone: phone,
+				}
+			);
+
+			if (profileError) throw profileError;
+
+			// Update the profile with the real auth user ID if we have it
+			if (actualUserId && profileData?.user_id !== actualUserId) {
+				await supabase
+					.from("profiles")
+					.update({ id: actualUserId })
+					.eq("email", email);
+			}
+
+			return { 
+				success: true, 
+				user: authData.data?.user, 
+				profile: profileData 
+			};
 		} catch (error) {
 			console.error("Error creating user:", error);
 			throw error;
