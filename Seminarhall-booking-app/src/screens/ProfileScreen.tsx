@@ -69,13 +69,28 @@ export default function ProfileScreen({ navigation }: Props) {
 		},
 	];
 
-	// Add super admin option if user has super_admin role
+	// Add admin options based on user role
 	if (user?.role === "super_admin") {
+		menuItems.unshift(
+			{
+				icon: "shield-outline",
+				title: "Super Admin Dashboard",
+				description: "Manage users and system settings",
+				action: () => navigation.navigate("SuperAdmin"),
+			},
+			{
+				icon: "business-outline",
+				title: "Admin Panel",
+				description: "Manage halls, bookings and reports",
+				action: () => navigation.navigate("AdminTabs"),
+			}
+		);
+	} else if (user?.role === "admin") {
 		menuItems.unshift({
-			icon: "shield-outline",
-			title: "Admin Dashboard",
-			description: "Manage users and system settings",
-			action: () => navigation.navigate("SuperAdmin"),
+			icon: "business-outline",
+			title: "Admin Panel",
+			description: "Manage halls, bookings and reports",
+			action: () => navigation.navigate("AdminTabs"),
 		});
 	}
 

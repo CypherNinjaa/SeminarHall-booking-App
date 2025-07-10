@@ -17,10 +17,14 @@ import SignupScreen from "../screens/SignupScreen";
 import SuperAdminScreen from "../screens/SuperAdminScreen";
 import LoadingScreen from "../components/LoadingScreen";
 
+// Import admin navigation
+import AdminTabNavigator from "./AdminTabNavigator";
+
 export type RootStackParamList = {
 	Login: undefined;
 	Signup: undefined;
 	MainTabs: undefined;
+	AdminTabs: undefined;
 	SuperAdmin: undefined;
 	HallDetails: { hallId: string };
 	Booking: { hallId: string };
@@ -92,12 +96,37 @@ export default function AppNavigator() {
 						{isAuthenticated ? (
 							// Authenticated screens
 							<>
-								<Stack.Screen name="MainTabs" component={MainTabNavigator} />
-								{(user?.role === "super_admin" || user?.role === "admin") && (
-									<Stack.Screen
-										name="SuperAdmin"
-										component={SuperAdminScreen}
-									/>
+								{user?.role === "super_admin" ? (
+									// Super Admin gets access to both admin tabs and super admin screen
+									<>
+										<Stack.Screen
+											name="AdminTabs"
+											component={AdminTabNavigator}
+										/>
+										<Stack.Screen
+											name="SuperAdmin"
+											component={SuperAdminScreen}
+										/>
+										<Stack.Screen
+											name="MainTabs"
+											component={MainTabNavigator}
+										/>
+									</>
+								) : user?.role === "admin" ? (
+									// Regular Admin gets admin tabs only
+									<>
+										<Stack.Screen
+											name="AdminTabs"
+											component={AdminTabNavigator}
+										/>
+										<Stack.Screen
+											name="MainTabs"
+											component={MainTabNavigator}
+										/>
+									</>
+								) : (
+									// Faculty gets normal tabs only
+									<Stack.Screen name="MainTabs" component={MainTabNavigator} />
 								)}
 							</>
 						) : (
