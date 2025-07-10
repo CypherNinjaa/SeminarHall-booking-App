@@ -1,3 +1,12 @@
 {
-	"cmake.sourceDirectory": "D:/github/SeminarHall-booking-App/Seminarhall-booking-app/node_modules/expo-modules-core/android"
+	"cmake.sourceDirectory": "D:/github/SeminarHall-booking-App/Seminarhall-booking-app/node_modules/expo-modules-core/android",
+	"deno.enable": true,
+	"deno.enablePaths": ["./supabase/functions"],
+	"typescript.preferences.includePackageJsonAutoImports": "off",
+	"[typescript]": {
+		"editor.defaultFormatter": "denoland.vscode-deno"
+	},
+	"files.associations": {
+		"supabase/functions/**/*.ts": "typescript"
+	}
 }
