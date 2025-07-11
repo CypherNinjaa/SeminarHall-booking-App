@@ -448,9 +448,7 @@ export default function HallManagementScreen({
 
 	// Handle hall actions
 	const handleEditHall = (hall: Hall) => {
-		// TODO: Navigate to edit hall screen
-		console.log("Edit hall:", hall.id);
-		Alert.alert("Edit Hall", `Edit ${hall.name} - Coming soon!`);
+		navigation.navigate("AddEditHall", { hallId: hall.id, hall });
 	};
 
 	const handleToggleHallStatus = async (hall: Hall) => {
@@ -491,15 +489,11 @@ export default function HallManagementScreen({
 	};
 
 	const handleViewHallDetails = (hall: Hall) => {
-		// TODO: Navigate to hall details screen
-		console.log("View hall details:", hall.id);
-		Alert.alert("Hall Details", `View details for ${hall.name} - Coming soon!`);
+		navigation.navigate("HallDetails", { hallId: hall.id, hall });
 	};
 
 	const handleAddHall = () => {
-		// TODO: Navigate to add hall screen
-		console.log("Add new hall");
-		Alert.alert("Add Hall", "Add new hall functionality - Coming soon!");
+		navigation.navigate("AddEditHall");
 	};
 
 	const handleClearFilters = () => {
@@ -542,6 +536,7 @@ export default function HallManagementScreen({
 					<TouchableOpacity
 						style={styles.backButton}
 						onPress={() => navigation.goBack()}
+						activeOpacity={0.7}
 					>
 						<Ionicons
 							name="arrow-back"
@@ -552,9 +547,7 @@ export default function HallManagementScreen({
 					<Text style={[styles.headerTitle, isDark && styles.headerTitleDark]}>
 						Hall Management
 					</Text>
-					<TouchableOpacity style={styles.addButton} onPress={handleAddHall}>
-						<Ionicons name="add" size={24} color={Colors.primary[500]} />
-					</TouchableOpacity>
+					<View style={styles.headerSpacer} />
 				</View>
 			</View>
 
@@ -585,7 +578,7 @@ export default function HallManagementScreen({
 							onViewDetails={handleViewHallDetails}
 						/>
 					)}
-					contentContainerStyle={styles.listContent}
+					contentContainerStyle={[styles.listContent, { paddingBottom: 80 }]}
 					ListEmptyComponent={renderEmptyState}
 					refreshControl={
 						<RefreshControl
@@ -598,6 +591,15 @@ export default function HallManagementScreen({
 					showsVerticalScrollIndicator={false}
 				/>
 			)}
+
+			{/* Floating Action Button */}
+			<TouchableOpacity
+				style={[styles.fabButton, isDark && styles.fabButtonDark]}
+				onPress={handleAddHall}
+				activeOpacity={0.8}
+			>
+				<Ionicons name="add" size={28} color="white" />
+			</TouchableOpacity>
 		</SafeAreaView>
 	);
 }
@@ -623,7 +625,11 @@ const styles = StyleSheet.create({
 	},
 	backButton: {
 		padding: Spacing[2],
-		marginLeft: -Spacing[2],
+		justifyContent: "center",
+		alignItems: "center",
+		marginRight: Spacing[2],
+		borderRadius: BorderRadius.md,
+		backgroundColor: "transparent",
 	},
 	headerTitle: {
 		flex: 1,
@@ -637,7 +643,31 @@ const styles = StyleSheet.create({
 	},
 	addButton: {
 		padding: Spacing[2],
-		marginRight: -Spacing[2],
+		justifyContent: "center",
+		alignItems: "center",
+		marginLeft: Spacing[2],
+		borderRadius: BorderRadius.md,
+		backgroundColor: Colors.primary[50],
+	},
+	headerSpacer: {
+		width: 48, // Same width as back button to center title
+	},
+	// Floating Action Button styles
+	fabButton: {
+		position: "absolute",
+		bottom: Spacing[6],
+		right: Spacing[5],
+		width: 56,
+		height: 56,
+		borderRadius: 28,
+		backgroundColor: Colors.primary[500],
+		alignItems: "center",
+		justifyContent: "center",
+		...Shadows.lg,
+		elevation: 8,
+	},
+	fabButtonDark: {
+		backgroundColor: Colors.primary[600],
 	},
 	filtersContainer: {
 		backgroundColor: "white",
