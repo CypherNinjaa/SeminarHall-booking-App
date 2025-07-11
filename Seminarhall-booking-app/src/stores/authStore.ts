@@ -23,6 +23,7 @@ interface AuthState {
 	isAuthenticated: boolean;
 	isLoading: boolean;
 	error: string | null;
+	authListenerSet: boolean;
 
 	// Actions
 	setUser: (user: User | null) => void;
@@ -45,6 +46,7 @@ export const useAuthStore = create<AuthState>()(
 			isAuthenticated: false,
 			isLoading: false,
 			error: null,
+			authListenerSet: false,
 
 			// Actions
 			setUser: (user) =>
@@ -62,6 +64,15 @@ export const useAuthStore = create<AuthState>()(
 
 			// Set up auth state listener
 			setupAuthListener: () => {
+				const { authListenerSet } = get();
+				if (authListenerSet) {
+					console.log("Auth listener already set up, skipping");
+					return;
+				}
+
+				console.log("Setting up auth listener");
+				set({ authListenerSet: true });
+
 				supabase.auth.onAuthStateChange(async (event, session) => {
 					console.log("Auth state changed:", event, session?.user?.id);
 

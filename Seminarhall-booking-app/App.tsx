@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Alert } from "react-native";
 import AppNavigator from "./src/navigation/AppNavigator";
@@ -11,8 +11,17 @@ import {
 
 export default function App() {
 	const { initializeAuth, setupAuthListener } = useAuthStore();
+	const initializationRef = useRef(false);
 
 	useEffect(() => {
+		if (initializationRef.current) {
+			console.log("App already initialized, skipping");
+			return;
+		}
+
+		initializationRef.current = true;
+		console.log("Initializing app...");
+
 		const initializeApp = async () => {
 			try {
 				// Validate environment variables
@@ -51,7 +60,7 @@ export default function App() {
 		};
 
 		initializeApp();
-	}, [initializeAuth, setupAuthListener]);
+	}, []); // Empty dependency array since these functions are stable
 
 	return (
 		<GestureHandlerRootView style={{ flex: 1 }}>

@@ -409,7 +409,7 @@ export default function AdminDashboardScreen({
 			icon: "add-circle-outline",
 			color: Colors.primary[500],
 			onPress: () => {
-				navigation.navigate("AdminTabs");
+				navigation.navigate("AddEditHall");
 			},
 		},
 		{

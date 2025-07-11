@@ -159,14 +159,19 @@ class HallManagementService {
         throw error;
       }
 
-      // Log the activity using the database function
-      await supabase.rpc('log_admin_action', {
-        p_action: 'hall_created',
-        p_target_type: 'hall',
-        p_target_id: data.id,
-        p_new_values: data,
-        p_notes: `Created hall: ${data.name}`,
-      });
+      // Log the activity using the database function (optional)
+      try {
+        await supabase.rpc('log_admin_action', {
+          p_action: 'hall_created',
+          p_target_type: 'hall',
+          p_target_id: data.id,
+          p_new_values: data,
+          p_notes: `Created hall: ${data.name}`,
+        });
+      } catch (logError) {
+        // Ignore logging errors - don't fail the main operation
+        console.warn('Failed to log admin action:', logError);
+      }
 
       return data;
     } catch (error) {
@@ -194,15 +199,20 @@ class HallManagementService {
         throw error;
       }
 
-      // Log the activity using the database function
-      await supabase.rpc('log_admin_action', {
-        p_action: 'hall_updated',
-        p_target_type: 'hall',
-        p_target_id: id,
-        p_old_values: currentHall,
-        p_new_values: data,
-        p_notes: `Updated hall: ${data.name}`,
-      });
+      // Log the activity using the database function (optional)
+      try {
+        await supabase.rpc('log_admin_action', {
+          p_action: 'hall_updated',
+          p_target_type: 'hall',
+          p_target_id: id,
+          p_old_values: currentHall,
+          p_new_values: data,
+          p_notes: `Updated hall: ${data.name}`,
+        });
+      } catch (logError) {
+        // Ignore logging errors - don't fail the main operation
+        console.warn('Failed to log admin action:', logError);
+      }
 
       return data;
     } catch (error) {
