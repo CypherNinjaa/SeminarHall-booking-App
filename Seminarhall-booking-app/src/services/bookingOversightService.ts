@@ -8,14 +8,18 @@ export interface BookingDetails {
   user_email: string;
   purpose: string;
   description?: string;
-  date: string;
+  booking_date: string; // DDMMYYYY format
   start_time: string;
   end_time: string;
+  duration_minutes: number;
+  buffer_start: string;
+  buffer_end: string;
   status: 'pending' | 'approved' | 'rejected' | 'cancelled' | 'completed';
   priority: 'low' | 'medium' | 'high';
   equipment_needed: string[];
   attendees_count: number;
   special_requirements?: string;
+  auto_approved: boolean;
   approved_by?: string;
   approved_at?: string;
   rejected_reason?: string;
@@ -39,7 +43,7 @@ class BookingOversightService {
     try {
       // First, get bookings without joins
       let query = supabase
-        .from('bookings')
+        .from('smart_bookings')
         .select('*')
         .order('created_at', { ascending: false });
 
@@ -68,7 +72,12 @@ class BookingOversightService {
             startDate = new Date(0);
         }
 
-        query = query.gte('date', startDate.toISOString().split('T')[0]);
+        // Convert date to DDMMYYYY format for comparison
+        const dateStr = startDate.toISOString().split('T')[0]; // YYYY-MM-DD
+        const [year, month, day] = dateStr.split('-');
+        const ddmmyyyy = `${day}${month}${year}`;
+        
+        query = query.gte('booking_date', ddmmyyyy);
       }
 
       // Apply hall filter
@@ -125,14 +134,18 @@ class BookingOversightService {
           user_email: profile?.email || '',
           purpose: booking.purpose,
           description: booking.description,
-          date: booking.date,
+          booking_date: booking.booking_date, // DDMMYYYY format
           start_time: booking.start_time,
           end_time: booking.end_time,
+          duration_minutes: booking.duration_minutes || 0,
+          buffer_start: booking.buffer_start || booking.start_time,
+          buffer_end: booking.buffer_end || booking.end_time,
           status: booking.status,
           priority: booking.priority || 'medium',
           equipment_needed: booking.equipment_needed || [],
           attendees_count: booking.attendees_count || 0,
           special_requirements: booking.special_requirements,
+          auto_approved: booking.auto_approved || false,
           approved_by: booking.approved_by,
           approved_at: booking.approved_at,
           rejected_reason: booking.rejected_reason,
@@ -273,14 +286,18 @@ class BookingOversightService {
           user_email: profile?.email || '',
           purpose: booking.purpose,
           description: booking.description,
-          date: booking.date,
+          booking_date: booking.booking_date, // DDMMYYYY format
           start_time: booking.start_time,
           end_time: booking.end_time,
+          duration_minutes: booking.duration_minutes || 0,
+          buffer_start: booking.buffer_start || booking.start_time,
+          buffer_end: booking.buffer_end || booking.end_time,
           status: booking.status,
           priority: booking.priority || 'medium',
           equipment_needed: booking.equipment_needed || [],
           attendees_count: booking.attendees_count || 0,
           special_requirements: booking.special_requirements,
+          auto_approved: booking.auto_approved || false,
           approved_by: booking.approved_by,
           approved_at: booking.approved_at,
           rejected_reason: booking.rejected_reason,
@@ -305,7 +322,7 @@ class BookingOversightService {
   ): Promise<void> {
     try {
       const { error } = await supabase
-        .from('bookings')
+        .from('smart_bookings')
         .update({
           status,
           admin_notes: adminNotes,
@@ -336,7 +353,7 @@ class BookingOversightService {
   async getBookingById(bookingId: string): Promise<BookingDetails | null> {
     try {
       const { data: booking, error } = await supabase
-        .from('bookings')
+        .from('smart_bookings')
         .select('*')
         .eq('id', bookingId)
         .single();
@@ -365,14 +382,18 @@ class BookingOversightService {
         user_email: profile?.email || '',
         purpose: booking.purpose,
         description: booking.description,
-        date: booking.date,
+        booking_date: booking.booking_date, // DDMMYYYY format
         start_time: booking.start_time,
         end_time: booking.end_time,
+        duration_minutes: booking.duration_minutes || 0,
+        buffer_start: booking.buffer_start || booking.start_time,
+        buffer_end: booking.buffer_end || booking.end_time,
         status: booking.status,
         priority: booking.priority || 'medium',
         equipment_needed: booking.equipment_needed || [],
         attendees_count: booking.attendees_count || 0,
         special_requirements: booking.special_requirements,
+        auto_approved: booking.auto_approved || false,
         approved_by: booking.approved_by,
         approved_at: booking.approved_at,
         rejected_reason: booking.rejected_reason,
@@ -421,7 +442,7 @@ class BookingOversightService {
     try {
       // Search in booking purpose and description
       const { data: bookingsData, error } = await supabase
-        .from('bookings')
+        .from('smart_bookings')
         .select('*')
         .or(`purpose.ilike.%${query}%,description.ilike.%${query}%`)
         .order('created_at', { ascending: false });
@@ -467,14 +488,18 @@ class BookingOversightService {
           user_email: profile?.email || '',
           purpose: booking.purpose,
           description: booking.description,
-          date: booking.date,
+          booking_date: booking.booking_date, // DDMMYYYY format
           start_time: booking.start_time,
           end_time: booking.end_time,
+          duration_minutes: booking.duration_minutes || 0,
+          buffer_start: booking.buffer_start || booking.start_time,
+          buffer_end: booking.buffer_end || booking.end_time,
           status: booking.status,
           priority: booking.priority || 'medium',
           equipment_needed: booking.equipment_needed || [],
           attendees_count: booking.attendees_count || 0,
           special_requirements: booking.special_requirements,
+          auto_approved: booking.auto_approved || false,
           approved_by: booking.approved_by,
           approved_at: booking.approved_at,
           rejected_reason: booking.rejected_reason,
