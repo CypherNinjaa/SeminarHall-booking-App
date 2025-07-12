@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import {
 	View,
 	Text,
@@ -9,6 +9,9 @@ import {
 	Animated,
 	Dimensions,
 	Platform,
+	RefreshControl,
+	ActivityIndicator,
+	Alert,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { LinearGradient } from "expo-linear-gradient";
@@ -17,6 +20,8 @@ import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../contexts/ThemeContext";
 import { getThemeColors } from "../utils/themeUtils";
+import { useAuthStore } from "../stores/authStore";
+import { useFocusEffect } from "@react-navigation/native";
 import {
 	Colors,
 	Typography,
@@ -24,61 +29,92 @@ import {
 	BorderRadius,
 	Shadows,
 } from "../constants/theme";
+import { hallManagementService, Hall } from "../services/hallManagementService";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
-// Amity University Patna - Only Two Seminar Halls
-const amityHalls = [
-	{
-		id: "block-a",
-		name: "Block-A",
-		fullName: "Seminar Hall Block-A",
-		capacity: 120,
-		location: "Academic Block A, Ground Floor",
-		amenities: [
-			"Smart Projector",
-			"Central AC",
-			"WiFi",
-			"Microphone",
-			"Whiteboard",
-		],
-		availability: "Available",
-		todayBookings: 2,
-		weeklyBookings: 8,
-		description: "Main seminar hall for academic conferences",
-		icon: "business-outline",
-		statusColor: Colors.success.main,
-	},
-	{
-		id: "block-b",
-		name: "Block-B",
-		fullName: "Seminar Hall Block-B",
-		capacity: 80,
-		location: "Academic Block B, First Floor",
-		amenities: [
-			"Digital Display",
-			"Climate Control",
-			"WiFi",
-			"Wireless Mic",
-			"Interactive Board",
-		],
-		availability: "Busy",
-		todayBookings: 4,
-		weeklyBookings: 15,
-		description: "Compact hall perfect for workshops",
-		icon: "school-outline",
-		statusColor: Colors.warning.main,
-	},
-];
+interface HallCardData extends Hall {
+	statusColor: string;
+	icon: string;
+}
 
-export default function HallListScreen() {
+export default function HallListScreen({ navigation }: any) {
 	const { isDark, toggleTheme } = useTheme();
+	const { user, isAuthenticated } = useAuthStore();
 	const themeColors = getThemeColors(isDark);
+
+	// State for dynamic data
+	const [halls, setHalls] = useState<HallCardData[]>([]);
+	const [loading, setLoading] = useState(true);
+	const [refreshing, setRefreshing] = useState(false);
+	const [stats, setStats] = useState({
+		availableHalls: 0,
+		totalBookings: 0,
+		busyHalls: 0,
+	});
 
 	// Animation refs
 	const fadeInAnim = useRef(new Animated.Value(0)).current;
 	const slideInAnim = useRef(new Animated.Value(50)).current;
-	const headerAnim = useRef(new Animated.Value(-50)).current; // Reduced from -100 for better positioning
+	const headerAnim = useRef(new Animated.Value(-50)).current;
+
+	// Data fetching functions
+	const fetchHalls = useCallback(async (showLoading = true) => {
+		try {
+			if (showLoading) setLoading(true);
+
+			const hallsData = await hallManagementService.getAllHalls({
+				is_active: true,
+			});
+
+			// Transform halls data to match UI requirements
+			const transformedHalls: HallCardData[] = hallsData.map((hall, index) => ({
+				...hall,
+				// Add UI-specific properties
+				statusColor: hall.is_maintenance
+					? Colors.error.main
+					: hall.is_active
+					? Colors.success.main
+					: Colors.warning.main,
+				icon: index % 2 === 0 ? "business-outline" : "school-outline", // Alternate icons
+			}));
+
+			setHalls(transformedHalls);
+
+			// Calculate stats
+			const availableHalls = transformedHalls.filter(
+				(h) => h.is_active && !h.is_maintenance
+			).length;
+			const busyHalls = transformedHalls.filter((h) => h.is_maintenance).length;
+
+			setStats({
+				availableHalls,
+				totalBookings: 6, // This would come from booking service in real app
+				busyHalls,
+			});
+		} catch (error) {
+			console.error("Error fetching halls:", error);
+			Alert.alert("Error", "Failed to load halls. Please try again.", [
+				{ text: "Retry", onPress: () => fetchHalls() },
+			]);
+		} finally {
+			setLoading(false);
+			setRefreshing(false);
+		}
+	}, []);
+
+	// Refresh function for pull-to-refresh
+	const onRefresh = useCallback(() => {
+		setRefreshing(true);
+		fetchHalls(false);
+	}, [fetchHalls]);
+
+	// Load data when screen is focused
+	useFocusEffect(
+		useCallback(() => {
+			fetchHalls();
+		}, [fetchHalls])
+	);
 
 	useEffect(() => {
 		// Entrance animations - same as HomeScreen
@@ -101,14 +137,52 @@ export default function HallListScreen() {
 		]).start();
 	}, []);
 
-	const handleHallPress = (hall: any) => {
+	const handleHallPress = (hall: HallCardData) => {
 		Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-		// TODO: Navigate to hall details
+
+		// Check if user has admin privileges for editing
+		if (
+			isAuthenticated &&
+			user &&
+			["admin", "super_admin"].includes(user.role)
+		) {
+			// Navigate to edit hall
+			navigation.navigate("AddEditHall", {
+				hallId: hall.id,
+				hall: hall,
+			});
+		} else {
+			// Show hall details for regular users
+			Alert.alert(
+				hall.name,
+				`Capacity: ${hall.capacity} people\nLocation: ${
+					hall.location
+				}\n\nEquipment: ${hall.equipment.join(
+					", "
+				)}\n\nAmenities: ${hall.amenities.join(", ")}`,
+				[{ text: "OK" }]
+			);
+		}
 	};
 
-	const handleBookPress = (hall: any) => {
+	const handleBookPress = (hall: HallCardData) => {
 		Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-		// TODO: Navigate to booking
+		// TODO: Navigate to booking screen
+		Alert.alert("Booking", `Book ${hall.name}?`, [
+			{ text: "Cancel", style: "cancel" },
+			{
+				text: "Book Now",
+				onPress: () => {
+					// Navigate to booking screen
+					navigation.navigate("Booking", { hallId: hall.id });
+				},
+			},
+		]);
+	};
+
+	const handleAddNewHall = () => {
+		Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+		navigation.navigate("AddEditHall", {});
 	};
 
 	const toggleThemeWithHaptic = () => {
@@ -136,25 +210,46 @@ export default function HallListScreen() {
 							{ color: themeColors.text.secondary },
 						]}
 					>
-						Amity University Patna • Internal Faculty Only
+						Amity University Patna • {halls.length} Halls Available
 					</Text>
 				</View>
 
-				{/* Theme Toggle Button - Fixed positioning */}
-				<TouchableOpacity
-					onPress={toggleThemeWithHaptic}
-					style={[styles.themeButton, { backgroundColor: themeColors.card }]}
-					activeOpacity={0.7}
-					hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-					accessibilityLabel="Toggle dark mode"
-					accessibilityRole="button"
-				>
-					<Ionicons
-						name={isDark ? "sunny" : "moon"}
-						size={20}
-						color={themeColors.text.primary}
-					/>
-				</TouchableOpacity>
+				<View style={styles.headerButtons}>
+					{/* Add Hall Button for Admins */}
+					{isAuthenticated &&
+						user &&
+						["admin", "super_admin"].includes(user.role) && (
+							<TouchableOpacity
+								onPress={handleAddNewHall}
+								style={[
+									styles.addButton,
+									{ backgroundColor: Colors.primary[500] },
+								]}
+								activeOpacity={0.7}
+								hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+								accessibilityLabel="Add new hall"
+								accessibilityRole="button"
+							>
+								<Ionicons name="add" size={20} color="white" />
+							</TouchableOpacity>
+						)}
+
+					{/* Theme Toggle Button */}
+					<TouchableOpacity
+						onPress={toggleThemeWithHaptic}
+						style={[styles.themeButton, { backgroundColor: themeColors.card }]}
+						activeOpacity={0.7}
+						hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+						accessibilityLabel="Toggle dark mode"
+						accessibilityRole="button"
+					>
+						<Ionicons
+							name={isDark ? "sunny" : "moon"}
+							size={20}
+							color={themeColors.text.primary}
+						/>
+					</TouchableOpacity>
+				</View>
 			</View>
 		</Animated.View>
 	);
@@ -184,18 +279,13 @@ export default function HallListScreen() {
 							end={{ x: 1, y: 1 }}
 						>
 							<Ionicons name="business" size={24} color="white" />
-							<Text style={styles.statNumber}>
-								{
-									amityHalls.filter((h) => h.availability === "Available")
-										.length
-								}
-							</Text>
+							<Text style={styles.statNumber}>{stats.availableHalls}</Text>
 							<Text style={styles.statLabel}>Available Halls</Text>
 						</LinearGradient>
 					</BlurView>
 				</View>
 
-				{/* Today's Bookings - Exact HomeScreen Green Gradient */}
+				{/* Total Bookings - Exact HomeScreen Green Gradient */}
 				<View style={styles.statCard}>
 					<BlurView
 						intensity={isDark ? 10 : 5}
@@ -209,15 +299,13 @@ export default function HallListScreen() {
 							end={{ x: 1, y: 1 }}
 						>
 							<Ionicons name="calendar" size={24} color="white" />
-							<Text style={styles.statNumber}>
-								{amityHalls.reduce((sum, h) => sum + h.todayBookings, 0)}
-							</Text>
+							<Text style={styles.statNumber}>{stats.totalBookings}</Text>
 							<Text style={styles.statLabel}>This Month</Text>
 						</LinearGradient>
 					</BlurView>
 				</View>
 
-				{/* Busy Halls - Exact HomeScreen Orange Gradient */}
+				{/* Maintenance Halls - Exact HomeScreen Orange Gradient */}
 				<View style={styles.statCard}>
 					<BlurView
 						intensity={isDark ? 10 : 5}
@@ -230,11 +318,9 @@ export default function HallListScreen() {
 							start={{ x: 0, y: 0 }}
 							end={{ x: 1, y: 1 }}
 						>
-							<Ionicons name="time" size={24} color="white" />
-							<Text style={styles.statNumber}>
-								{amityHalls.filter((h) => h.availability === "Busy").length}
-							</Text>
-							<Text style={styles.statLabel}>Pending</Text>
+							<Ionicons name="construct" size={24} color="white" />
+							<Text style={styles.statNumber}>{stats.busyHalls}</Text>
+							<Text style={styles.statLabel}>Maintenance</Text>
 						</LinearGradient>
 					</BlurView>
 				</View>
@@ -242,7 +328,7 @@ export default function HallListScreen() {
 		</Animated.View>
 	);
 
-	const renderHallCard = (hall: any, index: number) => (
+	const renderHallCard = (hall: HallCardData, index: number) => (
 		<Animated.View
 			key={hall.id}
 			style={[
@@ -284,7 +370,7 @@ export default function HallListScreen() {
 				>
 					<LinearGradient
 						colors={
-							hall.availability === "Available"
+							hall.is_active && !hall.is_maintenance
 								? isDark
 									? ["rgba(16,185,129,0.2)", "rgba(5,150,105,0.2)"]
 									: ["rgba(16,185,129,0.1)", "rgba(5,150,105,0.1)"]
@@ -294,7 +380,7 @@ export default function HallListScreen() {
 						}
 						style={styles.hallGradient}
 					>
-						{/* Hall Icon - Exact HomeScreen Style */}
+						{/* Hall Icon */}
 						<View style={styles.hallIcon}>
 							<Ionicons
 								name={hall.icon as any}
@@ -310,15 +396,54 @@ export default function HallListScreen() {
 							{hall.name}
 						</Text>
 
-						{/* Hall Description */}
+						{/* Hall Info */}
 						<Text
 							style={[
 								styles.hallDescription,
 								{ color: themeColors.text.secondary },
 							]}
 						>
-							{hall.description}
+							{hall.capacity} people • {hall.location}
 						</Text>
+
+						{/* Status Badge */}
+						<View
+							style={[
+								styles.statusBadge,
+								{
+									backgroundColor: hall.is_maintenance
+										? Colors.error.main
+										: hall.is_active
+										? Colors.success.main
+										: Colors.warning.main,
+								},
+							]}
+						>
+							<Text style={styles.statusText}>
+								{hall.is_maintenance
+									? "Maintenance"
+									: hall.is_active
+									? "Available"
+									: "Inactive"}
+							</Text>
+						</View>
+
+						{/* Admin Actions */}
+						{isAuthenticated &&
+							user &&
+							["admin", "super_admin"].includes(user.role) && (
+								<TouchableOpacity
+									style={styles.editButton}
+									onPress={() => handleHallPress(hall)}
+									hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+								>
+									<Ionicons
+										name="create-outline"
+										size={16}
+										color={themeColors.text.secondary}
+									/>
+								</TouchableOpacity>
+							)}
 					</LinearGradient>
 				</BlurView>
 			</TouchableOpacity>
@@ -349,6 +474,14 @@ export default function HallListScreen() {
 			<ScrollView
 				contentContainerStyle={styles.scrollContent}
 				showsVerticalScrollIndicator={false}
+				refreshControl={
+					<RefreshControl
+						refreshing={refreshing}
+						onRefresh={onRefresh}
+						tintColor={themeColors.text.primary}
+						colors={[Colors.primary[500]]}
+					/>
+				}
 			>
 				{renderHeader()}
 				{renderStatsCards()}
@@ -366,12 +499,55 @@ export default function HallListScreen() {
 					<Text
 						style={[styles.sectionTitle, { color: themeColors.text.primary }]}
 					>
-						Available Halls
+						{loading ? "Loading Halls..." : `Available Halls (${halls.length})`}
 					</Text>
 
-					<View style={styles.hallGrid}>
-						{amityHalls.map((hall, index) => renderHallCard(hall, index))}
-					</View>
+					{loading ? (
+						<View style={styles.loadingContainer}>
+							<ActivityIndicator size="large" color={Colors.primary[500]} />
+							<Text
+								style={[
+									styles.loadingText,
+									{ color: themeColors.text.secondary },
+								]}
+							>
+								Loading halls...
+							</Text>
+						</View>
+					) : halls.length === 0 ? (
+						<View style={styles.emptyContainer}>
+							<Ionicons
+								name="business-outline"
+								size={64}
+								color={themeColors.text.tertiary}
+							/>
+							<Text
+								style={[
+									styles.emptyText,
+									{ color: themeColors.text.secondary },
+								]}
+							>
+								No halls available
+							</Text>
+							{isAuthenticated &&
+								user &&
+								["admin", "super_admin"].includes(user.role) && (
+									<TouchableOpacity
+										style={[
+											styles.addFirstHallButton,
+											{ backgroundColor: Colors.primary[500] },
+										]}
+										onPress={handleAddNewHall}
+									>
+										<Text style={styles.addFirstHallText}>Add First Hall</Text>
+									</TouchableOpacity>
+								)}
+						</View>
+					) : (
+						<View style={styles.hallGrid}>
+							{halls.map((hall, index) => renderHallCard(hall, index))}
+						</View>
+					)}
 				</Animated.View>
 			</ScrollView>
 		</SafeAreaView>
@@ -410,6 +586,21 @@ const styles = StyleSheet.create({
 	headerTextContainer: {
 		flex: 1,
 		marginRight: Spacing[3], // Space between text and button
+	},
+	headerButtons: {
+		flexDirection: "row",
+		alignItems: "center",
+		gap: Spacing[2],
+	},
+	addButton: {
+		width: 44,
+		height: 44,
+		borderRadius: BorderRadius.xl,
+		justifyContent: "center",
+		alignItems: "center",
+		...Shadows.sm,
+		flexShrink: 0,
+		marginTop: Spacing[1],
 	},
 	headerTitle: {
 		fontSize: Typography.fontSize["2xl"],
@@ -524,5 +715,63 @@ const styles = StyleSheet.create({
 		fontSize: Typography.fontSize.xs,
 		textAlign: "center",
 		opacity: 0.8,
+	},
+	// New styles for dynamic functionality
+	statusBadge: {
+		position: "absolute",
+		top: Spacing[2],
+		right: Spacing[2],
+		paddingHorizontal: Spacing[2],
+		paddingVertical: Spacing[1],
+		borderRadius: BorderRadius.md,
+		minWidth: 60,
+	},
+	statusText: {
+		fontSize: Typography.fontSize.xs,
+		color: "white",
+		fontWeight: Typography.fontWeight.medium as any,
+		textAlign: "center",
+	},
+	editButton: {
+		position: "absolute",
+		bottom: Spacing[2],
+		right: Spacing[2],
+		width: 32,
+		height: 32,
+		borderRadius: 16,
+		backgroundColor: "rgba(255,255,255,0.1)",
+		justifyContent: "center",
+		alignItems: "center",
+	},
+	loadingContainer: {
+		padding: Spacing[8],
+		alignItems: "center",
+		justifyContent: "center",
+	},
+	loadingText: {
+		marginTop: Spacing[4],
+		fontSize: Typography.fontSize.sm,
+		textAlign: "center",
+	},
+	emptyContainer: {
+		padding: Spacing[8],
+		alignItems: "center",
+		justifyContent: "center",
+	},
+	emptyText: {
+		marginTop: Spacing[4],
+		fontSize: Typography.fontSize.base,
+		textAlign: "center",
+	},
+	addFirstHallButton: {
+		marginTop: Spacing[6],
+		paddingHorizontal: Spacing[6],
+		paddingVertical: Spacing[3],
+		borderRadius: BorderRadius.lg,
+	},
+	addFirstHallText: {
+		color: "white",
+		fontSize: Typography.fontSize.sm,
+		fontWeight: Typography.fontWeight.semibold as any,
 	},
 });

@@ -1,10 +1,4 @@
-import React, {
-	useState,
-	useEffect,
-	useMemo,
-	useCallback,
-	useRef,
-} from "react";
+import React, { useState, useEffect } from "react";
 import {
 	View,
 	Text,
@@ -15,61 +9,18 @@ import {
 	TouchableOpacity,
 	Alert,
 	ActivityIndicator,
-	Platform,
 	Switch,
-	KeyboardAvoidingView,
-	findNodeHandle,
 } from "react-native";
-import { StatusBar } from "expo-status-bar";
+import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
-import { StackNavigationProp } from "@react-navigation/stack";
-import { RouteProp } from "@react-navigation/native";
-
-import {
-	Colors,
-	Typography,
-	Spacing,
-	BorderRadius,
-	Shadows,
-} from "../../constants/theme";
 import { useTheme } from "../../contexts/ThemeContext";
-import { RootStackParamList } from "../../navigation/AppNavigator";
+import { useAuthStore } from "../../stores/authStore";
 import {
 	hallManagementService,
 	CreateHallData,
 	UpdateHallData,
-	Hall,
 } from "../../services/hallManagementService";
 
-interface AddEditHallScreenProps {
-	navigation: StackNavigationProp<RootStackParamList, "AddEditHall">;
-	route: RouteProp<RootStackParamList, "AddEditHall">;
-}
-
-interface FormData {
-	name: string;
-	description: string;
-	capacity: string;
-	location: string;
-	floor_number: string;
-	building: string;
-	equipment: string[];
-	amenities: string[];
-	images: string[];
-	is_active: boolean;
-	is_maintenance: boolean;
-	maintenance_notes: string;
-}
-
-interface FormErrors {
-	name?: string;
-	capacity?: string;
-	location?: string;
-	equipment?: string;
-	amenities?: string;
-}
-
-// Predefined equipment and amenities options
 const EQUIPMENT_OPTIONS = [
 	"Projector",
 	"Sound System",
@@ -82,7 +33,6 @@ const EQUIPMENT_OPTIONS = [
 	"Laser Pointer",
 	"Document Camera",
 ];
-
 const AMENITY_OPTIONS = [
 	"Air Conditioning",
 	"WiFi",
@@ -96,578 +46,482 @@ const AMENITY_OPTIONS = [
 	"Security System",
 ];
 
-const AddEditHallScreen: React.FC<AddEditHallScreenProps> = ({
+// TODO: Replace 'any' with proper navigation/route types
+const AddEditHallScreen: React.FC<{ navigation: any; route: any }> = ({
 	navigation,
 	route,
 }) => {
 	const { isDark } = useTheme();
-	const { hallId, hall } = (route.params as any) || {};
+	const { user, isAuthenticated } = useAuthStore();
+	const { hallId, hall } = route.params || {};
 	const isEditing = !!hallId;
 
-	const [loading, setLoading] = useState(false);
+	const [name, setName] = useState("");
+	const [description, setDescription] = useState("");
+	const [capacity, setCapacity] = useState("");
+	const [location, setLocation] = useState("");
+	const [floorNumber, setFloorNumber] = useState("");
+	const [building, setBuilding] = useState("");
+	const [equipment, setEquipment] = useState<string[]>([]);
+	const [amenities, setAmenities] = useState<string[]>([]);
+	const [isActive, setIsActive] = useState(true);
+	const [isMaintenance, setIsMaintenance] = useState(false);
+	const [maintenanceNotes, setMaintenanceNotes] = useState("");
 	const [saving, setSaving] = useState(false);
-	const [formData, setFormData] = useState<FormData>({
-		name: "",
-		description: "",
-		capacity: "",
-		location: "",
-		floor_number: "",
-		building: "",
-		equipment: [],
-		amenities: [],
-		images: [],
-		is_active: true,
-		is_maintenance: false,
-		maintenance_notes: "",
-	});
-	const [errors, setErrors] = useState<FormErrors>({});
 
-	// Create refs for input focus management
-	const inputRefs = useRef<{ [key: string]: TextInput | null }>({});
+	// Check authentication on component mount
+	useEffect(() => {
+		if (!isAuthenticated || !user) {
+			Alert.alert(
+				"Authentication Required",
+				"Please log in to access this feature.",
+				[{ text: "OK", onPress: () => navigation.goBack() }]
+			);
+			return;
+		}
 
-	const setInputRef = useCallback((key: string, ref: TextInput | null) => {
-		inputRefs.current[key] = ref;
-	}, []);
+		// Check if user has admin privileges
+		if (!["admin", "super_admin"].includes(user.role)) {
+			Alert.alert(
+				"Access Denied",
+				"You don't have permission to manage halls.",
+				[{ text: "OK", onPress: () => navigation.goBack() }]
+			);
+			return;
+		}
+	}, [isAuthenticated, user, navigation]);
 
-	// Load hall data if editing
 	useEffect(() => {
 		if (isEditing && hall) {
-			setFormData({
-				name: hall.name || "",
-				description: hall.description || "",
-				capacity: hall.capacity?.toString() || "",
-				location: hall.location || "",
-				floor_number: hall.floor_number?.toString() || "",
-				building: hall.building || "",
-				equipment: hall.equipment || [],
-				amenities: hall.amenities || [],
-				images: hall.images || [],
-				is_active: hall.is_active ?? true,
-				is_maintenance: hall.is_maintenance ?? false,
-				maintenance_notes: hall.maintenance_notes || "",
-			});
+			setName(hall.name || "");
+			setDescription(hall.description || "");
+			setCapacity(hall.capacity?.toString() || "");
+			setLocation(hall.location || "");
+			setFloorNumber(hall.floor_number?.toString() || "");
+			setBuilding(hall.building || "");
+			setEquipment(hall.equipment || []);
+			setAmenities(hall.amenities || []);
+			setIsActive(hall.is_active ?? true);
+			setIsMaintenance(hall.is_maintenance ?? false);
+			setMaintenanceNotes(hall.maintenance_notes || "");
 		}
 	}, [isEditing, hall]);
 
-	// Form validation that sets errors
-	const validateForm = (): boolean => {
-		const newErrors: FormErrors = {};
+	// Show loading or redirect if not authenticated
+	if (!isAuthenticated || !user) {
+		return (
+			<SafeAreaView style={[styles.container, isDark && styles.containerDark]}>
+				<View
+					style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
+				>
+					<ActivityIndicator size="large" color="#007AFF" />
+					<Text style={{ marginTop: 16, color: isDark ? "#fff" : "#222" }}>
+						Checking authentication...
+					</Text>
+				</View>
+			</SafeAreaView>
+		);
+	}
 
-		// Required fields
-		if (!formData.name.trim()) {
-			newErrors.name = "Hall name is required";
-		} else if (formData.name.length < 3) {
-			newErrors.name = "Hall name must be at least 3 characters";
-		}
-
-		if (!formData.capacity.trim()) {
-			newErrors.capacity = "Capacity is required";
-		} else {
-			const capacity = parseInt(formData.capacity);
-			if (isNaN(capacity) || capacity < 1) {
-				newErrors.capacity = "Capacity must be a positive number";
-			} else if (capacity > 1000) {
-				newErrors.capacity = "Capacity cannot exceed 1000";
-			}
-		}
-
-		if (!formData.location.trim()) {
-			newErrors.location = "Location is required";
-		}
-
-		setErrors(newErrors);
-		return Object.keys(newErrors).length === 0;
+	const toggleEquipment = (item: string) => {
+		setEquipment((prev: string[]) =>
+			prev.includes(item) ? prev.filter((i) => i !== item) : [...prev, item]
+		);
+	};
+	const toggleAmenity = (item: string) => {
+		setAmenities((prev: string[]) =>
+			prev.includes(item) ? prev.filter((i) => i !== item) : [...prev, item]
+		);
 	};
 
-	// Validation check without setting errors (for button state)
-	const isFormValid = useMemo(() => {
-		return (
-			formData.name.trim().length >= 3 &&
-			formData.capacity.trim() !== "" &&
-			!isNaN(parseInt(formData.capacity)) &&
-			parseInt(formData.capacity) > 0 &&
-			parseInt(formData.capacity) <= 1000 &&
-			formData.location.trim() !== ""
-		);
-	}, [formData.name, formData.capacity, formData.location]);
-
-	// Handle form submission
 	const handleSubmit = async () => {
-		if (!validateForm()) {
-			Alert.alert("Validation Error", "Please fix the errors and try again");
+		// Double-check authentication before submission
+		if (!isAuthenticated || !user) {
+			Alert.alert("Authentication Error", "Please log in again to continue.");
+			return;
+		}
+
+		if (!["admin", "super_admin"].includes(user.role)) {
+			Alert.alert(
+				"Access Denied",
+				"You don't have permission to perform this action."
+			);
+			return;
+		}
+
+		if (!name.trim() || !capacity.trim() || !location.trim()) {
+			Alert.alert("Validation Error", "Please fill all required fields");
+			return;
+		}
+
+		const capacityNum = parseInt(capacity);
+		if (isNaN(capacityNum) || capacityNum < 1) {
+			Alert.alert("Validation Error", "Please enter a valid capacity number");
 			return;
 		}
 
 		setSaving(true);
 		try {
 			const hallData = {
-				name: formData.name.trim(),
-				description: formData.description.trim() || undefined,
-				capacity: parseInt(formData.capacity),
-				location: formData.location.trim(),
-				floor_number: formData.floor_number
-					? parseInt(formData.floor_number)
-					: undefined,
-				building: formData.building.trim() || undefined,
-				equipment: formData.equipment,
-				amenities: formData.amenities,
-				images: formData.images,
-				is_active: formData.is_active,
-				is_maintenance: formData.is_maintenance,
-				maintenance_notes: formData.maintenance_notes.trim() || undefined,
+				name: name.trim(),
+				description: description.trim() || undefined,
+				capacity: capacityNum,
+				location: location.trim(),
+				floor_number: floorNumber ? parseInt(floorNumber) : undefined,
+				building: building.trim() || undefined,
+				equipment,
+				amenities,
+				is_active: isActive,
+				is_maintenance: isMaintenance,
+				maintenance_notes: maintenanceNotes.trim() || undefined,
 			};
 
 			if (isEditing) {
-				await hallManagementService.updateHall(
-					hallId,
-					hallData as UpdateHallData
-				);
+				await hallManagementService.updateHall(hallId, hallData);
 				Alert.alert("Success", "Hall updated successfully", [
 					{ text: "OK", onPress: () => navigation.goBack() },
 				]);
 			} else {
-				await hallManagementService.createHall(hallData as CreateHallData);
+				await hallManagementService.createHall(hallData);
 				Alert.alert("Success", "Hall created successfully", [
 					{ text: "OK", onPress: () => navigation.goBack() },
 				]);
 			}
-		} catch (error) {
+		} catch (error: any) {
 			console.error("Error saving hall:", error);
-			Alert.alert(
-				"Error",
-				`Failed to ${isEditing ? "update" : "create"} hall. Please try again.`
-			);
+
+			// Provide specific error messages based on the error type
+			let errorMessage = `Failed to ${
+				isEditing ? "update" : "create"
+			} hall. Please try again.`;
+
+			if (error.message) {
+				if (
+					error.message.includes("permissions") ||
+					error.message.includes("Insufficient permissions")
+				) {
+					errorMessage =
+						"You don't have permission to perform this action. Please contact your administrator.";
+				} else if (
+					error.message.includes("authenticated") ||
+					error.message.includes("User not authenticated")
+				) {
+					errorMessage = "Please log in again to continue.";
+				} else if (error.message.includes("violates row-level security")) {
+					errorMessage =
+						"Access denied. Please ensure you have admin privileges.";
+				} else if (
+					error.message.includes("Unable to verify admin permissions")
+				) {
+					errorMessage =
+						"Unable to verify your permissions. Please contact your administrator.";
+				} else {
+					errorMessage = error.message;
+				}
+			}
+
+			Alert.alert("Error", errorMessage);
 		} finally {
 			setSaving(false);
 		}
 	};
 
-	// Toggle equipment selection
-	const toggleEquipment = useCallback((equipment: string) => {
-		setFormData((prev) => ({
-			...prev,
-			equipment: prev.equipment.includes(equipment)
-				? prev.equipment.filter((item) => item !== equipment)
-				: [...prev.equipment, equipment],
-		}));
-	}, []);
-
-	// Toggle amenity selection
-	const toggleAmenity = useCallback((amenity: string) => {
-		setFormData((prev) => ({
-			...prev,
-			amenities: prev.amenities.includes(amenity)
-				? prev.amenities.filter((item) => item !== amenity)
-				: [...prev.amenities, amenity],
-		}));
-	}, []);
-
-	// Create optimized input change handlers
-	const handleNameChange = useCallback((text: string) => {
-		setFormData((prev) => ({ ...prev, name: text }));
-	}, []);
-
-	const handleDescriptionChange = useCallback((text: string) => {
-		setFormData((prev) => ({ ...prev, description: text }));
-	}, []);
-
-	const handleCapacityChange = useCallback((text: string) => {
-		setFormData((prev) => ({ ...prev, capacity: text }));
-	}, []);
-
-	const handleLocationChange = useCallback((text: string) => {
-		setFormData((prev) => ({ ...prev, location: text }));
-	}, []);
-
-	const handleBuildingChange = useCallback((text: string) => {
-		setFormData((prev) => ({ ...prev, building: text }));
-	}, []);
-
-	const handleFloorNumberChange = useCallback((text: string) => {
-		setFormData((prev) => ({ ...prev, floor_number: text }));
-	}, []);
-
-	const handleMaintenanceNotesChange = useCallback((text: string) => {
-		setFormData((prev) => ({ ...prev, maintenance_notes: text }));
-	}, []);
-
-	// Custom input component
-	const FormInput: React.FC<{
-		label: string;
-		value: string;
-		onChangeText: (text: string) => void;
-		placeholder?: string;
-		error?: string;
-		keyboardType?: "default" | "numeric";
-		multiline?: boolean;
-		maxLength?: number;
-		required?: boolean;
-		inputKey?: string;
-		nextInputKey?: string;
-	}> = React.memo(
-		({
-			label,
-			value,
-			onChangeText,
-			placeholder,
-			error,
-			keyboardType = "default",
-			multiline = false,
-			maxLength,
-			required = false,
-			inputKey,
-			nextInputKey,
-		}) => {
-			const inputRef = useRef<TextInput | null>(null);
-			const handleFocus = useCallback(() => {
-				if (inputKey) {
-					setInputRef(inputKey, inputRef.current);
-				}
-				scrollToInput(inputRef.current);
-			}, [inputKey]);
-			const handleSubmitEditing = useCallback(() => {
-				if (nextInputKey && inputRefs.current[nextInputKey]) {
-					inputRefs.current[nextInputKey]?.focus();
-				}
-			}, [nextInputKey]);
-			return (
-				<View style={styles.inputContainer}>
+	return (
+		<SafeAreaView style={[styles.container, isDark && styles.containerDark]}>
+			<View style={[styles.header, isDark && styles.headerDark]}>
+				<TouchableOpacity
+					style={styles.backButton}
+					onPress={() => navigation.goBack()}
+				>
+					<Ionicons
+						name="arrow-back"
+						size={24}
+						color={isDark ? "#fff" : "#222"}
+					/>
+				</TouchableOpacity>
+				<Text style={[styles.headerTitle, isDark && styles.headerTitleDark]}>
+					{isEditing ? "Edit Hall" : "Add New Hall"}
+				</Text>
+				<View style={styles.headerSpacer} />
+			</View>
+			<View style={{ flex: 1 }}>
+				<ScrollView
+					style={{ flex: 1, padding: 24 }}
+					contentContainerStyle={{ paddingBottom: 120 }}
+					keyboardShouldPersistTaps="handled"
+				>
+					{/* ...existing form fields... */}
 					<Text style={[styles.inputLabel, isDark && styles.inputLabelDark]}>
-						{label}
-						{required && <Text style={styles.requiredStar}> *</Text>}
+						Hall Name *
 					</Text>
 					<TextInput
-						ref={inputRef}
-						style={[
-							styles.textInput,
-							isDark && styles.textInputDark,
-							error && styles.textInputError,
-							multiline && styles.textInputMultiline,
-						]}
-						value={value}
-						onChangeText={onChangeText}
-						placeholder={placeholder}
-						placeholderTextColor={
-							isDark ? Colors.dark.text.tertiary : Colors.gray[400]
-						}
-						keyboardType={keyboardType}
-						multiline={multiline}
-						maxLength={maxLength}
-						numberOfLines={multiline ? 3 : 1}
-						autoCorrect={false}
-						autoCapitalize="sentences"
-						returnKeyType={nextInputKey ? "next" : "done"}
-						blurOnSubmit={false}
-						onSubmitEditing={handleSubmitEditing}
-						enablesReturnKeyAutomatically={true}
-						textContentType="none"
-						clearButtonMode="never"
-						spellCheck={false}
-						onFocus={handleFocus}
+						style={[styles.textInput, isDark && styles.textInputDark]}
+						value={name}
+						onChangeText={setName}
+						placeholder="e.g., Conference Room A"
+						placeholderTextColor={isDark ? "#aaa" : "#888"}
 					/>
-					{error && <Text style={styles.errorText}>{error}</Text>}
-				</View>
-			);
-		}
-	);
-
-	// Custom switch component
-	const FormSwitch: React.FC<{
-		label: string;
-		value: boolean;
-		onValueChange: (value: boolean) => void;
-		description?: string;
-	}> = ({ label, value, onValueChange, description }) => (
-		<View style={styles.switchContainer}>
-			<View style={styles.switchLabelContainer}>
-				<Text style={[styles.inputLabel, isDark && styles.inputLabelDark]}>
-					{label}
-				</Text>
-				{description && (
 					<Text
 						style={[
-							styles.switchDescription,
-							isDark && styles.switchDescriptionDark,
+							styles.inputLabel,
+							isDark && styles.inputLabelDark,
+							{ marginTop: 16 },
 						]}
 					>
-						{description}
+						Description
 					</Text>
-				)}
-			</View>
-			<Switch
-				value={value}
-				onValueChange={onValueChange}
-				trackColor={{
-					false: isDark ? Colors.dark.background.secondary : Colors.gray[300],
-					true: Colors.primary[500],
-				}}
-				thumbColor={value ? "white" : Colors.gray[400]}
-			/>
-		</View>
-	);
-
-	// Custom selection component
-	const SelectionGrid: React.FC<{
-		label: string;
-		options: string[];
-		selected: string[];
-		onToggle: (option: string) => void;
-	}> = ({ label, options, selected, onToggle }) => (
-		<View style={styles.selectionContainer}>
-			<Text style={[styles.inputLabel, isDark && styles.inputLabelDark]}>
-				{label}
-			</Text>
-			<View style={styles.selectionGrid}>
-				{options.map((option) => (
-					<TouchableOpacity
-						key={option}
+					<TextInput
 						style={[
-							styles.selectionItem,
-							isDark && styles.selectionItemDark,
-							selected.includes(option) && styles.selectionItemSelected,
+							styles.textInput,
+							styles.textInputMultiline,
+							isDark && styles.textInputDark,
 						]}
-						onPress={() => onToggle(option)}
+						value={description}
+						onChangeText={setDescription}
+						placeholder="Brief description of the hall..."
+						placeholderTextColor={isDark ? "#aaa" : "#888"}
+						multiline
+						numberOfLines={3}
+					/>
+					<Text
+						style={[
+							styles.inputLabel,
+							isDark && styles.inputLabelDark,
+							{ marginTop: 16 },
+						]}
+					>
+						Capacity *
+					</Text>
+					<TextInput
+						style={[styles.textInput, isDark && styles.textInputDark]}
+						value={capacity}
+						onChangeText={setCapacity}
+						placeholder="e.g., 50"
+						placeholderTextColor={isDark ? "#aaa" : "#888"}
+						keyboardType="numeric"
+					/>
+					<Text
+						style={[
+							styles.inputLabel,
+							isDark && styles.inputLabelDark,
+							{ marginTop: 16 },
+						]}
+					>
+						Location *
+					</Text>
+					<TextInput
+						style={[styles.textInput, isDark && styles.textInputDark]}
+						value={location}
+						onChangeText={setLocation}
+						placeholder="e.g., Ground Floor, East Wing"
+						placeholderTextColor={isDark ? "#aaa" : "#888"}
+					/>
+					<Text
+						style={[
+							styles.inputLabel,
+							isDark && styles.inputLabelDark,
+							{ marginTop: 16 },
+						]}
+					>
+						Building
+					</Text>
+					<TextInput
+						style={[styles.textInput, isDark && styles.textInputDark]}
+						value={building}
+						onChangeText={setBuilding}
+						placeholder="e.g., Main Building, Block A"
+						placeholderTextColor={isDark ? "#aaa" : "#888"}
+					/>
+					<Text
+						style={[
+							styles.inputLabel,
+							isDark && styles.inputLabelDark,
+							{ marginTop: 16 },
+						]}
+					>
+						Floor Number
+					</Text>
+					<TextInput
+						style={[styles.textInput, isDark && styles.textInputDark]}
+						value={floorNumber}
+						onChangeText={setFloorNumber}
+						placeholder="e.g., 1, 2, 3..."
+						placeholderTextColor={isDark ? "#aaa" : "#888"}
+						keyboardType="numeric"
+					/>
+					<Text
+						style={[
+							styles.inputLabel,
+							isDark && styles.inputLabelDark,
+							{ marginTop: 16 },
+						]}
+					>
+						Equipment
+					</Text>
+					<View
+						style={{ flexDirection: "row", flexWrap: "wrap", marginTop: 8 }}
+					>
+						{EQUIPMENT_OPTIONS.map((item) => (
+							<TouchableOpacity
+								key={item}
+								style={[
+									styles.selectionItem,
+									isDark && styles.selectionItemDark,
+									equipment.includes(item) && styles.selectionItemSelected,
+								]}
+								onPress={() => toggleEquipment(item)}
+							>
+								<Text
+									style={[
+										styles.selectionItemText,
+										isDark && styles.selectionItemTextDark,
+										equipment.includes(item) &&
+											styles.selectionItemTextSelected,
+									]}
+								>
+									{item}
+								</Text>
+							</TouchableOpacity>
+						))}
+					</View>
+					<Text
+						style={[
+							styles.inputLabel,
+							isDark && styles.inputLabelDark,
+							{ marginTop: 16 },
+						]}
+					>
+						Amenities
+					</Text>
+					<View
+						style={{ flexDirection: "row", flexWrap: "wrap", marginTop: 8 }}
+					>
+						{AMENITY_OPTIONS.map((item) => (
+							<TouchableOpacity
+								key={item}
+								style={[
+									styles.selectionItem,
+									isDark && styles.selectionItemDark,
+									amenities.includes(item) && styles.selectionItemSelected,
+								]}
+								onPress={() => toggleAmenity(item)}
+							>
+								<Text
+									style={[
+										styles.selectionItemText,
+										isDark && styles.selectionItemTextDark,
+										amenities.includes(item) &&
+											styles.selectionItemTextSelected,
+									]}
+								>
+									{item}
+								</Text>
+							</TouchableOpacity>
+						))}
+					</View>
+					<View
+						style={{
+							flexDirection: "row",
+							alignItems: "center",
+							marginTop: 24,
+						}}
 					>
 						<Text
 							style={[
-								styles.selectionItemText,
-								isDark && styles.selectionItemTextDark,
-								selected.includes(option) && styles.selectionItemTextSelected,
+								styles.inputLabel,
+								isDark && styles.inputLabelDark,
+								{ flex: 1 },
 							]}
 						>
-							{option}
+							Active Status
 						</Text>
-						{selected.includes(option) && (
-							<Ionicons name="checkmark" size={16} color="white" />
-						)}
-					</TouchableOpacity>
-				))}
-			</View>
-		</View>
-	);
-
-	// For auto-scrolling to focused input
-	const scrollViewRef = useRef<ScrollView | null>(null);
-
-	const scrollToInput = useCallback((inputRef: TextInput | null) => {
-		if (inputRef && scrollViewRef.current) {
-			setTimeout(() => {
-				const node = findNodeHandle(inputRef);
-				if (node) {
-					scrollViewRef.current?.scrollTo({
-						y: 0,
-						animated: true,
-					});
-				}
-			}, 100);
-		}
-	}, []);
-
-	return (
-		<SafeAreaView style={[styles.container, isDark && styles.containerDark]}>
-			<KeyboardAvoidingView
-				style={{ flex: 1 }}
-				behavior={Platform.OS === "ios" ? "padding" : "height"}
-				enabled
-			>
-				{/* Header */}
-				<View style={[styles.header, isDark && styles.headerDark]}>
-					<TouchableOpacity
-						style={styles.backButton}
-						onPress={() => navigation.goBack()}
+						<Switch
+							value={isActive}
+							onValueChange={setIsActive}
+							trackColor={{ false: isDark ? "#333" : "#ccc", true: "#007AFF" }}
+							thumbColor={isActive ? "white" : "#888"}
+						/>
+					</View>
+					<View
+						style={{
+							flexDirection: "row",
+							alignItems: "center",
+							marginTop: 16,
+						}}
 					>
-						<Ionicons
-							name="arrow-back"
-							size={24}
-							color={isDark ? Colors.dark.text.primary : Colors.gray[800]}
-						/>
-					</TouchableOpacity>
-					<Text style={[styles.headerTitle, isDark && styles.headerTitleDark]}>
-						{isEditing ? "Edit Hall" : "Add New Hall"}
-					</Text>
-					<View style={styles.headerSpacer} />
-				</View>
-				<ScrollView
-					ref={scrollViewRef}
-					style={styles.content}
-					contentContainerStyle={styles.scrollContent}
-					showsVerticalScrollIndicator={false}
-					keyboardShouldPersistTaps="handled"
-					nestedScrollEnabled={true}
-				>
-					{/* Form Content */}
-					{/* Basic Information */}
-					<View style={[styles.section, isDark && styles.sectionDark]}>
 						<Text
-							style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}
+							style={[
+								styles.inputLabel,
+								isDark && styles.inputLabelDark,
+								{ flex: 1 },
+							]}
 						>
-							Basic Information
+							Maintenance Mode
 						</Text>
-
-						<FormInput
-							label="Hall Name"
-							value={formData.name}
-							onChangeText={handleNameChange}
-							placeholder="e.g., Conference Room A"
-							error={errors.name}
-							maxLength={100}
-							required
-							inputKey="name"
-							nextInputKey="description"
-						/>
-
-						<FormInput
-							label="Description"
-							value={formData.description}
-							onChangeText={handleDescriptionChange}
-							placeholder="Brief description of the hall..."
-							multiline
-							maxLength={500}
-							inputKey="description"
-							nextInputKey="capacity"
-						/>
-
-						<FormInput
-							label="Capacity"
-							value={formData.capacity}
-							onChangeText={handleCapacityChange}
-							placeholder="e.g., 50"
-							error={errors.capacity}
-							keyboardType="numeric"
-							required
-							inputKey="capacity"
-							nextInputKey="location"
+						<Switch
+							value={isMaintenance}
+							onValueChange={setIsMaintenance}
+							trackColor={{ false: isDark ? "#333" : "#ccc", true: "#007AFF" }}
+							thumbColor={isMaintenance ? "white" : "#888"}
 						/>
 					</View>
-
-					{/* Location Information */}
-					<View style={[styles.section, isDark && styles.sectionDark]}>
-						<Text
-							style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}
-						>
-							Location Details
-						</Text>
-
-						<FormInput
-							label="Location"
-							value={formData.location}
-							onChangeText={handleLocationChange}
-							placeholder="e.g., Ground Floor, East Wing"
-							error={errors.location}
-							required
-							inputKey="location"
-							nextInputKey="building"
-						/>
-
-						<FormInput
-							label="Building"
-							value={formData.building}
-							onChangeText={handleBuildingChange}
-							placeholder="e.g., Main Building, Block A"
-							inputKey="building"
-							nextInputKey="floor_number"
-						/>
-
-						<FormInput
-							label="Floor Number"
-							value={formData.floor_number}
-							onChangeText={handleFloorNumberChange}
-							placeholder="e.g., 1, 2, 3..."
-							keyboardType="numeric"
-							inputKey="floor_number"
-						/>
-					</View>
-
-					{/* Equipment */}
-					<View style={[styles.section, isDark && styles.sectionDark]}>
-						<SelectionGrid
-							label="Available Equipment"
-							options={EQUIPMENT_OPTIONS}
-							selected={formData.equipment}
-							onToggle={toggleEquipment}
-						/>
-					</View>
-
-					{/* Amenities */}
-					<View style={[styles.section, isDark && styles.sectionDark]}>
-						<SelectionGrid
-							label="Available Amenities"
-							options={AMENITY_OPTIONS}
-							selected={formData.amenities}
-							onToggle={toggleAmenity}
-						/>
-					</View>
-
-					{/* Status Settings */}
-					<View style={[styles.section, isDark && styles.sectionDark]}>
-						<Text
-							style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}
-						>
-							Status Settings
-						</Text>
-
-						<FormSwitch
-							label="Active Status"
-							value={formData.is_active}
-							onValueChange={(value) =>
-								setFormData((prev) => ({ ...prev, is_active: value }))
-							}
-							description="Hall is available for booking when active"
-						/>
-
-						<FormSwitch
-							label="Maintenance Mode"
-							value={formData.is_maintenance}
-							onValueChange={(value) =>
-								setFormData((prev) => ({ ...prev, is_maintenance: value }))
-							}
-							description="Hall is temporarily unavailable for maintenance"
-						/>
-
-						{formData.is_maintenance && (
-							<FormInput
-								label="Maintenance Notes"
-								value={formData.maintenance_notes}
-								onChangeText={handleMaintenanceNotesChange}
+					{isMaintenance && (
+						<View style={{ marginTop: 16 }}>
+							<Text
+								style={[styles.inputLabel, isDark && styles.inputLabelDark]}
+							>
+								Maintenance Notes
+							</Text>
+							<TextInput
+								style={[
+									styles.textInput,
+									styles.textInputMultiline,
+									isDark && styles.textInputDark,
+								]}
+								value={maintenanceNotes}
+								onChangeText={setMaintenanceNotes}
 								placeholder="Describe maintenance requirements..."
+								placeholderTextColor={isDark ? "#aaa" : "#888"}
 								multiline
-								maxLength={300}
-								inputKey="maintenance_notes"
+								numberOfLines={3}
 							/>
-						)}
-					</View>
-
-					{/* Bottom Spacing */}
-					<View style={styles.bottomSpacing} />
+						</View>
+					)}
 				</ScrollView>
-
-				{/* Fixed Bottom Save Button */}
-				<View
-					style={[
-						styles.bottomButtonContainer,
-						isDark && styles.bottomButtonContainerDark,
-					]}
-				>
+				<View style={styles.fixedButtonContainer}>
 					<TouchableOpacity
-						style={[
-							styles.saveBottomButton,
-							(!isFormValid || saving) && styles.saveBottomButtonDisabled,
-						]}
+						style={styles.buttonTouchable}
 						onPress={handleSubmit}
-						disabled={saving || !isFormValid}
-						activeOpacity={0.8}
+						disabled={saving}
+						activeOpacity={0.85}
 					>
-						{saving ? (
-							<ActivityIndicator size="small" color="white" />
-						) : (
-							<Ionicons name="checkmark" size={20} color="white" />
-						)}
-						<Text style={styles.saveBottomButtonText}>
-							{isEditing ? "Update Hall" : "Create Hall"}
-						</Text>
+						<LinearGradient
+							colors={saving ? ["#aaa", "#aaa"] : ["#007AFF", "#0051A8"]}
+							start={{ x: 0, y: 0 }}
+							end={{ x: 1, y: 0 }}
+							style={styles.gradientButton}
+						>
+							{saving ? (
+								<ActivityIndicator
+									size="small"
+									color="white"
+									style={{ marginRight: 8 }}
+								/>
+							) : (
+								<Ionicons
+									name="checkmark"
+									size={22}
+									color="white"
+									style={{ marginRight: 8 }}
+								/>
+							)}
+							<Text style={styles.gradientButtonText}>
+								{isEditing ? "Update Hall" : "Create Hall"}
+							</Text>
+						</LinearGradient>
 					</TouchableOpacity>
 				</View>
-			</KeyboardAvoidingView>
+			</View>
 		</SafeAreaView>
 	);
 };
@@ -675,204 +529,160 @@ const AddEditHallScreen: React.FC<AddEditHallScreenProps> = ({
 const styles = StyleSheet.create({
 	container: {
 		flex: 1,
-		backgroundColor: Colors.gray[50],
+		backgroundColor: "#f8f8f8",
 	},
 	containerDark: {
-		backgroundColor: Colors.dark.background.primary,
+		backgroundColor: "#181a20",
 	},
 	header: {
 		flexDirection: "row",
 		alignItems: "center",
 		justifyContent: "space-between",
-		paddingHorizontal: Spacing[5],
-		paddingVertical: Spacing[3],
+		paddingHorizontal: 20,
+		paddingVertical: 16,
 		backgroundColor: "white",
 		borderBottomWidth: 1,
-		borderBottomColor: Colors.gray[200],
-		...Shadows.sm,
+		borderBottomColor: "#eee",
 	},
 	headerDark: {
-		backgroundColor: Colors.dark.background.secondary,
-		borderBottomColor: Colors.dark.border.main,
+		backgroundColor: "#23242a",
+		borderBottomColor: "#333",
 	},
 	backButton: {
-		padding: Spacing[2],
+		padding: 8,
 	},
 	headerTitle: {
-		fontSize: Typography.fontSize.lg,
-		fontWeight: Typography.fontWeight.semibold,
-		color: Colors.gray[800],
+		fontSize: 20,
+		fontWeight: "600",
+		color: "#222",
 		flex: 1,
 		textAlign: "center",
-		marginHorizontal: Spacing[4],
+		marginHorizontal: 16,
 	},
 	headerTitleDark: {
-		color: Colors.dark.text.primary,
+		color: "#fff",
 	},
 	headerSpacer: {
 		width: 60,
 	},
-	content: {
-		flex: 1,
-		backgroundColor: "transparent",
-	},
-	scrollContent: {
-		paddingBottom: 120,
-		minHeight: "100%",
-	},
-	section: {
-		backgroundColor: "white",
-		marginHorizontal: Spacing[4],
-		marginTop: Spacing[4],
-		padding: Spacing[4],
-		borderRadius: BorderRadius.lg,
-		...Shadows.sm,
-	},
-	sectionDark: {
-		backgroundColor: Colors.dark.background.secondary,
-	},
-	sectionTitle: {
-		fontSize: Typography.fontSize.lg,
-		fontWeight: Typography.fontWeight.semibold,
-		color: Colors.gray[800],
-		marginBottom: Spacing[4],
-	},
-	sectionTitleDark: {
-		color: Colors.dark.text.primary,
-	},
-	inputContainer: {
-		marginBottom: Spacing[4],
-	},
 	inputLabel: {
-		fontSize: Typography.fontSize.sm,
-		fontWeight: Typography.fontWeight.medium,
-		color: Colors.gray[700],
-		marginBottom: Spacing[2],
+		fontSize: 14,
+		fontWeight: "500",
+		color: "#444",
+		marginBottom: 6,
 	},
 	inputLabelDark: {
-		color: Colors.dark.text.secondary,
-	},
-	requiredStar: {
-		color: Colors.error.main,
+		color: "#ccc",
 	},
 	textInput: {
 		borderWidth: 1,
-		borderColor: Colors.gray[300],
-		borderRadius: BorderRadius.md,
-		paddingHorizontal: Spacing[4],
-		paddingVertical: Spacing[3],
+		borderColor: "#ccc",
+		borderRadius: 8,
+		paddingHorizontal: 16,
+		paddingVertical: 12,
 		fontSize: 16,
-		color: Colors.gray[800],
+		color: "#222",
 		backgroundColor: "white",
 		minHeight: 48,
 		textAlignVertical: "center",
 	},
 	textInputDark: {
-		borderColor: Colors.dark.border.main,
-		backgroundColor: Colors.dark.background.tertiary,
-		color: Colors.dark.text.primary,
-	},
-	textInputError: {
-		borderColor: Colors.error.main,
+		borderColor: "#444",
+		backgroundColor: "#23242a",
+		color: "#fff",
 	},
 	textInputMultiline: {
 		height: 80,
 		textAlignVertical: "top",
 	},
-	errorText: {
-		fontSize: Typography.fontSize.xs,
-		color: Colors.error.main,
-		marginTop: Spacing[1],
-	},
-	switchContainer: {
-		flexDirection: "row",
-		alignItems: "center",
-		justifyContent: "space-between",
-		paddingVertical: Spacing[3],
-	},
-	switchLabelContainer: {
-		flex: 1,
-		marginRight: Spacing[4],
-	},
-	switchDescription: {
-		fontSize: Typography.fontSize.xs,
-		color: Colors.gray[600],
-		marginTop: Spacing[1],
-	},
-	switchDescriptionDark: {
-		color: Colors.dark.text.tertiary,
-	},
-	selectionContainer: {
-		marginBottom: Spacing[4],
-	},
-	selectionGrid: {
-		flexDirection: "row",
-		flexWrap: "wrap",
-		marginTop: Spacing[3],
-	},
 	selectionItem: {
 		flexDirection: "row",
 		alignItems: "center",
-		backgroundColor: Colors.gray[100],
+		backgroundColor: "#f0f0f0",
 		borderWidth: 1,
-		borderColor: Colors.gray[300],
-		borderRadius: BorderRadius.md,
-		paddingHorizontal: Spacing[3],
-		paddingVertical: Spacing[2],
-		margin: Spacing[1],
+		borderColor: "#ccc",
+		borderRadius: 8,
+		paddingHorizontal: 12,
+		paddingVertical: 8,
+		margin: 4,
 	},
 	selectionItemDark: {
-		backgroundColor: Colors.dark.background.tertiary,
-		borderColor: Colors.dark.border.main,
+		backgroundColor: "#23242a",
+		borderColor: "#444",
 	},
 	selectionItemSelected: {
-		backgroundColor: Colors.primary[500],
-		borderColor: Colors.primary[500],
+		backgroundColor: "#007AFF",
+		borderColor: "#007AFF",
 	},
 	selectionItemText: {
-		fontSize: Typography.fontSize.xs,
-		color: Colors.gray[700],
-		marginRight: Spacing[1],
+		fontSize: 13,
+		color: "#444",
+		marginRight: 4,
 	},
 	selectionItemTextDark: {
-		color: Colors.dark.text.secondary,
+		color: "#ccc",
 	},
 	selectionItemTextSelected: {
 		color: "white",
-	},
-	bottomSpacing: {
-		height: Spacing[8],
-	},
-	// Bottom button styles
-	bottomButtonContainer: {
-		backgroundColor: "white",
-		paddingHorizontal: Spacing[5],
-		paddingVertical: Spacing[4],
-		borderTopWidth: 1,
-		borderTopColor: Colors.gray[200],
-		...Shadows.lg,
-	},
-	bottomButtonContainerDark: {
-		backgroundColor: Colors.dark.background.secondary,
-		borderTopColor: Colors.dark.border.main,
 	},
 	saveBottomButton: {
 		flexDirection: "row",
 		alignItems: "center",
 		justifyContent: "center",
-		backgroundColor: Colors.primary[500],
-		paddingVertical: Spacing[4],
-		borderRadius: BorderRadius.lg,
-		...Shadows.sm,
+		backgroundColor: "#007AFF",
+		paddingVertical: 16,
+		borderRadius: 12,
 	},
 	saveBottomButtonDisabled: {
-		backgroundColor: Colors.gray[400],
+		backgroundColor: "#aaa",
 	},
 	saveBottomButtonText: {
 		color: "white",
-		fontSize: Typography.fontSize.base,
-		fontWeight: Typography.fontWeight.semibold,
-		marginLeft: Spacing[2],
+		fontSize: 16,
+		fontWeight: "600",
+		marginLeft: 8,
+	},
+	fixedButtonContainer: {
+		position: "absolute",
+		left: 0,
+		right: 0,
+		bottom: 0,
+		paddingVertical: 16,
+		paddingHorizontal: 20,
+		backgroundColor: "#f8f8f8",
+		borderTopWidth: 1,
+		borderTopColor: "#eee",
+		alignItems: "center",
+		justifyContent: "center",
+		shadowColor: "#000",
+		shadowOffset: { width: 0, height: -2 },
+		shadowOpacity: 0.08,
+		shadowRadius: 8,
+		elevation: 8,
+	},
+	buttonTouchable: {
+		width: "100%",
+		borderRadius: 32,
+		overflow: "hidden",
+	},
+	gradientButton: {
+		flexDirection: "row",
+		alignItems: "center",
+		justifyContent: "center",
+		width: "100%",
+		paddingVertical: 18,
+		borderRadius: 32,
+		shadowColor: "#007AFF",
+		shadowOffset: { width: 0, height: 2 },
+		shadowOpacity: 0.18,
+		shadowRadius: 8,
+		elevation: 4,
+	},
+	gradientButtonText: {
+		color: "white",
+		fontSize: 18,
+		fontWeight: "bold",
+		letterSpacing: 0.5,
 	},
 });
 

@@ -1,4 +1,4 @@
-import { supabase } from '../utils/supabaseSetup';
+import { supabase } from './userManagementService';
 
 // Types
 export interface Hall {
@@ -136,26 +136,55 @@ class HallManagementService {
    */
   async createHall(hallData: CreateHallData): Promise<Hall> {
     try {
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+
+      // Verify user has admin permissions by checking profile
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('role, is_active')
+        .eq('id', user.id)
+        .single();
+
+      if (profileError || !profile) {
+        console.error('Profile fetch error:', profileError);
+        throw new Error('Unable to verify admin permissions');
+      }
+
+      if (!['admin', 'super_admin'].includes(profile.role) || !profile.is_active) {
+        throw new Error('Insufficient permissions to create halls');
+      }
+
+      // Prepare hall data with user context
+      const insertData = {
+        name: hallData.name,
+        description: hallData.description,
+        capacity: hallData.capacity,
+        location: hallData.location,
+        floor_number: hallData.floor_number,
+        building: hallData.building,
+        equipment: hallData.equipment || [],
+        amenities: hallData.amenities || [],
+        images: hallData.images || [],
+        is_active: hallData.is_active ?? true,
+        is_maintenance: hallData.is_maintenance ?? false,
+        maintenance_notes: hallData.maintenance_notes,
+        created_by: user.id,
+        updated_by: user.id,
+      };
+
       const { data, error } = await supabase
         .from('halls')
-        .insert([{
-          name: hallData.name,
-          description: hallData.description,
-          capacity: hallData.capacity,
-          location: hallData.location,
-          floor_number: hallData.floor_number,
-          building: hallData.building,
-          equipment: hallData.equipment || [],
-          amenities: hallData.amenities || [],
-          images: hallData.images || [],
-          is_active: hallData.is_active ?? true,
-          is_maintenance: hallData.is_maintenance ?? false,
-          maintenance_notes: hallData.maintenance_notes,
-        }])
+        .insert([insertData])
         .select()
         .single();
 
       if (error) {
+        console.error('Database error:', error);
         throw error;
       }
 
@@ -185,17 +214,47 @@ class HallManagementService {
    */
   async updateHall(id: string, updates: UpdateHallData): Promise<Hall> {
     try {
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+
+      // Verify user has admin permissions
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('role, is_active')
+        .eq('id', user.id)
+        .single();
+
+      if (profileError || !profile) {
+        console.error('Profile fetch error:', profileError);
+        throw new Error('Unable to verify admin permissions');
+      }
+
+      if (!['admin', 'super_admin'].includes(profile.role) || !profile.is_active) {
+        throw new Error('Insufficient permissions to update halls');
+      }
+
       // Get the current hall data for logging
       const currentHall = await this.getHallById(id);
       
+      // Add updated_by to the updates
+      const updateData = {
+        ...updates,
+        updated_by: user.id,
+      };
+
       const { data, error } = await supabase
         .from('halls')
-        .update(updates)
+        .update(updateData)
         .eq('id', id)
         .select()
         .single();
 
       if (error) {
+        console.error('Database error:', error);
         throw error;
       }
 
