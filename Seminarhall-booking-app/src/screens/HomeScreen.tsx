@@ -27,6 +27,10 @@ import {
 	BookingDetails,
 } from "../services/bookingOversightService";
 import {
+	smartBookingService,
+	SmartBooking,
+} from "../services/smartBookingService";
+import {
 	Colors,
 	Typography,
 	Spacing,
@@ -45,7 +49,7 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
 	const [refreshing, setRefreshing] = useState(false);
 	const [currentTime, setCurrentTime] = useState(new Date());
 	const [halls, setHalls] = useState<Hall[]>([]);
-	const [bookings, setBookings] = useState<BookingDetails[]>([]);
+	const [bookings, setBookings] = useState<SmartBooking[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [stats, setStats] = useState({
 		availableHalls: 0,
@@ -69,10 +73,10 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
 		try {
 			setLoading(true);
 
-			// Fetch halls and bookings in parallel
+			// Fetch halls and user bookings in parallel
 			const [hallsData, bookingsData] = await Promise.all([
 				hallManagementService.getAllHalls(),
-				bookingOversightService.getBookings(),
+				smartBookingService.getUserBookingsWithRealTimeStatus(user.id), // Use real-time status checking
 			]);
 
 			setHalls(hallsData);
@@ -85,15 +89,19 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
 
 			const now = new Date();
 			const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-			const thisMonthBookings = bookingsData.filter(
-				(booking: BookingDetails) => {
-					const bookingDate = new Date(booking.date);
-					return bookingDate >= startOfMonth;
-				}
-			).length;
+			const thisMonthBookings = bookingsData.filter((booking: SmartBooking) => {
+				// Convert DDMMYYYY to Date object
+				const dateStr = booking.booking_date;
+				const day = parseInt(dateStr.substring(0, 2));
+				const month = parseInt(dateStr.substring(2, 4));
+				const year = parseInt(dateStr.substring(4, 8));
+				const bookingDate = new Date(year, month - 1, day); // month is 0-indexed
+
+				return bookingDate >= startOfMonth;
+			}).length;
 
 			const pendingBookings = bookingsData.filter(
-				(booking: BookingDetails) => booking.status === "pending"
+				(booking: SmartBooking) => booking.status === "pending"
 			).length;
 
 			setStats({
@@ -211,6 +219,11 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
 					iconColor = Colors.success.main;
 					backgroundColor = Colors.success.light;
 					break;
+				case "completed":
+					iconName = "checkmark-done-circle";
+					iconColor = "#6366f1"; // Indigo color for completed
+					backgroundColor = "rgba(99, 102, 241, 0.1)"; // Light indigo background
+					break;
 				case "pending":
 					iconName = "time";
 					iconColor = Colors.warning.main;
@@ -230,7 +243,7 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
 
 			return {
 				id: booking.id,
-				title: `${booking.hall_name} ${booking.status}`,
+				title: `${booking.hall_name || "Unknown Hall"} ${booking.status}`,
 				subtitle: `${timeText} • ${booking.purpose}`,
 				iconName,
 				iconColor,
@@ -311,7 +324,7 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
 				navigation.navigate("Halls");
 				break;
 			case "quick-book":
-				navigation.navigate("Booking");
+				navigation.navigate("Bookings"); // Navigate to Bookings tab where users can create new bookings
 				break;
 			case "bookings":
 				// Navigate to the Bookings tab inside AdminTabs if admin, else to Bookings screen
@@ -951,39 +964,6 @@ const styles = StyleSheet.create({
 		minHeight: 50, // Ensure minimum height for touch targets
 	},
 
-	iconButton: {
-		width: 44,
-		height: 44,
-		borderRadius: BorderRadius.xl,
-		justifyContent: "center",
-		alignItems: "center",
-		...Shadows.sm,
-	},
-
-	notificationBadge: {
-		position: "absolute",
-		top: 8,
-		right: 8,
-		width: 8,
-		height: 8,
-		borderRadius: 4,
-		backgroundColor: Colors.error.main,
-	},
-
-	// Logo Section
-	logoSection: {
-		alignItems: "center",
-		marginBottom: Spacing[8],
-	},
-
-	logoContainer: {
-		padding: Spacing[6],
-		borderRadius: BorderRadius["2xl"],
-		alignItems: "center",
-		borderWidth: 1,
-		// borderColor is now dynamic and set inline
-	},
-
 	logoImage: {
 		width: 60,
 		height: 60,
@@ -994,6 +974,36 @@ const styles = StyleSheet.create({
 		fontSize: Typography.fontSize.lg,
 		fontWeight: Typography.fontWeight.semibold,
 		textAlign: "center",
+	},
+
+	// --- MISSING STYLES ADDED BELOW ---
+	iconButton: {
+		width: 44,
+		height: 44,
+		borderRadius: BorderRadius.xl,
+		justifyContent: "center",
+		alignItems: "center",
+		...Shadows.sm,
+	},
+	notificationBadge: {
+		position: "absolute",
+		top: 8,
+		right: 8,
+		width: 8,
+		height: 8,
+		borderRadius: 4,
+		backgroundColor: Colors.error.main,
+	},
+	logoSection: {
+		alignItems: "center",
+		marginBottom: Spacing[8],
+	},
+	logoContainer: {
+		padding: Spacing[6],
+		borderRadius: BorderRadius["2xl"],
+		alignItems: "center",
+		borderWidth: 1,
+		// borderColor is now dynamic and set inline
 	},
 
 	// Weather Section

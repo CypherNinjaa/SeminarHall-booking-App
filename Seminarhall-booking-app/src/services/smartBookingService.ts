@@ -207,7 +207,7 @@ class SmartBookingService {
   }
 
   /**
-   * Check availability for a specific time slot using optimized database function
+   * Check availability for a specific time slot with improved buffer logic
    */
   async checkAvailability(
     hallId: string,
@@ -217,33 +217,54 @@ class SmartBookingService {
     excludeBookingId?: string
   ): Promise<AvailabilityCheck> {
     try {
-      // Calculate buffer times
-      const bufferTimes = this.addBufferTime(startTime, endTime);
+      console.log(`🔍 Checking availability for ${hallId} on ${date} from ${startTime} to ${endTime}`);
       
-      // Use the optimized PostgreSQL function for conflict checking
-      const { data: conflicts, error } = await supabase.rpc('smart_bookings_check_conflicts', {
-        p_hall_id: hallId,
-        p_booking_date: date,
-        p_buffer_start: bufferTimes.bufferStart,
-        p_buffer_end: bufferTimes.bufferEnd,
-        p_exclude_booking_id: excludeBookingId || null
-      }) as { data: ConflictResult[] | null; error: any };
+      // Get all existing bookings for this hall and date
+      const existingBookings = await this.getBookingsForHallAndDate(hallId, date);
+      console.log(`📋 Found ${existingBookings.length} existing bookings`);
 
-      if (error) {
-        console.error('Error checking conflicts:', error);
-        throw new Error('Failed to check availability');
-      }
+      // Filter out the booking being edited if provided
+      const relevantBookings = excludeBookingId 
+        ? existingBookings.filter(booking => booking.id !== excludeBookingId)
+        : existingBookings;
 
-      const isAvailable = !conflicts || conflicts.length === 0;
-      
-      // Get conflicting bookings details if any
-      let conflictingBookings: SmartBooking[] = [];
-      if (!isAvailable && conflicts) {
-        conflictingBookings = await this.getBookingsForHallAndDate(hallId, date);
-        conflictingBookings = conflictingBookings.filter(booking => 
-          conflicts.some((conflict: ConflictResult) => conflict.conflicting_booking_id === booking.id)
+      console.log(`📋 Checking against ${relevantBookings.length} relevant bookings`);
+
+      // Check for conflicts with improved logic
+      const conflictingBookings: SmartBooking[] = [];
+      const startMinutes = this.timeToMinutes(startTime);
+      const endMinutes = this.timeToMinutes(endTime);
+
+      for (const booking of relevantBookings) {
+        const existingStartMinutes = this.timeToMinutes(booking.start_time);
+        const existingEndMinutes = this.timeToMinutes(booking.end_time);
+
+        console.log(`⏰ Comparing with booking: ${booking.start_time}-${booking.end_time} (${booking.purpose})`);
+
+        // Check if there's at least 44 minutes gap between bookings
+        const gapAfterExisting = startMinutes - existingEndMinutes;
+        const gapBeforeExisting = existingStartMinutes - endMinutes;
+
+        console.log(`   Gap after existing: ${gapAfterExisting} minutes`);
+        console.log(`   Gap before existing: ${gapBeforeExisting} minutes`);
+
+        // There's a conflict if:
+        // 1. The new booking starts before the existing one ends + 44 min buffer
+        // 2. The new booking ends after the existing one starts - 44 min buffer
+        const hasConflict = (
+          (startMinutes < existingEndMinutes + this.BUFFER_TIME) &&
+          (endMinutes > existingStartMinutes - this.BUFFER_TIME)
         );
+
+        console.log(`   Has conflict: ${hasConflict}`);
+
+        if (hasConflict) {
+          conflictingBookings.push(booking);
+        }
       }
+
+      const isAvailable = conflictingBookings.length === 0;
+      console.log(`✅ Final result: ${isAvailable ? 'AVAILABLE' : 'NOT AVAILABLE'}`);
 
       // Generate suggested slots if not available
       let suggestedSlots: TimeSlotWithBuffer[] = [];
@@ -417,8 +438,13 @@ class SmartBookingService {
       );
 
       if (!availability.is_available) {
+        console.log('🚫 Booking conflicts detected:', availability.conflicting_bookings);
+        const conflictDetails = availability.conflicting_bookings
+          .map(booking => `${booking.start_time}-${booking.end_time} (${booking.purpose})`)
+          .join(', ');
+        
         throw new Error(
-          `Time slot not available. ${availability.conflicting_bookings.length} conflicting booking(s) found.`
+          `Time slot not available due to ${availability.conflicting_bookings.length} conflicting booking(s): ${conflictDetails}. Please choose a different time or check suggested slots.`
         );
       }
 
@@ -785,6 +811,133 @@ class SmartBookingService {
         cancelled: 0,
         autoApproved: 0,
       };
+    }
+  }
+
+  /**
+   * Check if a booking should be marked as completed based on current time
+   */
+  isBookingCompleted(booking: SmartBooking): boolean {
+    if (booking.status !== 'approved') {
+      return false; // Only approved bookings can be completed
+    }
+
+    const now = new Date();
+    const today = now.toLocaleDateString('en-GB').split('/').reverse().join(''); // DDMMYYYY format
+    
+    // Parse booking date (DDMMYYYY format)
+    const bookingDate = booking.booking_date;
+    const bookingDay = parseInt(bookingDate.substring(0, 2));
+    const bookingMonth = parseInt(bookingDate.substring(2, 4));
+    const bookingYear = parseInt(bookingDate.substring(4, 8));
+    
+    // Parse end time (HH:MM format)
+    const [endHour, endMinute] = booking.end_time.split(':').map(Number);
+    
+    // Create booking end datetime
+    const bookingEndTime = new Date(bookingYear, bookingMonth - 1, bookingDay, endHour, endMinute);
+    
+    // Check if current time is past booking end time
+    return now > bookingEndTime;
+  }
+
+  /**
+   * Update expired bookings to completed status
+   */
+  async updateExpiredBookings(): Promise<number> {
+    try {
+      console.log('🔄 Checking for expired bookings to mark as completed...');
+      console.log('🕐 Current time:', new Date().toLocaleString());
+      
+      // Get all approved bookings
+      const { data: approvedBookings, error } = await supabase
+        .from('booking_details')
+        .select('*')
+        .eq('status', 'approved');
+
+      if (error) {
+        console.error('Error fetching approved bookings:', error);
+        return 0;
+      }
+
+      if (!approvedBookings || approvedBookings.length === 0) {
+        console.log('🔄 No approved bookings found');
+        return 0;
+      }
+
+      console.log(`🔄 Found ${approvedBookings.length} approved bookings to check`);
+
+      // Find bookings that should be completed
+      const expiredBookings = approvedBookings.filter(booking => {
+        const isCompleted = this.isBookingCompleted(booking);
+        console.log(`📋 Booking ${booking.id}: ${booking.booking_date} ${booking.end_time} - ${isCompleted ? 'EXPIRED' : 'ACTIVE'}`);
+        return isCompleted;
+      });
+      
+      if (expiredBookings.length === 0) {
+        console.log('🔄 No expired bookings found');
+        return 0;
+      }
+
+      console.log(`🔄 Found ${expiredBookings.length} expired bookings to mark as completed`);
+
+      // Update expired bookings to completed status
+      const updatePromises = expiredBookings.map(booking => 
+        supabase
+          .from('smart_bookings')
+          .update({ 
+            status: 'completed',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', booking.id)
+      );
+
+      const results = await Promise.all(updatePromises);
+      
+      // Check for errors
+      const errors = results.filter(result => result.error);
+      if (errors.length > 0) {
+        console.error('Some bookings failed to update:', errors);
+      }
+
+      const successCount = results.filter(result => !result.error).length;
+      console.log(`✅ Successfully marked ${successCount} bookings as completed`);
+      
+      return successCount;
+    } catch (error) {
+      console.error('Error updating expired bookings:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Get booking status with real-time completion check
+   */
+  getRealTimeStatus(booking: SmartBooking): SmartBooking['status'] {
+    if (this.isBookingCompleted(booking)) {
+      return 'completed';
+    }
+    return booking.status;
+  }
+
+  /**
+   * Get user bookings with real-time status updates
+   */
+  async getUserBookingsWithRealTimeStatus(
+    userId: string,
+    status?: SmartBooking['status'],
+    limit: number = 50
+  ): Promise<SmartBooking[]> {
+    try {
+      // First update any expired bookings
+      await this.updateExpiredBookings();
+      
+      // Then fetch the updated bookings
+      return await this.getUserBookings(userId, status, limit);
+    } catch (error) {
+      console.error('Error in getUserBookingsWithRealTimeStatus:', error);
+      // Fallback to regular getUserBookings
+      return await this.getUserBookings(userId, status, limit);
     }
   }
 }

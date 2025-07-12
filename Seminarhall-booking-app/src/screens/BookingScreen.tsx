@@ -29,11 +29,14 @@ import {
 } from "../services/smartBookingService";
 import { hallManagementService } from "../services/hallManagementService";
 import { useAuthStore } from "../stores/authStore";
+import { useTheme } from "../contexts/ThemeContext";
+import { getThemeColors } from "../utils/themeUtils";
 
 interface BookingScreenProps {
 	navigation: any;
 }
 
+// Theme constants
 const theme = {
 	colors: {
 		primary: "#007AFF",
@@ -69,7 +72,7 @@ const getStatusColor = (status: SmartBooking["status"]) => {
 		case "pending":
 			return theme.colors.warning;
 		case "completed":
-			return theme.colors.text.secondary;
+			return "#6366f1"; // Indigo color for completed
 		case "rejected":
 		case "cancelled":
 			return theme.colors.error;
@@ -99,22 +102,109 @@ const formatDate = (dateString: string): string => {
 	const day = dateString.substring(0, 2);
 	const month = dateString.substring(2, 4);
 	const year = dateString.substring(4, 8);
-	const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-	return date.toLocaleDateString("en-US", {
-		weekday: "short",
-		month: "short",
-		day: "numeric",
-		year: "numeric",
-	});
+	return `${day}/${month}/${year}`;
 };
 
 const formatTime = (timeString: string): string => {
-	// timeString is already in HH:MM format (24-hour)
-	return timeString;
+	// Convert 24-hour format to 12-hour format
+	const [hour, minute] = timeString.split(":");
+	const hourNum = parseInt(hour);
+	const ampm = hourNum >= 12 ? "PM" : "AM";
+	const displayHour = hourNum % 12 || 12;
+	return `${displayHour}:${minute} ${ampm}`;
 };
 
 const BookingScreen: React.FC<BookingScreenProps> = ({ navigation }) => {
 	const { user } = useAuthStore();
+	const { isDark } = useTheme();
+	const themeColors = getThemeColors(isDark);
+
+	// Dynamic theme based on dark mode
+	const dynamicTheme = {
+		colors: {
+			...theme.colors,
+			surface: isDark ? "#1C1C1E" : "#FFFFFF",
+			text: {
+				primary: isDark ? "#FFFFFF" : "#1D1D1F",
+				secondary: isDark ? "#EBEBF599" : "#6C757D",
+			},
+			background: isDark ? "#000000" : "#F8F9FA",
+		},
+		spacing: {
+			xs: 4,
+			sm: 8,
+			md: 16,
+			lg: 24,
+			xl: 32,
+		},
+		borderRadius: {
+			sm: 8,
+			md: 16,
+			lg: 24,
+		},
+	};
+
+	// Helper: getStatusColor
+	const getStatusColor = (status?: string) => {
+		switch (status) {
+			case "pending":
+				return theme.colors.warning;
+			case "approved":
+				return theme.colors.success;
+			case "rejected":
+				return theme.colors.error;
+			case "completed":
+				return theme.colors.success;
+			default:
+				return theme.colors.text.secondary;
+		}
+	};
+
+	// Helper: getStatusIcon
+	const getStatusIcon = (status?: string) => {
+		switch (status) {
+			case "pending":
+				return "time-outline";
+			case "approved":
+				return "checkmark-circle-outline";
+			case "rejected":
+				return "close-circle-outline";
+			case "completed":
+				return "checkmark-done-circle-outline";
+			default:
+				return "help-circle-outline";
+		}
+	};
+
+	// Helper: formatDate
+	const formatDate = (dateString: string) => {
+		// Accepts DDMMYYYY or YYYY-MM-DD
+		if (!dateString) return "-";
+		let year, month, day;
+		if (dateString.includes("-")) {
+			[year, month, day] = dateString.split("-");
+		} else {
+			day = dateString.substring(0, 2);
+			month = dateString.substring(2, 4);
+			year = dateString.substring(4, 8);
+		}
+		return `${day}/${month}/${year}`;
+	};
+
+	// Helper: formatTime
+	const formatTime = (timeString: string) => {
+		// Accepts HH:MM or HHMM
+		if (!timeString) return "-";
+		if (timeString.includes(":")) return timeString;
+		if (timeString.length === 4) {
+			return `${timeString.substring(0, 2)}:${timeString.substring(2, 4)}`;
+		}
+		return timeString;
+	};
+
+	// Create styles with dynamic theme
+	const styles = createStyles(dynamicTheme);
+
 	const [bookings, setBookings] = useState<SmartBooking[]>([]);
 	const [halls, setHalls] = useState<any[]>([]);
 	const [loading, setLoading] = useState(true);
@@ -162,7 +252,7 @@ const BookingScreen: React.FC<BookingScreenProps> = ({ navigation }) => {
 		try {
 			setLoading(true);
 			const [bookingsData, hallsData] = await Promise.all([
-				smartBookingService.getUserBookings(user.id),
+				smartBookingService.getUserBookingsWithRealTimeStatus(user.id), // Use real-time status checking
 				hallManagementService.getAllHalls(),
 			]);
 			setBookings(bookingsData);
@@ -999,431 +1089,417 @@ const BookingScreen: React.FC<BookingScreenProps> = ({ navigation }) => {
 	);
 };
 
-const styles = StyleSheet.create({
-	container: {
-		flex: 1,
-		backgroundColor: theme.colors.background,
-	},
-	loadingContainer: {
-		flex: 1,
-		justifyContent: "center",
-		alignItems: "center",
-		gap: theme.spacing.md,
-	},
-	loadingText: {
-		fontSize: 16,
-		color: theme.colors.text.secondary,
-	},
-	header: {
-		flexDirection: "row",
-		justifyContent: "flex-start",
-		alignItems: "center",
-		padding: theme.spacing.md,
-		borderBottomWidth: 1,
-		borderBottomColor: "#E5E5E7",
-		backgroundColor: theme.colors.surface,
-	},
-	headerTitle: {
-		fontSize: 28,
-		fontWeight: "700",
-		color: theme.colors.text.primary,
-	},
-	scrollView: {
-		flex: 1,
-	},
-	scrollContent: {
-		padding: theme.spacing.md,
-		gap: theme.spacing.md,
-	},
-	bookingCard: {
-		backgroundColor: theme.colors.surface,
-		borderRadius: theme.borderRadius.md,
-		padding: theme.spacing.md,
-		shadowColor: "#000",
-		shadowOffset: { width: 0, height: 2 },
-		shadowOpacity: 0.1,
-		shadowRadius: 8,
-		elevation: 3,
-	},
-	bookingHeader: {
-		marginBottom: theme.spacing.sm,
-	},
-	bookingTitleRow: {
-		flexDirection: "row",
-		justifyContent: "space-between",
-		alignItems: "center",
-		marginBottom: theme.spacing.xs,
-	},
-	hallName: {
-		fontSize: 18,
-		fontWeight: "600",
-		color: theme.colors.text.primary,
-		flex: 1,
-		marginRight: theme.spacing.sm,
-	},
-	statusBadge: {
-		flexDirection: "row",
-		alignItems: "center",
-		paddingHorizontal: theme.spacing.sm,
-		paddingVertical: theme.spacing.xs,
-		borderRadius: theme.borderRadius.sm,
-		gap: 4,
-	},
-	statusText: {
-		fontSize: 12,
-		fontWeight: "600",
-		color: theme.colors.surface,
-	},
-	autoApprovedBadge: {
-		flexDirection: "row",
-		alignItems: "center",
-		gap: 4,
-		marginTop: theme.spacing.xs,
-	},
-	autoApprovedText: {
-		fontSize: 12,
-		color: theme.colors.warning,
-		fontWeight: "500",
-	},
-	bookingDetails: {
-		gap: theme.spacing.sm,
-		marginBottom: theme.spacing.md,
-	},
-	detailRow: {
-		flexDirection: "row",
-		alignItems: "center",
-		gap: theme.spacing.sm,
-	},
-	detailText: {
-		fontSize: 14,
-		color: theme.colors.text.primary,
-		flex: 1,
-	},
-	durationText: {
-		fontSize: 12,
-		color: theme.colors.text.secondary,
-		fontStyle: "italic",
-	},
-	bookingActions: {
-		flexDirection: "row",
-		gap: theme.spacing.sm,
-		borderTopWidth: 1,
-		borderTopColor: "#F0F0F0",
-		paddingTop: theme.spacing.md,
-	},
-	actionButton: {
-		flex: 1,
-		flexDirection: "row",
-		alignItems: "center",
-		justifyContent: "center",
-		paddingVertical: theme.spacing.sm,
-		borderRadius: theme.borderRadius.sm,
-		gap: 4,
-	},
-	editButton: {
-		backgroundColor: "#F0F8FF",
-		borderWidth: 1,
-		borderColor: theme.colors.primary,
-	},
-	editButtonText: {
-		color: theme.colors.primary,
-		fontWeight: "600",
-		fontSize: 14,
-	},
-	cancelButton: {
-		backgroundColor: "#FFF5F5",
-		borderWidth: 1,
-		borderColor: theme.colors.error,
-	},
-	cancelButtonText: {
-		color: theme.colors.error,
-		fontWeight: "600",
-		fontSize: 14,
-	},
-	emptyState: {
-		alignItems: "center",
-		justifyContent: "center",
-		paddingVertical: theme.spacing.xl * 2,
-		gap: theme.spacing.md,
-	},
-	emptyTitle: {
-		fontSize: 20,
-		fontWeight: "600",
-		color: theme.colors.text.primary,
-	},
-	emptyMessage: {
-		fontSize: 16,
-		color: theme.colors.text.secondary,
-		textAlign: "center",
-		lineHeight: 24,
-	},
-	emptyButton: {
-		backgroundColor: theme.colors.primary,
-		paddingHorizontal: theme.spacing.lg,
-		paddingVertical: theme.spacing.md,
-		borderRadius: theme.borderRadius.sm,
-		marginTop: theme.spacing.sm,
-	},
-	emptyButtonText: {
-		color: theme.colors.surface,
-		fontWeight: "600",
-		fontSize: 16,
-	},
-
-	// Modal Styles
-	modalContainer: {
-		flex: 1,
-		backgroundColor: theme.colors.background,
-	},
-	modalHeader: {
-		flexDirection: "row",
-		justifyContent: "space-between",
-		alignItems: "center",
-		padding: theme.spacing.md,
-		borderBottomWidth: 1,
-		borderBottomColor: "#E5E5E7",
-		backgroundColor: theme.colors.surface,
-	},
-	modalCancelText: {
-		fontSize: 16,
-		color: theme.colors.primary,
-	},
-	modalTitle: {
-		fontSize: 18,
-		fontWeight: "600",
-		color: theme.colors.text.primary,
-	},
-	modalSaveText: {
-		fontSize: 16,
-		fontWeight: "600",
-		color: theme.colors.primary,
-	},
-	modalSaveTextDisabled: {
-		color: theme.colors.text.secondary,
-	},
-	modalContent: {
-		flex: 1,
-		padding: theme.spacing.md,
-	},
-	formGroup: {
-		marginBottom: theme.spacing.lg,
-	},
-	formLabel: {
-		fontSize: 16,
-		fontWeight: "600",
-		color: theme.colors.text.primary,
-		marginBottom: theme.spacing.sm,
-	},
-	hallSelector: {
-		flexDirection: "row",
-	},
-	hallOption: {
-		backgroundColor: "#F8F9FA",
-		borderWidth: 1,
-		borderColor: "#E9ECEF",
-		borderRadius: theme.borderRadius.sm,
-		padding: theme.spacing.md,
-		marginRight: theme.spacing.sm,
-		minWidth: 120,
-	},
-	hallOptionSelected: {
-		backgroundColor: theme.colors.primary,
-		borderColor: theme.colors.primary,
-	},
-	hallOptionText: {
-		fontSize: 14,
-		fontWeight: "600",
-		color: theme.colors.text.primary,
-		textAlign: "center",
-	},
-	hallOptionTextSelected: {
-		color: theme.colors.surface,
-	},
-	hallOptionCapacity: {
-		fontSize: 12,
-		color: theme.colors.text.secondary,
-		textAlign: "center",
-		marginTop: 2,
-	},
-	hallOptionCapacitySelected: {
-		color: "rgba(255, 255, 255, 0.8)",
-	},
-	dateInput: {
-		flexDirection: "row",
-		justifyContent: "space-between",
-		alignItems: "center",
-		backgroundColor: theme.colors.surface,
-		borderWidth: 1,
-		borderColor: "#E9ECEF",
-		borderRadius: theme.borderRadius.sm,
-		padding: theme.spacing.md,
-	},
-	dateInputText: {
-		fontSize: 16,
-		color: theme.colors.text.primary,
-	},
-	placeholderText: {
-		color: theme.colors.text.secondary,
-	},
-	timeRow: {
-		flexDirection: "row",
-		gap: theme.spacing.md,
-	},
-	timeInput: {
-		flexDirection: "row",
-		justifyContent: "space-between",
-		alignItems: "center",
-		backgroundColor: theme.colors.surface,
-		borderWidth: 1,
-		borderColor: "#E9ECEF",
-		borderRadius: theme.borderRadius.sm,
-		padding: theme.spacing.md,
-	},
-	timeInputText: {
-		fontSize: 16,
-		color: theme.colors.text.primary,
-		fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
-	},
-	checkAvailabilityButton: {
-		flexDirection: "row",
-		alignItems: "center",
-		justifyContent: "center",
-		backgroundColor: "#F0F8FF",
-		borderWidth: 1,
-		borderColor: theme.colors.primary,
-		borderRadius: theme.borderRadius.sm,
-		padding: theme.spacing.md,
-		gap: theme.spacing.sm,
-	},
-	checkAvailabilityText: {
-		fontSize: 16,
-		fontWeight: "600",
-		color: theme.colors.primary,
-	},
-	availabilityResult: {
-		marginTop: theme.spacing.md,
-		padding: theme.spacing.md,
-		borderWidth: 1,
-		borderRadius: theme.borderRadius.sm,
-		backgroundColor: theme.colors.surface,
-	},
-	availabilityHeader: {
-		flexDirection: "row",
-		alignItems: "center",
-		gap: theme.spacing.sm,
-		marginBottom: theme.spacing.sm,
-	},
-	availabilityText: {
-		fontSize: 16,
-		fontWeight: "600",
-	},
-	suggestedSlots: {
-		marginTop: theme.spacing.sm,
-	},
-	suggestedSlotsTitle: {
-		fontSize: 14,
-		fontWeight: "600",
-		color: theme.colors.text.primary,
-		marginBottom: theme.spacing.sm,
-	},
-	suggestedSlot: {
-		backgroundColor: "#F8F9FA",
-		borderRadius: theme.borderRadius.sm,
-		padding: theme.spacing.sm,
-		marginBottom: theme.spacing.xs,
-	},
-	suggestedSlotText: {
-		fontSize: 14,
-		color: theme.colors.text.primary,
-		fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
-	},
-	textInput: {
-		backgroundColor: theme.colors.surface,
-		borderWidth: 1,
-		borderColor: "#E9ECEF",
-		borderRadius: theme.borderRadius.sm,
-		padding: theme.spacing.md,
-		fontSize: 16,
-		color: theme.colors.text.primary,
-	},
-	textArea: {
-		height: 80,
-		textAlignVertical: "top",
-	},
-	attendeesCounter: {
-		flexDirection: "row",
-		alignItems: "center",
-		justifyContent: "center",
-		gap: theme.spacing.lg,
-	},
-	counterButton: {
-		backgroundColor: "#F0F8FF",
-		borderWidth: 1,
-		borderColor: theme.colors.primary,
-		borderRadius: 20,
-		width: 40,
-		height: 40,
-		justifyContent: "center",
-		alignItems: "center",
-	},
-	counterText: {
-		fontSize: 18,
-		fontWeight: "600",
-		color: theme.colors.text.primary,
-		minWidth: 40,
-		textAlign: "center",
-	},
-	prioritySelector: {
-		flexDirection: "row",
-		gap: theme.spacing.sm,
-	},
-	priorityOption: {
-		flex: 1,
-		backgroundColor: "#F8F9FA",
-		borderWidth: 1,
-		borderColor: "#E9ECEF",
-		borderRadius: theme.borderRadius.sm,
-		paddingVertical: theme.spacing.md,
-		alignItems: "center",
-	},
-	priorityOptionSelected: {
-		backgroundColor: theme.colors.primary,
-		borderColor: theme.colors.primary,
-	},
-	priorityOptionText: {
-		fontSize: 14,
-		fontWeight: "600",
-		color: theme.colors.text.primary,
-	},
-	priorityOptionTextSelected: {
-		color: theme.colors.surface,
-	},
-
-	// Floating Action Button
-	fabContainer: {
-		position: "absolute",
-		bottom: 24,
-		right: 20,
-		zIndex: 1000,
-	},
-
-	fab: {
-		width: 64,
-		height: 64,
-		borderRadius: 32,
-		overflow: "hidden",
-		shadowColor: "#000",
-		shadowOffset: { width: 0, height: 8 },
-		shadowOpacity: 0.3,
-		shadowRadius: 16,
-		elevation: 12,
-	},
-
-	fabGradient: {
-		flex: 1,
-		justifyContent: "center",
-		alignItems: "center",
-	},
-});
+// Styles
+const createStyles = (dynamicTheme: any) =>
+	StyleSheet.create({
+		container: {
+			flex: 1,
+			backgroundColor: dynamicTheme.colors.background,
+		},
+		loadingContainer: {
+			flex: 1,
+			justifyContent: "center",
+			alignItems: "center",
+			backgroundColor: dynamicTheme.colors.background,
+		},
+		loadingText: {
+			marginTop: dynamicTheme.spacing.md,
+			color: dynamicTheme.colors.text.secondary,
+			fontSize: 16,
+		},
+		header: {
+			paddingHorizontal: dynamicTheme.spacing.md,
+			paddingVertical: dynamicTheme.spacing.md,
+			backgroundColor: dynamicTheme.colors.surface,
+			borderBottomWidth: 1,
+			borderBottomColor: dynamicTheme.colors.text.secondary + "20",
+		},
+		headerTitle: {
+			fontSize: 28,
+			fontWeight: "bold",
+			color: dynamicTheme.colors.text.primary,
+		},
+		scrollView: {
+			flex: 1,
+		},
+		scrollContent: {
+			padding: dynamicTheme.spacing.md,
+			paddingBottom: 100,
+		},
+		bookingCard: {
+			backgroundColor: dynamicTheme.colors.surface,
+			borderRadius: theme.borderRadius.md,
+			padding: dynamicTheme.spacing.md,
+			marginBottom: dynamicTheme.spacing.md,
+			shadowColor: "#000",
+			shadowOffset: { width: 0, height: 2 },
+			shadowOpacity: 0.1,
+			shadowRadius: 4,
+			elevation: 3,
+		},
+		bookingHeader: {
+			marginBottom: dynamicTheme.spacing.sm,
+		},
+		bookingTitleRow: {
+			flexDirection: "row",
+			justifyContent: "space-between",
+			alignItems: "flex-start",
+			marginBottom: dynamicTheme.spacing.xs,
+		},
+		hallName: {
+			fontSize: 18,
+			fontWeight: "600",
+			color: dynamicTheme.colors.text.primary,
+			flex: 1,
+			marginRight: dynamicTheme.spacing.sm,
+		},
+		statusBadge: {
+			paddingHorizontal: dynamicTheme.spacing.sm,
+			paddingVertical: dynamicTheme.spacing.xs,
+			borderRadius: theme.borderRadius.sm,
+			flexDirection: "row",
+			alignItems: "center",
+		},
+		statusText: {
+			fontSize: 12,
+			fontWeight: "600",
+			color: "white",
+			marginLeft: 4,
+			textTransform: "capitalize",
+		},
+		autoApprovedBadge: {
+			backgroundColor: theme.colors.secondary + "20",
+			paddingHorizontal: dynamicTheme.spacing.sm,
+			paddingVertical: dynamicTheme.spacing.xs,
+			borderRadius: theme.borderRadius.sm,
+			marginTop: dynamicTheme.spacing.xs,
+			alignSelf: "flex-start",
+			flexDirection: "row",
+			alignItems: "center",
+		},
+		autoApprovedText: {
+			fontSize: 11,
+			color: theme.colors.secondary,
+			fontWeight: "500",
+			marginLeft: 4,
+		},
+		bookingDetails: {
+			borderTopWidth: 1,
+			borderTopColor: dynamicTheme.colors.text.secondary + "10",
+			paddingTop: dynamicTheme.spacing.sm,
+		},
+		detailRow: {
+			flexDirection: "row",
+			alignItems: "center",
+			marginBottom: dynamicTheme.spacing.xs,
+		},
+		detailText: {
+			marginLeft: dynamicTheme.spacing.sm,
+			color: dynamicTheme.colors.text.secondary,
+			fontSize: 14,
+		},
+		durationText: {
+			marginLeft: dynamicTheme.spacing.sm,
+			color: dynamicTheme.colors.text.secondary,
+			fontSize: 14,
+			fontWeight: "500",
+		},
+		bookingActions: {
+			flexDirection: "row",
+			marginTop: dynamicTheme.spacing.md,
+			gap: dynamicTheme.spacing.sm,
+		},
+		actionButton: {
+			flex: 1,
+			paddingVertical: dynamicTheme.spacing.sm,
+			borderRadius: theme.borderRadius.sm,
+			alignItems: "center",
+		},
+		editButton: {
+			backgroundColor: theme.colors.primary,
+		},
+		editButtonText: {
+			color: "white",
+			fontWeight: "600",
+			fontSize: 14,
+		},
+		cancelButton: {
+			backgroundColor: theme.colors.error,
+		},
+		cancelButtonText: {
+			color: "white",
+			fontWeight: "600",
+			fontSize: 14,
+		},
+		emptyState: {
+			flex: 1,
+			justifyContent: "center",
+			alignItems: "center",
+			paddingVertical: 60,
+		},
+		emptyTitle: {
+			fontSize: 20,
+			fontWeight: "600",
+			color: dynamicTheme.colors.text.primary,
+			marginTop: dynamicTheme.spacing.md,
+			marginBottom: dynamicTheme.spacing.sm,
+		},
+		emptyMessage: {
+			fontSize: 16,
+			color: dynamicTheme.colors.text.secondary,
+			textAlign: "center",
+			marginBottom: dynamicTheme.spacing.lg,
+			paddingHorizontal: dynamicTheme.spacing.lg,
+		},
+		emptyButton: {
+			backgroundColor: theme.colors.primary,
+			paddingHorizontal: dynamicTheme.spacing.lg,
+			paddingVertical: dynamicTheme.spacing.md,
+			borderRadius: theme.borderRadius.sm,
+		},
+		emptyButtonText: {
+			color: "white",
+			fontWeight: "600",
+			fontSize: 16,
+		},
+		modalContainer: {
+			flex: 1,
+			backgroundColor: dynamicTheme.colors.background,
+		},
+		modalHeader: {
+			flexDirection: "row",
+			justifyContent: "space-between",
+			alignItems: "center",
+			paddingHorizontal: dynamicTheme.spacing.md,
+			paddingVertical: dynamicTheme.spacing.md,
+			borderBottomWidth: 1,
+			borderBottomColor: dynamicTheme.colors.text.secondary + "20",
+			backgroundColor: dynamicTheme.colors.surface,
+		},
+		modalCancelText: {
+			color: theme.colors.error,
+			fontSize: 16,
+			fontWeight: "500",
+		},
+		modalTitle: {
+			fontSize: 20,
+			fontWeight: "600",
+			color: dynamicTheme.colors.text.primary,
+		},
+		modalSaveText: {
+			color: theme.colors.primary,
+			fontSize: 16,
+			fontWeight: "600",
+		},
+		modalSaveTextDisabled: {
+			color: dynamicTheme.colors.text.secondary,
+			fontSize: 16,
+			fontWeight: "600",
+		},
+		modalContent: {
+			flex: 1,
+			padding: dynamicTheme.spacing.md,
+		},
+		fab: {
+			position: "absolute",
+			bottom: 20,
+			right: 20,
+			borderRadius: 30,
+			elevation: 8,
+			shadowColor: "#000",
+			shadowOffset: { width: 0, height: 4 },
+			shadowOpacity: 0.3,
+			shadowRadius: 8,
+		},
+		fabGradient: {
+			width: 60,
+			height: 60,
+			borderRadius: 30,
+			justifyContent: "center",
+			alignItems: "center",
+		},
+		// Form styles
+		formGroup: {
+			marginBottom: dynamicTheme.spacing.md,
+		},
+		formLabel: {
+			fontSize: 16,
+			fontWeight: "600",
+			color: dynamicTheme.colors.text.primary,
+			marginBottom: dynamicTheme.spacing.sm,
+		},
+		hallSelector: {
+			maxHeight: 200,
+		},
+		hallOption: {
+			backgroundColor: dynamicTheme.colors.surface,
+			borderRadius: theme.borderRadius.sm,
+			padding: dynamicTheme.spacing.md,
+			marginBottom: dynamicTheme.spacing.sm,
+			borderWidth: 2,
+			borderColor: "transparent",
+		},
+		hallOptionSelected: {
+			borderColor: theme.colors.primary,
+			backgroundColor: theme.colors.primary + "10",
+		},
+		hallOptionText: {
+			fontSize: 16,
+			fontWeight: "600",
+			color: dynamicTheme.colors.text.primary,
+			marginBottom: dynamicTheme.spacing.xs,
+		},
+		hallOptionTextSelected: {
+			color: theme.colors.primary,
+		},
+		hallOptionCapacity: {
+			fontSize: 14,
+			color: dynamicTheme.colors.text.secondary,
+		},
+		hallOptionCapacitySelected: {
+			color: theme.colors.primary,
+		},
+		dateInput: {
+			backgroundColor: dynamicTheme.colors.surface,
+			borderRadius: theme.borderRadius.sm,
+			padding: dynamicTheme.spacing.md,
+			borderWidth: 1,
+			borderColor: dynamicTheme.colors.text.secondary + "30",
+		},
+		dateInputText: {
+			fontSize: 16,
+			color: dynamicTheme.colors.text.primary,
+		},
+		placeholderText: {
+			color: dynamicTheme.colors.text.secondary,
+		},
+		timeRow: {
+			flexDirection: "row",
+		},
+		timeInput: {
+			backgroundColor: dynamicTheme.colors.surface,
+			borderRadius: theme.borderRadius.sm,
+			padding: dynamicTheme.spacing.md,
+			borderWidth: 1,
+			borderColor: dynamicTheme.colors.text.secondary + "30",
+		},
+		timeInputText: {
+			fontSize: 16,
+			color: dynamicTheme.colors.text.primary,
+		},
+		checkAvailabilityButton: {
+			backgroundColor: theme.colors.secondary,
+			paddingVertical: dynamicTheme.spacing.md,
+			borderRadius: theme.borderRadius.sm,
+			alignItems: "center",
+		},
+		checkAvailabilityText: {
+			color: "white",
+			fontWeight: "600",
+			fontSize: 16,
+		},
+		availabilityResult: {
+			backgroundColor: dynamicTheme.colors.surface,
+			borderRadius: theme.borderRadius.sm,
+			padding: dynamicTheme.spacing.md,
+			marginTop: dynamicTheme.spacing.md,
+			borderWidth: 2,
+		},
+		availabilityHeader: {
+			flexDirection: "row",
+			alignItems: "center",
+			marginBottom: dynamicTheme.spacing.sm,
+		},
+		availabilityText: {
+			fontSize: 16,
+			fontWeight: "600",
+			marginLeft: dynamicTheme.spacing.sm,
+		},
+		suggestedSlots: {
+			marginTop: dynamicTheme.spacing.md,
+		},
+		suggestedSlotsTitle: {
+			fontSize: 16,
+			fontWeight: "600",
+			color: dynamicTheme.colors.text.primary,
+			marginBottom: dynamicTheme.spacing.sm,
+		},
+		suggestedSlot: {
+			backgroundColor: theme.colors.primary + "10",
+			padding: dynamicTheme.spacing.sm,
+			borderRadius: theme.borderRadius.sm,
+			marginBottom: dynamicTheme.spacing.xs,
+		},
+		suggestedSlotText: {
+			color: theme.colors.primary,
+			fontWeight: "500",
+			fontSize: 14,
+		},
+		textInput: {
+			backgroundColor: dynamicTheme.colors.surface,
+			borderRadius: theme.borderRadius.sm,
+			padding: dynamicTheme.spacing.md,
+			borderWidth: 1,
+			borderColor: dynamicTheme.colors.text.secondary + "30",
+			fontSize: 16,
+			color: dynamicTheme.colors.text.primary,
+		},
+		textArea: {
+			height: 100,
+			textAlignVertical: "top",
+		},
+		attendeesCounter: {
+			flexDirection: "row",
+			alignItems: "center",
+			justifyContent: "center",
+		},
+		counterButton: {
+			backgroundColor: theme.colors.primary,
+			width: 40,
+			height: 40,
+			borderRadius: 20,
+			justifyContent: "center",
+			alignItems: "center",
+		},
+		counterText: {
+			fontSize: 18,
+			fontWeight: "600",
+			color: dynamicTheme.colors.text.primary,
+			marginHorizontal: dynamicTheme.spacing.lg,
+			minWidth: 40,
+			textAlign: "center",
+		},
+		prioritySelector: {
+			flexDirection: "row",
+			flexWrap: "wrap",
+			gap: dynamicTheme.spacing.sm,
+		},
+		priorityOption: {
+			paddingHorizontal: dynamicTheme.spacing.md,
+			paddingVertical: dynamicTheme.spacing.sm,
+			borderRadius: theme.borderRadius.sm,
+			borderWidth: 2,
+			borderColor: dynamicTheme.colors.text.secondary + "30",
+			backgroundColor: dynamicTheme.colors.surface,
+		},
+		priorityOptionSelected: {
+			borderColor: theme.colors.primary,
+			backgroundColor: theme.colors.primary + "10",
+		},
+		priorityOptionText: {
+			fontSize: 14,
+			color: dynamicTheme.colors.text.secondary,
+			textTransform: "capitalize",
+		},
+		priorityOptionTextSelected: {
+			color: theme.colors.primary,
+			fontWeight: "600",
+		},
+		fabContainer: {
+			position: "absolute",
+			bottom: 20,
+			right: 20,
+		},
+	});
 
 export default BookingScreen;
