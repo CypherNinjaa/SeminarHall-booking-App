@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import {
 	View,
 	Text,
@@ -17,8 +17,15 @@ import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
 import { useTheme } from "../contexts/ThemeContext";
 import { getThemeColors } from "../utils/themeUtils";
+import { useAuthStore } from "../stores/authStore";
+import { hallManagementService, Hall } from "../services/hallManagementService";
+import {
+	bookingOversightService,
+	BookingDetails,
+} from "../services/bookingOversightService";
 import {
 	Colors,
 	Typography,
@@ -29,19 +36,85 @@ import {
 
 const { width } = Dimensions.get("window");
 
-export default function HomeScreen() {
+export default function HomeScreen({ navigation }: { navigation: any }) {
 	const { isDark, toggleTheme } = useTheme();
 	const themeColors = getThemeColors(isDark);
+	const { user, isAuthenticated } = useAuthStore();
 
 	// State
 	const [refreshing, setRefreshing] = useState(false);
 	const [currentTime, setCurrentTime] = useState(new Date());
+	const [halls, setHalls] = useState<Hall[]>([]);
+	const [bookings, setBookings] = useState<BookingDetails[]>([]);
+	const [loading, setLoading] = useState(true);
+	const [stats, setStats] = useState({
+		availableHalls: 0,
+		thisMonthBookings: 0,
+		pendingBookings: 0,
+	});
 
 	// Animation values
 	const fadeAnim = useRef(new Animated.Value(0)).current;
 	const slideAnim = useRef(new Animated.Value(50)).current;
 	const scaleAnim = useRef(new Animated.Value(0.9)).current;
 	const pulseAnim = useRef(new Animated.Value(1)).current;
+
+	// Data fetching functions
+	const fetchData = useCallback(async () => {
+		if (!isAuthenticated || !user) {
+			console.log("User not authenticated, skipping data fetch");
+			return;
+		}
+
+		try {
+			setLoading(true);
+
+			// Fetch halls and bookings in parallel
+			const [hallsData, bookingsData] = await Promise.all([
+				hallManagementService.getAllHalls(),
+				bookingOversightService.getBookings(),
+			]);
+
+			setHalls(hallsData);
+			setBookings(bookingsData);
+
+			// Calculate statistics
+			const availableHalls = hallsData.filter(
+				(hall: Hall) => hall.is_active && !hall.is_maintenance
+			).length;
+
+			const now = new Date();
+			const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+			const thisMonthBookings = bookingsData.filter(
+				(booking: BookingDetails) => {
+					const bookingDate = new Date(booking.date);
+					return bookingDate >= startOfMonth;
+				}
+			).length;
+
+			const pendingBookings = bookingsData.filter(
+				(booking: BookingDetails) => booking.status === "pending"
+			).length;
+
+			setStats({
+				availableHalls,
+				thisMonthBookings,
+				pendingBookings,
+			});
+		} catch (error) {
+			console.error("Error fetching home data:", error);
+			// Don't show alert for auth errors, just log them
+		} finally {
+			setLoading(false);
+		}
+	}, [isAuthenticated, user]);
+
+	// Refresh data when screen comes into focus
+	useFocusEffect(
+		useCallback(() => {
+			fetchData();
+		}, [fetchData])
+	);
 
 	useEffect(() => {
 		// Entrance animations
@@ -94,10 +167,172 @@ export default function HomeScreen() {
 		return "Good Evening";
 	};
 
+	const getUserDisplayName = () => {
+		if (!user) return "Guest";
+		return user.name || user.email.split("@")[0];
+	};
+
+	const getRecentActivity = () => {
+		if (!user) return [];
+
+		// Get user's recent bookings (last 3)
+		const userBookings = bookings
+			.filter((booking) => booking.user_email === user.email)
+			.sort(
+				(a, b) =>
+					new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+			)
+			.slice(0, 3);
+
+		return userBookings.map((booking) => {
+			const createdDate = new Date(booking.created_at);
+			const now = new Date();
+			const diffHours = Math.floor(
+				(now.getTime() - createdDate.getTime()) / (1000 * 60 * 60)
+			);
+
+			let timeText = "";
+			if (diffHours < 1) {
+				timeText = "Just now";
+			} else if (diffHours < 24) {
+				timeText = `${diffHours} hours ago`;
+			} else {
+				const diffDays = Math.floor(diffHours / 24);
+				timeText = `${diffDays} days ago`;
+			}
+
+			let iconName = "calendar";
+			let iconColor = Colors.primary[600];
+			let backgroundColor = Colors.primary[100];
+
+			switch (booking.status) {
+				case "approved":
+					iconName = "checkmark";
+					iconColor = Colors.success.main;
+					backgroundColor = Colors.success.light;
+					break;
+				case "pending":
+					iconName = "time";
+					iconColor = Colors.warning.main;
+					backgroundColor = Colors.warning.light;
+					break;
+				case "rejected":
+					iconName = "close";
+					iconColor = Colors.error.main;
+					backgroundColor = Colors.error.light;
+					break;
+				case "cancelled":
+					iconName = "ban";
+					iconColor = Colors.error.main;
+					backgroundColor = Colors.error.light;
+					break;
+			}
+
+			return {
+				id: booking.id,
+				title: `${booking.hall_name} ${booking.status}`,
+				subtitle: `${timeText} • ${booking.purpose}`,
+				iconName,
+				iconColor,
+				backgroundColor,
+				onPress: () => handleQuickAction("booking-details"),
+			};
+		});
+	};
+
+	const getQuickActions = () => {
+		const baseActions = [
+			{
+				id: "halls",
+				title: "Browse Halls",
+				description: "Explore available venues",
+				icon: "business",
+				colors: isDark
+					? ["rgba(59,130,246,0.2)", "rgba(29,78,216,0.2)"]
+					: ["rgba(59,130,246,0.1)", "rgba(29,78,216,0.1)"],
+				iconColor: Colors.primary[600],
+			},
+			{
+				id: "quick-book",
+				title: "Quick Book",
+				description: "Book now instantly",
+				icon: "add-circle",
+				colors: isDark
+					? ["rgba(16,185,129,0.2)", "rgba(5,150,105,0.2)"]
+					: ["rgba(16,185,129,0.1)", "rgba(5,150,105,0.1)"],
+				iconColor: Colors.success.main,
+			},
+			{
+				id: "bookings",
+				title: "My Bookings",
+				description: "View your reservations",
+				icon: "calendar",
+				colors: isDark
+					? ["rgba(245,158,11,0.2)", "rgba(217,119,6,0.2)"]
+					: ["rgba(245,158,11,0.1)", "rgba(217,119,6,0.1)"],
+				iconColor: Colors.warning.main,
+			},
+		];
+
+		// Add admin-specific action if user is admin or super_admin
+		if (user && ["admin", "super_admin"].includes(user.role)) {
+			baseActions.push({
+				id: "admin",
+				title: "Admin Panel",
+				description: "Manage halls & bookings",
+				icon: "settings",
+				colors: isDark
+					? ["rgba(139,92,246,0.2)", "rgba(109,40,217,0.2)"]
+					: ["rgba(139,92,246,0.1)", "rgba(109,40,217,0.1)"],
+				iconColor: "#8b5cf6",
+			});
+		} else {
+			// For regular users, show schedule instead
+			baseActions.push({
+				id: "schedule",
+				title: "My Schedule",
+				description: "Plan ahead",
+				icon: "today",
+				colors: isDark
+					? ["rgba(139,92,246,0.2)", "rgba(109,40,217,0.2)"]
+					: ["rgba(139,92,246,0.1)", "rgba(109,40,217,0.1)"],
+				iconColor: "#8b5cf6",
+			});
+		}
+
+		return baseActions;
+	};
+
 	const handleQuickAction = (action: string) => {
 		Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-		// TODO: Navigate to respective screens
-		console.log(`Navigate to ${action}`);
+
+		switch (action) {
+			case "halls":
+				navigation.navigate("Halls");
+				break;
+			case "quick-book":
+				navigation.navigate("Booking");
+				break;
+			case "bookings":
+				navigation.navigate("Bookings");
+				break;
+			case "admin":
+				// Navigate to the AdminDashboard tab inside AdminTabs
+				navigation.navigate("AdminTabs", { screen: "AdminDashboard" });
+				break;
+			case "schedule":
+				// Navigate to schedule/calendar view
+				console.log("Navigate to schedule");
+				break;
+			case "booking-details":
+			case "reminder":
+			case "new-hall":
+				// Navigate to specific features
+				console.log(`Navigate to ${action}`);
+				break;
+			default:
+				console.log(`Navigate to ${action}`);
+		}
 	};
 
 	const toggleThemeWithHaptic = () => {
@@ -108,10 +343,14 @@ export default function HomeScreen() {
 	const onRefresh = async () => {
 		setRefreshing(true);
 		Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-		// Simulate API call
-		setTimeout(() => {
+
+		try {
+			await fetchData();
+		} catch (error) {
+			console.error("Error refreshing data:", error);
+		} finally {
 			setRefreshing(false);
-		}, 1500);
+		}
 	};
 
 	return (
@@ -167,7 +406,7 @@ export default function HomeScreen() {
 							<Text
 								style={[styles.userName, { color: themeColors.text.primary }]}
 							>
-								Dr. Faculty Name
+								{getUserDisplayName()}
 							</Text>
 							<Text
 								style={[styles.timeText, { color: themeColors.text.secondary }]}
@@ -352,7 +591,9 @@ export default function HomeScreen() {
 									end={{ x: 1, y: 1 }}
 								>
 									<Ionicons name="business" size={24} color="white" />
-									<Text style={styles.statNumber}>15</Text>
+									<Text style={styles.statNumber}>
+										{loading ? "..." : stats.availableHalls}
+									</Text>
 									<Text style={styles.statLabel}>Available Halls</Text>
 								</LinearGradient>
 							</BlurView>
@@ -371,7 +612,9 @@ export default function HomeScreen() {
 									end={{ x: 1, y: 1 }}
 								>
 									<Ionicons name="calendar" size={24} color="white" />
-									<Text style={styles.statNumber}>23</Text>
+									<Text style={styles.statNumber}>
+										{loading ? "..." : stats.thisMonthBookings}
+									</Text>
 									<Text style={styles.statLabel}>This Month</Text>
 								</LinearGradient>
 							</BlurView>
@@ -390,7 +633,9 @@ export default function HomeScreen() {
 									end={{ x: 1, y: 1 }}
 								>
 									<Ionicons name="time" size={24} color="white" />
-									<Text style={styles.statNumber}>5</Text>
+									<Text style={styles.statNumber}>
+										{loading ? "..." : stats.pendingBookings}
+									</Text>
 									<Text style={styles.statLabel}>Pending</Text>
 								</LinearGradient>
 							</BlurView>
@@ -415,213 +660,56 @@ export default function HomeScreen() {
 					</Text>
 
 					<View style={styles.actionGrid}>
-						{/* Browse Halls */}
-						<TouchableOpacity
-							onPress={() => handleQuickAction("halls")}
-							activeOpacity={0.8}
-							style={styles.actionCardWrapper}
-						>
-							<BlurView
-								intensity={isDark ? 15 : 8}
-								tint={isDark ? "dark" : "light"}
-								style={[
-									styles.actionCard,
-									{
-										borderColor: isDark
-											? "rgba(255,255,255,0.1)"
-											: "rgba(0,0,0,0.05)",
-									},
-								]}
+						{getQuickActions().map((action) => (
+							<TouchableOpacity
+								key={action.id}
+								onPress={() => handleQuickAction(action.id)}
+								activeOpacity={0.8}
+								style={styles.actionCardWrapper}
 							>
-								<LinearGradient
-									colors={
-										isDark
-											? ["rgba(59,130,246,0.2)", "rgba(29,78,216,0.2)"]
-											: ["rgba(59,130,246,0.1)", "rgba(29,78,216,0.1)"]
-									}
-									style={styles.actionGradient}
+								<BlurView
+									intensity={isDark ? 15 : 8}
+									tint={isDark ? "dark" : "light"}
+									style={[
+										styles.actionCard,
+										{
+											borderColor: isDark
+												? "rgba(255,255,255,0.1)"
+												: "rgba(0,0,0,0.05)",
+										},
+									]}
 								>
-									<View style={styles.actionIcon}>
-										<Ionicons
-											name="business"
-											size={28}
-											color={Colors.primary[600]}
-										/>
-									</View>
-									<Text
-										style={[
-											styles.actionTitle,
-											{ color: themeColors.text.primary },
-										]}
+									<LinearGradient
+										colors={action.colors as any}
+										style={styles.actionGradient}
 									>
-										Browse Halls
-									</Text>
-									<Text
-										style={[
-											styles.actionDescription,
-											{ color: themeColors.text.secondary },
-										]}
-									>
-										Explore available venues
-									</Text>
-								</LinearGradient>
-							</BlurView>
-						</TouchableOpacity>
-
-						{/* Quick Book */}
-						<TouchableOpacity
-							onPress={() => handleQuickAction("quick-book")}
-							activeOpacity={0.8}
-							style={styles.actionCardWrapper}
-						>
-							<BlurView
-								intensity={isDark ? 15 : 8}
-								tint={isDark ? "dark" : "light"}
-								style={[
-									styles.actionCard,
-									{
-										borderColor: isDark
-											? "rgba(255,255,255,0.1)"
-											: "rgba(0,0,0,0.05)",
-									},
-								]}
-							>
-								<LinearGradient
-									colors={
-										isDark
-											? ["rgba(16,185,129,0.2)", "rgba(5,150,105,0.2)"]
-											: ["rgba(16,185,129,0.1)", "rgba(5,150,105,0.1)"]
-									}
-									style={styles.actionGradient}
-								>
-									<View style={styles.actionIcon}>
-										<Ionicons
-											name="add-circle"
-											size={28}
-											color={Colors.success.main}
-										/>
-									</View>
-									<Text
-										style={[
-											styles.actionTitle,
-											{ color: themeColors.text.primary },
-										]}
-									>
-										Quick Book
-									</Text>
-									<Text
-										style={[
-											styles.actionDescription,
-											{ color: themeColors.text.secondary },
-										]}
-									>
-										Book now instantly
-									</Text>
-								</LinearGradient>
-							</BlurView>
-						</TouchableOpacity>
-
-						{/* My Bookings */}
-						<TouchableOpacity
-							onPress={() => handleQuickAction("bookings")}
-							activeOpacity={0.8}
-							style={styles.actionCardWrapper}
-						>
-							<BlurView
-								intensity={isDark ? 15 : 8}
-								tint={isDark ? "dark" : "light"}
-								style={[
-									styles.actionCard,
-									{
-										borderColor: isDark
-											? "rgba(255,255,255,0.1)"
-											: "rgba(0,0,0,0.05)",
-									},
-								]}
-							>
-								<LinearGradient
-									colors={
-										isDark
-											? ["rgba(245,158,11,0.2)", "rgba(217,119,6,0.2)"]
-											: ["rgba(245,158,11,0.1)", "rgba(217,119,6,0.1)"]
-									}
-									style={styles.actionGradient}
-								>
-									<View style={styles.actionIcon}>
-										<Ionicons
-											name="calendar-outline"
-											size={28}
-											color={Colors.warning.main}
-										/>
-									</View>
-									<Text
-										style={[
-											styles.actionTitle,
-											{ color: themeColors.text.primary },
-										]}
-									>
-										My Bookings
-									</Text>
-									<Text
-										style={[
-											styles.actionDescription,
-											{ color: themeColors.text.secondary },
-										]}
-									>
-										View reservations
-									</Text>
-								</LinearGradient>
-							</BlurView>
-						</TouchableOpacity>
-
-						{/* Schedule */}
-						<TouchableOpacity
-							onPress={() => handleQuickAction("schedule")}
-							activeOpacity={0.8}
-							style={styles.actionCardWrapper}
-						>
-							<BlurView
-								intensity={isDark ? 15 : 8}
-								tint={isDark ? "dark" : "light"}
-								style={[
-									styles.actionCard,
-									{
-										borderColor: isDark
-											? "rgba(255,255,255,0.1)"
-											: "rgba(0,0,0,0.05)",
-									},
-								]}
-							>
-								<LinearGradient
-									colors={
-										isDark
-											? ["rgba(139,92,246,0.2)", "rgba(109,40,217,0.2)"]
-											: ["rgba(139,92,246,0.1)", "rgba(109,40,217,0.1)"]
-									}
-									style={styles.actionGradient}
-								>
-									<View style={styles.actionIcon}>
-										<Ionicons name="time-outline" size={28} color="#8b5cf6" />
-									</View>
-									<Text
-										style={[
-											styles.actionTitle,
-											{ color: themeColors.text.primary },
-										]}
-									>
-										Schedule
-									</Text>
-									<Text
-										style={[
-											styles.actionDescription,
-											{ color: themeColors.text.secondary },
-										]}
-									>
-										Plan ahead
-									</Text>
-								</LinearGradient>
-							</BlurView>
-						</TouchableOpacity>
+										<View style={styles.actionIcon}>
+											<Ionicons
+												name={action.icon as any}
+												size={28}
+												color={action.iconColor}
+											/>
+										</View>
+										<Text
+											style={[
+												styles.actionTitle,
+												{ color: themeColors.text.primary },
+											]}
+										>
+											{action.title}
+										</Text>
+										<Text
+											style={[
+												styles.actionDescription,
+												{ color: themeColors.text.secondary },
+											]}
+										>
+											{action.description}
+										</Text>
+									</LinearGradient>
+								</BlurView>
+							</TouchableOpacity>
+						))}
 					</View>
 				</Animated.View>
 
@@ -653,127 +741,118 @@ export default function HomeScreen() {
 							},
 						]}
 					>
-						<TouchableOpacity
-							style={styles.recentItem}
-							onPress={() => handleQuickAction("booking-details")}
-							activeOpacity={0.7}
-						>
-							<View
-								style={[
-									styles.recentIcon,
-									{ backgroundColor: Colors.success.light },
-								]}
-							>
-								<Ionicons
-									name="checkmark"
-									size={16}
-									color={Colors.success.main}
-								/>
-							</View>
-							<View style={styles.recentContent}>
-								<Text
+						{loading ? (
+							<View style={styles.recentItem}>
+								<View
 									style={[
-										styles.recentTitle,
-										{ color: themeColors.text.primary },
+										styles.recentIcon,
+										{ backgroundColor: Colors.primary[100] },
 									]}
 								>
-									Seminar Hall A booked
-								</Text>
-								<Text
+									<Ionicons
+										name="refresh"
+										size={16}
+										color={Colors.primary[600]}
+									/>
+								</View>
+								<View style={styles.recentContent}>
+									<Text
+										style={[
+											styles.recentTitle,
+											{ color: themeColors.text.primary },
+										]}
+									>
+										Loading recent activity...
+									</Text>
+									<Text
+										style={[
+											styles.recentTime,
+											{ color: themeColors.text.secondary },
+										]}
+									>
+										Please wait
+									</Text>
+								</View>
+							</View>
+						) : getRecentActivity().length > 0 ? (
+							getRecentActivity().map((activity, index) => (
+								<TouchableOpacity
+									key={activity.id}
+									style={styles.recentItem}
+									onPress={activity.onPress}
+									activeOpacity={0.7}
+								>
+									<View
+										style={[
+											styles.recentIcon,
+											{ backgroundColor: activity.backgroundColor },
+										]}
+									>
+										<Ionicons
+											name={activity.iconName as any}
+											size={16}
+											color={activity.iconColor}
+										/>
+									</View>
+									<View style={styles.recentContent}>
+										<Text
+											style={[
+												styles.recentTitle,
+												{ color: themeColors.text.primary },
+											]}
+										>
+											{activity.title}
+										</Text>
+										<Text
+											style={[
+												styles.recentTime,
+												{ color: themeColors.text.secondary },
+											]}
+										>
+											{activity.subtitle}
+										</Text>
+									</View>
+									<Ionicons
+										name="chevron-forward"
+										size={16}
+										color={themeColors.text.secondary}
+									/>
+								</TouchableOpacity>
+							))
+						) : (
+							<View style={styles.recentItem}>
+								<View
 									style={[
-										styles.recentTime,
-										{ color: themeColors.text.secondary },
+										styles.recentIcon,
+										{ backgroundColor: Colors.gray[100] },
 									]}
 								>
-									2 hours ago • Tap for details
-								</Text>
+									<Ionicons
+										name="calendar-outline"
+										size={16}
+										color={Colors.gray[500]}
+									/>
+								</View>
+								<View style={styles.recentContent}>
+									<Text
+										style={[
+											styles.recentTitle,
+											{ color: themeColors.text.primary },
+										]}
+									>
+										No recent activity
+									</Text>
+									<Text
+										style={[
+											styles.recentTime,
+											{ color: themeColors.text.secondary },
+										]}
+									>
+										Your bookings will appear here
+									</Text>
+								</View>
 							</View>
-							<Ionicons
-								name="chevron-forward"
-								size={16}
-								color={themeColors.text.secondary}
-							/>
-						</TouchableOpacity>
-
-						<TouchableOpacity
-							style={styles.recentItem}
-							onPress={() => handleQuickAction("reminder")}
-							activeOpacity={0.7}
-						>
-							<View
-								style={[
-									styles.recentIcon,
-									{ backgroundColor: Colors.warning.light },
-								]}
-							>
-								<Ionicons name="time" size={16} color={Colors.warning.main} />
-							</View>
-							<View style={styles.recentContent}>
-								<Text
-									style={[
-										styles.recentTitle,
-										{ color: themeColors.text.primary },
-									]}
-								>
-									Booking reminder
-								</Text>
-								<Text
-									style={[
-										styles.recentTime,
-										{ color: themeColors.text.secondary },
-									]}
-								>
-									Meeting Hall B - Tomorrow 9:00 AM
-								</Text>
-							</View>
-							<Ionicons
-								name="chevron-forward"
-								size={16}
-								color={themeColors.text.secondary}
-							/>
-						</TouchableOpacity>
-
-						<TouchableOpacity
-							style={styles.recentItem}
-							onPress={() => handleQuickAction("new-hall")}
-							activeOpacity={0.7}
-						>
-							<View
-								style={[
-									styles.recentIcon,
-									{ backgroundColor: Colors.primary[100] },
-								]}
-							>
-								<Ionicons
-									name="business"
-									size={16}
-									color={Colors.primary[600]}
-								/>
-							</View>
-							<View style={styles.recentContent}>
-								<Text
-									style={[
-										styles.recentTitle,
-										{ color: themeColors.text.primary },
-									]}
-								>
-									New hall available
-								</Text>
-								<Text
-									style={[
-										styles.recentTime,
-										{ color: themeColors.text.secondary },
-									]}
-								>
-									Conference Room C opened
-								</Text>
-							</View>
-							<Ionicons
-								name="chevron-forward"
-								size={16}
-								color={themeColors.text.secondary}
-							/>
-						</TouchableOpacity>
+						)}
 					</BlurView>
 				</Animated.View>
 			</ScrollView>
