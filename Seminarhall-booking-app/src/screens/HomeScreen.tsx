@@ -314,7 +314,14 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
 				navigation.navigate("Booking");
 				break;
 			case "bookings":
-				navigation.navigate("Bookings");
+				// Navigate to the Bookings tab inside AdminTabs if admin, else to Bookings screen
+				if (user && ["admin", "super_admin"].includes(user.role)) {
+					navigation.navigate("AdminTabs", {
+						screen: "BookingOversightScreen",
+					});
+				} else {
+					navigation.navigate("Bookings");
+				}
 				break;
 			case "admin":
 				// Navigate to the AdminDashboard tab inside AdminTabs
