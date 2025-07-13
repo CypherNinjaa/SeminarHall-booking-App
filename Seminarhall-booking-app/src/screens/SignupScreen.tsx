@@ -54,7 +54,93 @@ export default function SignupScreen({ navigation }: Props) {
 	const [isLoading, setIsLoading] = useState(false);
 	const [currentStep, setCurrentStep] = useState(1);
 
+	// Validation state for real-time feedback
+	const [validationErrors, setValidationErrors] = useState({
+		name: "",
+		email: "",
+		password: "",
+		confirmPassword: "",
+		phone: "",
+		employeeId: "",
+		department: "",
+	});
+	const [passwordStrength, setPasswordStrength] = useState(0);
+
 	const { register, error, clearError } = useAuthStore();
+
+	// Real-time validation handlers
+	const handleNameChange = (value: string) => {
+		setName(value);
+		const validation = validateName(value);
+		setValidationErrors((prev) => ({
+			...prev,
+			name: validation.isValid ? "" : validation.message,
+		}));
+	};
+
+	const handleEmailChange = (value: string) => {
+		setEmail(value);
+		const validation = validateEmail(value);
+		setValidationErrors((prev) => ({
+			...prev,
+			email: validation.isValid ? "" : validation.message,
+		}));
+	};
+
+	const handlePasswordChange = (value: string) => {
+		setPassword(value);
+		const validation = validatePassword(value);
+		setPasswordStrength(validation.strength);
+		setValidationErrors((prev) => ({
+			...prev,
+			password: validation.isValid ? "" : validation.message,
+		}));
+
+		// Also validate confirm password if it exists
+		if (confirmPassword) {
+			const confirmMatch = value === confirmPassword;
+			setValidationErrors((prev) => ({
+				...prev,
+				confirmPassword: confirmMatch ? "" : "Passwords do not match",
+			}));
+		}
+	};
+
+	const handleConfirmPasswordChange = (value: string) => {
+		setConfirmPassword(value);
+		const passwordsMatch = password === value;
+		setValidationErrors((prev) => ({
+			...prev,
+			confirmPassword: passwordsMatch ? "" : "Passwords do not match",
+		}));
+	};
+
+	const handlePhoneChange = (value: string) => {
+		setPhone(value);
+		const validation = validatePhone(value);
+		setValidationErrors((prev) => ({
+			...prev,
+			phone: validation.isValid ? "" : validation.message,
+		}));
+	};
+
+	const handleEmployeeIdChange = (value: string) => {
+		setEmployeeId(value);
+		const validation = validateEmployeeId(value);
+		setValidationErrors((prev) => ({
+			...prev,
+			employeeId: validation.isValid ? "" : validation.message,
+		}));
+	};
+
+	const handleDepartmentChange = (value: string) => {
+		setDepartment(value);
+		const validation = validateDepartment(value);
+		setValidationErrors((prev) => ({
+			...prev,
+			department: validation.isValid ? "" : validation.message,
+		}));
+	};
 
 	const togglePasswordVisibility = () => {
 		setShowPassword(!showPassword);
@@ -66,29 +152,155 @@ export default function SignupScreen({ navigation }: Props) {
 		Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 	};
 
+	// Enhanced validation functions
 	const validateEmail = (email: string) => {
-		const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-		return regex.test(email);
+		// More strict email validation with domain requirements
+		const emailRegex =
+			/^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
+
+		// Check basic format
+		if (!emailRegex.test(email)) {
+			return { isValid: false, message: "Please enter a valid email address" };
+		}
+
+		// Check for university domain (optional - can be customized)
+		const universityDomains = [
+			"amity.edu",
+			"student.amity.edu",
+			"faculty.amity.edu",
+		];
+		const domain = email.split("@")[1]?.toLowerCase();
+
+		// For now, we'll allow any valid email but could restrict to university domains
+		// if (domain && !universityDomains.some(uniDomain => domain.includes(uniDomain))) {
+		//     return { isValid: false, message: "Please use your university email address" };
+		// }
+
+		return { isValid: true, message: "" };
+	};
+
+	const validatePassword = (password: string) => {
+		const validations = [
+			{ test: password.length >= 8, message: "At least 8 characters" },
+			{ test: /[A-Z]/.test(password), message: "One uppercase letter" },
+			{ test: /[a-z]/.test(password), message: "One lowercase letter" },
+			{ test: /\d/.test(password), message: "One number" },
+			{
+				test: /[!@#$%^&*(),.?":{}|<>]/.test(password),
+				message: "One special character",
+			},
+		];
+
+		const failedValidations = validations.filter((v) => !v.test);
+
+		return {
+			isValid: failedValidations.length === 0,
+			message:
+				failedValidations.length > 0
+					? `Missing: ${failedValidations.map((v) => v.message).join(", ")}`
+					: "",
+			strength: validations.length - failedValidations.length,
+		};
+	};
+
+	const validateName = (name: string) => {
+		if (!name.trim()) {
+			return { isValid: false, message: "Full name is required" };
+		}
+		if (name.trim().length < 2) {
+			return { isValid: false, message: "Name must be at least 2 characters" };
+		}
+		if (!/^[a-zA-Z\s]+$/.test(name.trim())) {
+			return {
+				isValid: false,
+				message: "Name can only contain letters and spaces",
+			};
+		}
+		return { isValid: true, message: "" };
+	};
+
+	const validatePhone = (phone: string) => {
+		if (!phone.trim()) {
+			return { isValid: true, message: "" }; // Phone is optional
+		}
+		// Indian phone number validation
+		const phoneRegex = /^(\+91[\-\s]?)?[0]?(91)?[789]\d{9}$/;
+		if (!phoneRegex.test(phone.replace(/\s/g, ""))) {
+			return {
+				isValid: false,
+				message: "Please enter a valid Indian phone number",
+			};
+		}
+		return { isValid: true, message: "" };
+	};
+
+	const validateEmployeeId = (empId: string) => {
+		if (!empId.trim()) {
+			return { isValid: false, message: "Employee ID is required" };
+		}
+		if (empId.trim().length < 3) {
+			return {
+				isValid: false,
+				message: "Employee ID must be at least 3 characters",
+			};
+		}
+		// Basic alphanumeric validation
+		if (!/^[a-zA-Z0-9]+$/.test(empId.trim())) {
+			return {
+				isValid: false,
+				message: "Employee ID can only contain letters and numbers",
+			};
+		}
+		return { isValid: true, message: "" };
+	};
+
+	const validateDepartment = (dept: string) => {
+		if (!dept.trim()) {
+			return { isValid: true, message: "" }; // Department is optional
+		}
+		if (dept.trim().length < 2) {
+			return {
+				isValid: false,
+				message: "Department name must be at least 2 characters",
+			};
+		}
+		return { isValid: true, message: "" };
 	};
 
 	const validateStep1 = () => {
-		if (!name || !email || !password || !confirmPassword) {
-			Alert.alert("Missing Information", "Please fill in all required fields");
+		// Clear any previous errors
+		clearError();
+
+		// Validate name
+		const nameValidation = validateName(name);
+		if (!nameValidation.isValid) {
+			Alert.alert("Invalid Name", nameValidation.message);
 			Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
 			return false;
 		}
 
-		if (!validateEmail(email)) {
-			Alert.alert("Invalid Email", "Please enter a valid email address");
+		// Validate email
+		const emailValidation = validateEmail(email);
+		if (!emailValidation.isValid) {
+			Alert.alert("Invalid Email", emailValidation.message);
 			Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
 			return false;
 		}
 
-		if (password.length < 8) {
+		// Validate password
+		const passwordValidation = validatePassword(password);
+		if (!passwordValidation.isValid) {
 			Alert.alert(
 				"Weak Password",
-				"Password must be at least 8 characters long"
+				`Your password needs improvement:\n${passwordValidation.message}`
 			);
+			Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+			return false;
+		}
+
+		// Check password confirmation
+		if (!confirmPassword) {
+			Alert.alert("Missing Information", "Please confirm your password");
 			Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
 			return false;
 		}
@@ -114,11 +326,37 @@ export default function SignupScreen({ navigation }: Props) {
 		Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 	};
 
-	const handleSignup = async () => {
-		// Additional validation for step 2 if needed
-		if (!employeeId) {
-			Alert.alert("Missing Information", "Employee ID is required");
+	const validateStep2 = () => {
+		// Validate employee ID (required)
+		const empIdValidation = validateEmployeeId(employeeId);
+		if (!empIdValidation.isValid) {
+			Alert.alert("Invalid Employee ID", empIdValidation.message);
 			Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+			return false;
+		}
+
+		// Validate phone (optional but if provided, must be valid)
+		const phoneValidation = validatePhone(phone);
+		if (!phoneValidation.isValid) {
+			Alert.alert("Invalid Phone Number", phoneValidation.message);
+			Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+			return false;
+		}
+
+		// Validate department (optional but if provided, must be valid)
+		const deptValidation = validateDepartment(department);
+		if (!deptValidation.isValid) {
+			Alert.alert("Invalid Department", deptValidation.message);
+			Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+			return false;
+		}
+
+		return true;
+	};
+
+	const handleSignup = async () => {
+		// Validate step 2 fields
+		if (!validateStep2()) {
 			return;
 		}
 
@@ -127,12 +365,12 @@ export default function SignupScreen({ navigation }: Props) {
 
 		try {
 			await register({
-				name,
-				email,
+				name: name.trim(),
+				email: email.trim().toLowerCase(),
 				password,
-				phone,
-				employeeId,
-				department,
+				phone: phone.trim(),
+				employeeId: employeeId.trim().toUpperCase(),
+				department: department.trim(),
 				role: "faculty", // Default role, will be approved by admin
 			});
 
@@ -253,40 +491,71 @@ export default function SignupScreen({ navigation }: Props) {
 
 									{/* Full Name Input */}
 									<View style={styles.inputContainer}>
-										<Text style={styles.inputLabel}>Full Name</Text>
-										<View style={styles.inputWrapper}>
+										<Text style={styles.inputLabel}>Full Name *</Text>
+										<View
+											style={[
+												styles.inputWrapper,
+												validationErrors.name && styles.inputWrapperError,
+											]}
+										>
 											<Ionicons
 												name="person-outline"
 												size={20}
-												color={Colors.gray[400]}
+												color={
+													validationErrors.name
+														? Colors.error.main
+														: Colors.gray[400]
+												}
 												style={styles.inputIcon}
 											/>
 											<TextInput
 												style={styles.textInput}
 												value={name}
-												onChangeText={setName}
+												onChangeText={handleNameChange}
 												placeholder="Enter your full name"
 												placeholderTextColor={Colors.gray[400]}
 												autoCapitalize="words"
 												autoCorrect={false}
 											/>
+											{!validationErrors.name && name.length > 1 && (
+												<Ionicons
+													name="checkmark-circle"
+													size={20}
+													color={Colors.success.main}
+													style={styles.validationIcon}
+												/>
+											)}
 										</View>
+										{validationErrors.name ? (
+											<Text style={styles.errorHint}>
+												{validationErrors.name}
+											</Text>
+										) : null}
 									</View>
 
 									{/* Email Input */}
 									<View style={styles.inputContainer}>
-										<Text style={styles.inputLabel}>Email Address</Text>
-										<View style={styles.inputWrapper}>
+										<Text style={styles.inputLabel}>Email Address *</Text>
+										<View
+											style={[
+												styles.inputWrapper,
+												validationErrors.email && styles.inputWrapperError,
+											]}
+										>
 											<Ionicons
 												name="mail-outline"
 												size={20}
-												color={Colors.gray[400]}
+												color={
+													validationErrors.email
+														? Colors.error.main
+														: Colors.gray[400]
+												}
 												style={styles.inputIcon}
 											/>
 											<TextInput
 												style={styles.textInput}
 												value={email}
-												onChangeText={setEmail}
+												onChangeText={handleEmailChange}
 												placeholder="Enter your university email"
 												placeholderTextColor={Colors.gray[400]}
 												keyboardType="email-address"
@@ -294,23 +563,47 @@ export default function SignupScreen({ navigation }: Props) {
 												autoCorrect={false}
 												autoComplete="email"
 											/>
+											{!validationErrors.email &&
+												email.length > 0 &&
+												validateEmail(email).isValid && (
+													<Ionicons
+														name="checkmark-circle"
+														size={20}
+														color={Colors.success.main}
+														style={styles.validationIcon}
+													/>
+												)}
 										</View>
+										{validationErrors.email ? (
+											<Text style={styles.errorHint}>
+												{validationErrors.email}
+											</Text>
+										) : null}
 									</View>
 
 									{/* Password Input */}
 									<View style={styles.inputContainer}>
-										<Text style={styles.inputLabel}>Password</Text>
-										<View style={styles.inputWrapper}>
+										<Text style={styles.inputLabel}>Password *</Text>
+										<View
+											style={[
+												styles.inputWrapper,
+												validationErrors.password && styles.inputWrapperError,
+											]}
+										>
 											<Ionicons
 												name="lock-closed-outline"
 												size={20}
-												color={Colors.gray[400]}
+												color={
+													validationErrors.password
+														? Colors.error.main
+														: Colors.gray[400]
+												}
 												style={styles.inputIcon}
 											/>
 											<TextInput
 												style={[styles.textInput, styles.passwordInput]}
 												value={password}
-												onChangeText={setPassword}
+												onChangeText={handlePasswordChange}
 												placeholder="Create a strong password"
 												placeholderTextColor={Colors.gray[400]}
 												secureTextEntry={!showPassword}
@@ -330,25 +623,87 @@ export default function SignupScreen({ navigation }: Props) {
 												/>
 											</TouchableOpacity>
 										</View>
+
+										{/* Password Strength Indicator */}
+										{password.length > 0 && (
+											<View style={styles.passwordStrengthContainer}>
+												<View style={styles.strengthBars}>
+													{[1, 2, 3, 4, 5].map((level) => (
+														<View
+															key={level}
+															style={[
+																styles.strengthBar,
+																passwordStrength >= level &&
+																	styles.strengthBarActive,
+																passwordStrength >= level && {
+																	backgroundColor:
+																		passwordStrength <= 2
+																			? Colors.error.main
+																			: passwordStrength <= 4
+																			? Colors.warning.main
+																			: Colors.success.main,
+																},
+															]}
+														/>
+													))}
+												</View>
+												<Text
+													style={[
+														styles.strengthText,
+														{
+															color:
+																passwordStrength <= 2
+																	? Colors.error.main
+																	: passwordStrength <= 4
+																	? Colors.warning.main
+																	: Colors.success.main,
+														},
+													]}
+												>
+													{passwordStrength <= 2
+														? "Weak"
+														: passwordStrength <= 4
+														? "Medium"
+														: "Strong"}
+												</Text>
+											</View>
+										)}
+
 										<Text style={styles.passwordHint}>
-											Password must be at least 8 characters long
+											Password must include: uppercase, lowercase, number,
+											special character (8+ chars)
 										</Text>
+										{validationErrors.password ? (
+											<Text style={styles.errorHint}>
+												{validationErrors.password}
+											</Text>
+										) : null}
 									</View>
 
 									{/* Confirm Password Input */}
 									<View style={styles.inputContainer}>
-										<Text style={styles.inputLabel}>Confirm Password</Text>
-										<View style={styles.inputWrapper}>
+										<Text style={styles.inputLabel}>Confirm Password *</Text>
+										<View
+											style={[
+												styles.inputWrapper,
+												validationErrors.confirmPassword &&
+													styles.inputWrapperError,
+											]}
+										>
 											<Ionicons
 												name="lock-closed-outline"
 												size={20}
-												color={Colors.gray[400]}
+												color={
+													validationErrors.confirmPassword
+														? Colors.error.main
+														: Colors.gray[400]
+												}
 												style={styles.inputIcon}
 											/>
 											<TextInput
 												style={[styles.textInput, styles.passwordInput]}
 												value={confirmPassword}
-												onChangeText={setConfirmPassword}
+												onChangeText={handleConfirmPasswordChange}
 												placeholder="Confirm your password"
 												placeholderTextColor={Colors.gray[400]}
 												secureTextEntry={!showConfirmPassword}
@@ -368,7 +723,23 @@ export default function SignupScreen({ navigation }: Props) {
 													color={Colors.gray[400]}
 												/>
 											</TouchableOpacity>
+											{!validationErrors.confirmPassword &&
+												confirmPassword.length > 0 &&
+												password === confirmPassword && (
+													<View style={styles.confirmPasswordCheck}>
+														<Ionicons
+															name="checkmark-circle"
+															size={20}
+															color={Colors.success.main}
+														/>
+													</View>
+												)}
 										</View>
+										{validationErrors.confirmPassword ? (
+											<Text style={styles.errorHint}>
+												{validationErrors.confirmPassword}
+											</Text>
+										) : null}
 									</View>
 
 									{/* Next Step Button */}
@@ -411,68 +782,142 @@ export default function SignupScreen({ navigation }: Props) {
 
 									{/* Employee ID Input */}
 									<View style={styles.inputContainer}>
-										<Text style={styles.inputLabel}>Employee ID</Text>
-										<View style={styles.inputWrapper}>
+										<Text style={styles.inputLabel}>Employee ID *</Text>
+										<View
+											style={[
+												styles.inputWrapper,
+												validationErrors.employeeId && styles.inputWrapperError,
+											]}
+										>
 											<Ionicons
 												name="card-outline"
 												size={20}
-												color={Colors.gray[400]}
+												color={
+													validationErrors.employeeId
+														? Colors.error.main
+														: Colors.gray[400]
+												}
 												style={styles.inputIcon}
 											/>
 											<TextInput
 												style={styles.textInput}
 												value={employeeId}
-												onChangeText={setEmployeeId}
+												onChangeText={handleEmployeeIdChange}
 												placeholder="Enter your employee ID"
 												placeholderTextColor={Colors.gray[400]}
 												autoCapitalize="characters"
 												autoCorrect={false}
 											/>
+											{!validationErrors.employeeId &&
+												employeeId.length > 2 && (
+													<Ionicons
+														name="checkmark-circle"
+														size={20}
+														color={Colors.success.main}
+														style={styles.validationIcon}
+													/>
+												)}
 										</View>
+										{validationErrors.employeeId ? (
+											<Text style={styles.errorHint}>
+												{validationErrors.employeeId}
+											</Text>
+										) : null}
 									</View>
 
 									{/* Department Input */}
 									<View style={styles.inputContainer}>
 										<Text style={styles.inputLabel}>Department</Text>
-										<View style={styles.inputWrapper}>
+										<View
+											style={[
+												styles.inputWrapper,
+												validationErrors.department && styles.inputWrapperError,
+											]}
+										>
 											<Ionicons
 												name="business-outline"
 												size={20}
-												color={Colors.gray[400]}
+												color={
+													validationErrors.department
+														? Colors.error.main
+														: Colors.gray[400]
+												}
 												style={styles.inputIcon}
 											/>
 											<TextInput
 												style={styles.textInput}
 												value={department}
-												onChangeText={setDepartment}
+												onChangeText={handleDepartmentChange}
 												placeholder="Enter your department"
 												placeholderTextColor={Colors.gray[400]}
 												autoCapitalize="words"
 												autoCorrect={false}
 											/>
+											{!validationErrors.department &&
+												department.length > 1 && (
+													<Ionicons
+														name="checkmark-circle"
+														size={20}
+														color={Colors.success.main}
+														style={styles.validationIcon}
+													/>
+												)}
 										</View>
+										{validationErrors.department ? (
+											<Text style={styles.errorHint}>
+												{validationErrors.department}
+											</Text>
+										) : null}
 									</View>
 
 									{/* Phone Number Input */}
 									<View style={styles.inputContainer}>
 										<Text style={styles.inputLabel}>Phone Number</Text>
-										<View style={styles.inputWrapper}>
+										<View
+											style={[
+												styles.inputWrapper,
+												validationErrors.phone && styles.inputWrapperError,
+											]}
+										>
 											<Ionicons
 												name="call-outline"
 												size={20}
-												color={Colors.gray[400]}
+												color={
+													validationErrors.phone
+														? Colors.error.main
+														: Colors.gray[400]
+												}
 												style={styles.inputIcon}
 											/>
 											<TextInput
 												style={styles.textInput}
 												value={phone}
-												onChangeText={setPhone}
+												onChangeText={handlePhoneChange}
 												placeholder="Enter your phone number"
 												placeholderTextColor={Colors.gray[400]}
 												keyboardType="phone-pad"
 												autoCorrect={false}
 											/>
+											{!validationErrors.phone &&
+												phone.length > 0 &&
+												validatePhone(phone).isValid && (
+													<Ionicons
+														name="checkmark-circle"
+														size={20}
+														color={Colors.success.main}
+														style={styles.validationIcon}
+													/>
+												)}
 										</View>
+										{validationErrors.phone ? (
+											<Text style={styles.errorHint}>
+												{validationErrors.phone}
+											</Text>
+										) : phone.length === 0 ? (
+											<Text style={styles.optionalHint}>
+												Optional - but recommended for notifications
+											</Text>
+										) : null}
 									</View>
 
 									{/* Back and Register Button Row */}
@@ -719,6 +1164,11 @@ const styles = StyleSheet.create({
 		...Shadows.sm,
 	},
 
+	inputWrapperError: {
+		borderColor: Colors.error.main,
+		borderWidth: 2,
+	},
+
 	inputIcon: {
 		marginRight: Spacing[3],
 	},
@@ -731,7 +1181,7 @@ const styles = StyleSheet.create({
 	},
 
 	passwordInput: {
-		paddingRight: Spacing[10],
+		paddingRight: Spacing[12],
 	},
 
 	passwordToggle: {
@@ -740,11 +1190,68 @@ const styles = StyleSheet.create({
 		padding: Spacing[2],
 	},
 
+	confirmPasswordCheck: {
+		position: "absolute",
+		right: Spacing[12],
+		padding: Spacing[2],
+	},
+
+	validationIcon: {
+		marginLeft: Spacing[2],
+	},
+
+	passwordStrengthContainer: {
+		flexDirection: "row",
+		alignItems: "center",
+		marginTop: Spacing[2],
+		marginLeft: Spacing[2],
+	},
+
+	strengthBars: {
+		flexDirection: "row",
+		flex: 1,
+		gap: Spacing[1],
+		marginRight: Spacing[3],
+	},
+
+	strengthBar: {
+		flex: 1,
+		height: 4,
+		backgroundColor: Colors.gray[200],
+		borderRadius: 2,
+	},
+
+	strengthBarActive: {
+		backgroundColor: Colors.success.main,
+	},
+
+	strengthText: {
+		fontSize: Typography.fontSize.xs,
+		fontWeight: Typography.fontWeight.medium,
+		minWidth: 50,
+	},
+
 	passwordHint: {
 		fontSize: Typography.fontSize.xs,
 		color: Colors.gray[500],
 		marginTop: Spacing[1],
 		marginLeft: Spacing[2],
+	},
+
+	errorHint: {
+		fontSize: Typography.fontSize.xs,
+		color: Colors.error.main,
+		marginTop: Spacing[1],
+		marginLeft: Spacing[2],
+		fontWeight: Typography.fontWeight.medium,
+	},
+
+	optionalHint: {
+		fontSize: Typography.fontSize.xs,
+		color: Colors.gray[400],
+		marginTop: Spacing[1],
+		marginLeft: Spacing[2],
+		fontStyle: "italic",
 	},
 
 	actionButton: {
