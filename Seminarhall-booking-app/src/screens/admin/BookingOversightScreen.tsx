@@ -11,6 +11,7 @@ import {
 	TextInput,
 	Alert,
 	FlatList,
+	Modal,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
@@ -54,6 +55,16 @@ const BookingOversightScreen: React.FC = () => {
 		priority: "all",
 	});
 	const [showFilters, setShowFilters] = useState(false);
+
+	// Add states for reason modal
+	const [showReasonModal, setShowReasonModal] = useState(false);
+	const [reasonModalData, setReasonModalData] = useState<{
+		bookingId: string;
+		action: "reject" | "cancel";
+		bookingTitle: string;
+	} | null>(null);
+	const [reason, setReason] = useState("");
+	const [isSubmittingReason, setIsSubmittingReason] = useState(false);
 
 	const loadBookings = useCallback(async () => {
 		try {
@@ -131,9 +142,22 @@ const BookingOversightScreen: React.FC = () => {
 
 	const handleBookingAction = async (
 		bookingId: string,
-		action: "approve" | "reject" | "cancel" | "complete"
+		action: "approve" | "reject" | "cancel" | "complete",
+		bookingTitle?: string
 	) => {
 		try {
+			// For reject and cancel actions, show reason modal
+			if (action === "reject" || action === "cancel") {
+				setReasonModalData({
+					bookingId,
+					action,
+					bookingTitle: bookingTitle || "Unknown Booking",
+				});
+				setReason("");
+				setShowReasonModal(true);
+				return;
+			}
+
 			let actionText: string;
 			let successMessage: string;
 
@@ -145,19 +169,6 @@ const BookingOversightScreen: React.FC = () => {
 					);
 					actionText = "approve";
 					successMessage = "Booking approved successfully!";
-					break;
-				case "reject":
-					await bookingOversightService.updateBookingStatus(
-						bookingId,
-						"rejected"
-					);
-					actionText = "reject";
-					successMessage = "Booking rejected successfully!";
-					break;
-				case "cancel":
-					await bookingOversightService.cancelBooking(bookingId);
-					actionText = "cancel";
-					successMessage = "Booking cancelled successfully!";
 					break;
 				case "complete":
 					await bookingOversightService.completeBooking(bookingId);
@@ -174,6 +185,53 @@ const BookingOversightScreen: React.FC = () => {
 		} catch (error) {
 			console.error(`Error ${action}ing booking:`, error);
 			Alert.alert("Error", `Failed to ${action} booking. Please try again.`);
+		}
+	};
+
+	// Handle reason submission
+	const handleReasonSubmit = async () => {
+		if (!reasonModalData) return;
+
+		try {
+			setIsSubmittingReason(true);
+
+			const { bookingId, action } = reasonModalData;
+
+			if (action === "reject") {
+				await bookingOversightService.updateBookingStatus(
+					bookingId,
+					"rejected",
+					undefined,
+					reason.trim() || "No reason provided"
+				);
+			} else if (action === "cancel") {
+				await bookingOversightService.updateBookingStatus(
+					bookingId,
+					"cancelled",
+					reason.trim() || "No reason provided"
+				);
+			}
+
+			const successMessage =
+				action === "reject"
+					? "Booking rejected successfully!"
+					: "Booking cancelled successfully!";
+
+			setShowReasonModal(false);
+			setReasonModalData(null);
+			setReason("");
+
+			Alert.alert("Success", successMessage, [
+				{ text: "OK", onPress: () => loadBookings() },
+			]);
+		} catch (error) {
+			console.error(`Error ${reasonModalData.action}ing booking:`, error);
+			Alert.alert(
+				"Error",
+				`Failed to ${reasonModalData.action} booking. Please try again.`
+			);
+		} finally {
+			setIsSubmittingReason(false);
 		}
 	};
 
@@ -311,7 +369,13 @@ const BookingOversightScreen: React.FC = () => {
 				<View style={styles.actionButtonsRow}>
 					<TouchableOpacity
 						style={[styles.actionButton, styles.rejectButton]}
-						onPress={() => handleBookingAction(item.id, "reject")}
+						onPress={() =>
+							handleBookingAction(
+								item.id,
+								"reject",
+								`${item.hall_name} - ${item.purpose}`
+							)
+						}
 						accessibilityLabel="Reject booking"
 						accessibilityHint="Reject this booking request"
 					>
@@ -333,7 +397,13 @@ const BookingOversightScreen: React.FC = () => {
 				<View style={styles.actionButtonsRow}>
 					<TouchableOpacity
 						style={[styles.actionButton, styles.rejectButton]}
-						onPress={() => handleBookingAction(item.id, "reject")}
+						onPress={() =>
+							handleBookingAction(
+								item.id,
+								"reject",
+								`${item.hall_name} - ${item.purpose}`
+							)
+						}
 						accessibilityLabel="Reject booking"
 						accessibilityHint="Reject this approved booking"
 					>
@@ -342,7 +412,13 @@ const BookingOversightScreen: React.FC = () => {
 					</TouchableOpacity>
 					<TouchableOpacity
 						style={[styles.actionButton, styles.cancelButton]}
-						onPress={() => handleBookingAction(item.id, "cancel")}
+						onPress={() =>
+							handleBookingAction(
+								item.id,
+								"cancel",
+								`${item.hall_name} - ${item.purpose}`
+							)
+						}
 						accessibilityLabel="Cancel booking"
 						accessibilityHint="Cancel this approved booking"
 					>
@@ -369,7 +445,13 @@ const BookingOversightScreen: React.FC = () => {
 				<View style={styles.actionButtonsRow}>
 					<TouchableOpacity
 						style={[styles.actionButton, styles.cancelButton]}
-						onPress={() => handleBookingAction(item.id, "cancel")}
+						onPress={() =>
+							handleBookingAction(
+								item.id,
+								"cancel",
+								`${item.hall_name} - ${item.purpose}`
+							)
+						}
 						accessibilityLabel="Cancel booking"
 						accessibilityHint="Cancel this booking request"
 					>
@@ -658,6 +740,121 @@ const BookingOversightScreen: React.FC = () => {
 					}
 				/>
 			)}
+
+			{/* Reason Modal */}
+			<Modal
+				visible={showReasonModal}
+				transparent={true}
+				animationType="slide"
+				onRequestClose={() => {
+					if (!isSubmittingReason) {
+						setShowReasonModal(false);
+						setReasonModalData(null);
+						setReason("");
+					}
+				}}
+			>
+				<View style={styles.modalOverlay}>
+					<View
+						style={[styles.modalContainer, isDark && styles.modalContainerDark]}
+					>
+						<View style={styles.modalHeader}>
+							<Text
+								style={[styles.modalTitle, isDark && styles.modalTitleDark]}
+							>
+								{reasonModalData?.action === "reject"
+									? "Reject Booking"
+									: "Cancel Booking"}
+							</Text>
+							<TouchableOpacity
+								style={styles.modalCloseButton}
+								onPress={() => {
+									if (!isSubmittingReason) {
+										setShowReasonModal(false);
+										setReasonModalData(null);
+										setReason("");
+									}
+								}}
+								disabled={isSubmittingReason}
+							>
+								<Ionicons
+									name="close"
+									size={24}
+									color={
+										isDark ? Colors.dark.text.secondary : Colors.text.secondary
+									}
+								/>
+							</TouchableOpacity>
+						</View>
+
+						<Text
+							style={[styles.modalSubtitle, isDark && styles.modalSubtitleDark]}
+						>
+							{reasonModalData?.bookingTitle}
+						</Text>
+
+						<Text style={[styles.modalLabel, isDark && styles.modalLabelDark]}>
+							Please provide a reason for{" "}
+							{reasonModalData?.action === "reject"
+								? "rejecting"
+								: "cancelling"}{" "}
+							this booking:
+						</Text>
+
+						<TextInput
+							style={[styles.reasonInput, isDark && styles.reasonInputDark]}
+							placeholder={`Enter reason for ${reasonModalData?.action}...`}
+							placeholderTextColor={
+								isDark ? Colors.dark.text.secondary : Colors.text.secondary
+							}
+							value={reason}
+							onChangeText={setReason}
+							multiline
+							numberOfLines={4}
+							textAlignVertical="top"
+							editable={!isSubmittingReason}
+						/>
+
+						<View style={styles.modalButtons}>
+							<TouchableOpacity
+								style={[styles.modalButton, styles.modalCancelButton]}
+								onPress={() => {
+									if (!isSubmittingReason) {
+										setShowReasonModal(false);
+										setReasonModalData(null);
+										setReason("");
+									}
+								}}
+								disabled={isSubmittingReason}
+							>
+								<Text style={styles.modalCancelButtonText}>Cancel</Text>
+							</TouchableOpacity>
+
+							<TouchableOpacity
+								style={[
+									styles.modalButton,
+									reasonModalData?.action === "reject"
+										? styles.modalRejectButton
+										: styles.modalCancelActionButton,
+									(!reason.trim() || isSubmittingReason) &&
+										styles.modalButtonDisabled,
+								]}
+								onPress={handleReasonSubmit}
+								disabled={!reason.trim() || isSubmittingReason}
+							>
+								{isSubmittingReason ? (
+									<ActivityIndicator color="white" size="small" />
+								) : (
+									<Text style={styles.modalActionButtonText}>
+										{reasonModalData?.action === "reject" ? "Reject" : "Cancel"}{" "}
+										Booking
+									</Text>
+								)}
+							</TouchableOpacity>
+						</View>
+					</View>
+				</View>
+			</Modal>
 		</SafeAreaView>
 	);
 };
@@ -1091,6 +1288,129 @@ const styles = StyleSheet.create({
 	},
 	filterHintTextDark: {
 		color: Colors.dark.text.secondary,
+	},
+
+	// Modal styles
+	modalOverlay: {
+		flex: 1,
+		backgroundColor: "rgba(0, 0, 0, 0.5)",
+		justifyContent: "center",
+		alignItems: "center",
+		padding: 20,
+	},
+	modalContainer: {
+		backgroundColor: Colors.background.primary,
+		borderRadius: BorderRadius.lg,
+		width: "100%",
+		maxWidth: 400,
+		maxHeight: "80%",
+		shadowColor: "#000",
+		shadowOffset: { width: 0, height: 4 },
+		shadowOpacity: 0.3,
+		shadowRadius: 8,
+		elevation: 8,
+	},
+	modalContainerDark: {
+		backgroundColor: Colors.dark.background.primary,
+	},
+	modalHeader: {
+		flexDirection: "row",
+		justifyContent: "space-between",
+		alignItems: "center",
+		paddingHorizontal: Spacing[5],
+		paddingTop: Spacing[5],
+		paddingBottom: Spacing[3],
+		borderBottomWidth: 1,
+		borderBottomColor: Colors.border.main,
+	},
+	modalTitle: {
+		fontSize: Typography.fontSize.lg,
+		fontWeight: Typography.fontWeight.semibold,
+		color: Colors.text.primary,
+		flex: 1,
+	},
+	modalTitleDark: {
+		color: Colors.dark.text.primary,
+	},
+	modalCloseButton: {
+		padding: Spacing[2],
+		marginLeft: Spacing[2],
+	},
+	modalSubtitle: {
+		fontSize: Typography.fontSize.sm,
+		color: Colors.text.secondary,
+		paddingHorizontal: Spacing[5],
+		paddingVertical: Spacing[3],
+		lineHeight: 20,
+	},
+	modalSubtitleDark: {
+		color: Colors.dark.text.secondary,
+	},
+	modalLabel: {
+		fontSize: Typography.fontSize.base,
+		fontWeight: Typography.fontWeight.medium,
+		color: Colors.text.primary,
+		marginBottom: Spacing[2],
+		paddingHorizontal: Spacing[5],
+	},
+	modalLabelDark: {
+		color: Colors.dark.text.primary,
+	},
+	reasonInput: {
+		borderWidth: 1,
+		borderColor: Colors.border.main,
+		borderRadius: BorderRadius.md,
+		paddingHorizontal: Spacing[3],
+		paddingVertical: Spacing[3],
+		marginHorizontal: Spacing[5],
+		fontSize: Typography.fontSize.base,
+		textAlignVertical: "top",
+		backgroundColor: Colors.background.secondary,
+		minHeight: 100,
+		color: Colors.text.primary,
+	},
+	reasonInputDark: {
+		borderColor: Colors.dark.border.main,
+		backgroundColor: Colors.dark.background.secondary,
+		color: Colors.dark.text.primary,
+	},
+	modalButtons: {
+		flexDirection: "row",
+		justifyContent: "flex-end",
+		paddingHorizontal: Spacing[5],
+		paddingVertical: Spacing[5],
+		gap: Spacing[3],
+	},
+	modalButton: {
+		paddingHorizontal: Spacing[4],
+		paddingVertical: Spacing[3],
+		borderRadius: BorderRadius.md,
+		minWidth: 80,
+		alignItems: "center",
+	},
+	modalCancelButton: {
+		backgroundColor: Colors.background.secondary,
+		borderWidth: 1,
+		borderColor: Colors.border.main,
+	},
+	modalCancelButtonText: {
+		color: Colors.text.secondary,
+		fontSize: Typography.fontSize.base,
+		fontWeight: Typography.fontWeight.medium,
+	},
+	modalRejectButton: {
+		backgroundColor: Colors.error.main,
+	},
+	modalCancelActionButton: {
+		backgroundColor: Colors.warning.main,
+	},
+	modalButtonDisabled: {
+		opacity: 0.5,
+	},
+	modalActionButtonText: {
+		color: Colors.background.primary,
+		fontSize: Typography.fontSize.base,
+		fontWeight: Typography.fontWeight.medium,
 	},
 });
 

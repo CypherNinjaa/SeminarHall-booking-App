@@ -15,6 +15,7 @@ import BookingScreen from "../screens/BookingScreen";
 import ProfileScreen from "../screens/ProfileScreen";
 import SignupScreen from "../screens/SignupScreen";
 import SuperAdminScreen from "../screens/SuperAdminScreen";
+import NotificationsScreen from "../screens/NotificationsScreen";
 import LoadingScreen from "../components/LoadingScreen";
 import AddEditHallScreen from "../screens/admin/AddEditHallScreen";
 import HallDetailsScreen from "../screens/admin/HallDetailsScreen";
@@ -31,6 +32,7 @@ export type RootStackParamList = {
 	HallDetails: { hallId: string; hall?: any };
 	Booking: { hallId: string };
 	AddEditHall: { hallId?: string; hall?: any } | undefined;
+	Notifications: undefined;
 };
 
 export type MainTabParamList = {
@@ -100,6 +102,10 @@ export default function AppNavigator() {
 							// Authenticated screens - Always start with MainTabs for all users
 							<>
 								<Stack.Screen name="MainTabs" component={MainTabNavigator} />
+								<Stack.Screen
+									name="Notifications"
+									component={NotificationsScreen}
+								/>
 								<Stack.Screen
 									name="AddEditHall"
 									component={AddEditHallScreen}

@@ -1,5 +1,6 @@
 import { supabase } from '../utils/supabaseSetup';
 import { adminLoggingService } from './adminLoggingService';
+import { notificationService } from './notificationService';
 
 export interface BookingDetails {
   id: string;
@@ -173,11 +174,39 @@ class BookingOversightService {
     rejectedReason?: string
   ): Promise<void> {
     try {
-      console.log(`[BookingOversight] Updating booking ${bookingId} to status: ${status}`);
+      console.log(`[BookingOversight] Updating booking ${bookingId} to status: ${status} - Using separate queries to avoid FK issues`);
 
       // Get current admin user for approved_by field
       const { data: { user } } = await supabase.auth.getUser();
       
+      // Get booking details for notification - using separate queries to avoid foreign key issues
+      const { data: bookingData, error: fetchError } = await supabase
+        .from('smart_bookings')
+        .select('*')
+        .eq('id', bookingId)
+        .single();
+
+      if (fetchError || !bookingData) {
+        console.error('Error fetching booking details:', fetchError);
+        throw new Error('Failed to fetch booking details');
+      }
+
+      // Fetch user and hall data separately to avoid foreign key relationship issues
+      const [
+        { data: userData, error: userError },
+        { data: hallData, error: hallError }
+      ] = await Promise.all([
+        supabase.from('profiles').select('id, email, name').eq('id', bookingData.user_id).single(),
+        supabase.from('halls').select('name').eq('id', bookingData.hall_id).single()
+      ]);
+
+      // Add user and hall data to booking data
+      const enrichedBookingData = {
+        ...bookingData,
+        user: userData || { id: bookingData.user_id, email: 'unknown@email.com', name: 'Unknown User' },
+        hall: hallData || { name: 'Unknown Hall' }
+      };
+
       const updateData: any = {
         status,
         admin_notes: adminNotes,
@@ -193,6 +222,10 @@ class BookingOversightService {
         updateData.rejected_reason = rejectedReason || adminNotes || 'No reason provided';
         updateData.approved_by = null;
         updateData.approved_at = null;
+      } else if (status === 'cancelled') {
+        updateData.cancelled_at = new Date().toISOString();
+      } else if (status === 'completed') {
+        updateData.completed_at = new Date().toISOString();
       }
 
       const { error } = await supabase
@@ -206,6 +239,49 @@ class BookingOversightService {
       }
 
       console.log(`[BookingOversight] Successfully updated booking ${bookingId} to ${status}`);
+
+      // Send notification to user based on status
+      if (enrichedBookingData.user?.id) {
+        const bookingDetails = {
+          id: bookingId,
+          hall_name: enrichedBookingData.hall?.name || 'Unknown Hall',
+          booking_date: enrichedBookingData.booking_date,
+          start_time: enrichedBookingData.start_time,
+          end_time: enrichedBookingData.end_time,
+          purpose: enrichedBookingData.purpose,
+        };
+
+        // Get admin name for notification
+        const adminName = user?.email || 'Admin';
+
+        switch (status) {
+          case 'approved':
+            await notificationService.createBookingApprovalNotification(
+              enrichedBookingData.user.id,
+              bookingDetails,
+              adminName
+            );
+            break;
+
+          case 'rejected':
+            await notificationService.createBookingRejectionNotification(
+              enrichedBookingData.user.id,
+              bookingDetails,
+              rejectedReason || adminNotes || 'No reason provided',
+              adminName
+            );
+            break;
+
+          case 'cancelled':
+            await notificationService.createBookingCancellationNotification(
+              enrichedBookingData.user.id,
+              bookingDetails,
+              adminNotes || 'Booking was cancelled by admin',
+              adminName
+            );
+            break;
+        }
+      }
 
       // Log the admin action
       await this.logAdminAction(bookingId, `Booking ${status}`, adminNotes || rejectedReason);
@@ -477,14 +553,31 @@ class BookingOversightService {
 
       if (!booking) return null;
 
-      // Fetch related hall and user data
+      // Fetch related hall and user data with better error handling
       const [
-        { data: hall },
-        { data: profile }
+        { data: hall, error: hallError },
+        { data: profileData, error: profileError }
       ] = await Promise.all([
         supabase.from('halls').select('id, name').eq('id', booking.hall_id).single(),
         supabase.from('profiles').select('id, name, email').eq('id', booking.user_id).single()
       ]);
+
+      // Log any errors but don't fail the entire operation
+      if (hallError) {
+        console.warn('Could not fetch hall data:', hallError);
+      }
+      
+      let profile = profileData;
+      if (profileError) {
+        console.warn('Could not fetch profile data:', profileError);
+        
+        // Fallback: use default values when profile is not available
+        profile = {
+          id: booking.user_id,
+          name: 'Unknown User',
+          email: 'No email available'
+        };
+      }
 
       return {
         id: booking.id,
