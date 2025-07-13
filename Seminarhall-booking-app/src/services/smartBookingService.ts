@@ -1,4 +1,5 @@
 import { supabase } from './userManagementService';
+import { emailService } from './emailService';
 
 // Enhanced Types for Smart Booking System
 export interface SmartBooking {
@@ -500,6 +501,26 @@ class SmartBookingService {
         console.error('Error fetching complete booking details:', viewFetchError);
         // Return the basic booking data if view fetch fails
         return data;
+      }
+
+      // Send booking confirmation email
+      try {
+        await emailService.sendBookingConfirmation(
+          completeBooking.user_email,
+          completeBooking.user_name,
+          {
+            id: completeBooking.id,
+            hallName: completeBooking.hall_name,
+            bookingDate: completeBooking.booking_date,
+            startTime: completeBooking.start_time,
+            endTime: completeBooking.end_time,
+            purpose: completeBooking.purpose,
+          }
+        );
+        console.log('✅ Booking confirmation email sent successfully');
+      } catch (emailError) {
+        console.error('❌ Failed to send booking confirmation email:', emailError);
+        // Don't fail the booking creation if email fails
       }
 
       return completeBooking;

@@ -21,6 +21,12 @@ function VerifyContent() {
 
 	useEffect(() => {
 		const verifyToken = async () => {
+			if (!searchParams) {
+				setState("invalid");
+				setMessage("Invalid verification link. Missing parameters.");
+				return;
+			}
+
 			const token = searchParams.get("token");
 			const email = searchParams.get("email");
 			const type = searchParams.get("type") || "email"; // Default to email verification
@@ -214,6 +220,8 @@ function VerifyContent() {
 	};
 
 	const handleManualRedirect = () => {
+		if (!searchParams) return;
+
 		const type = searchParams.get("type") || "email";
 		const next = searchParams.get("next");
 
@@ -243,6 +251,8 @@ function VerifyContent() {
 	};
 
 	const handleRequestNewLink = async () => {
+		if (!searchParams) return;
+
 		const email = searchParams.get("email");
 		const type = searchParams.get("type") || "email";
 
@@ -295,6 +305,14 @@ function VerifyContent() {
 	};
 
 	const getVerificationTypeInfo = () => {
+		if (!searchParams)
+			return {
+				title: "Email Verification",
+				loadingText: "Verifying email...",
+				icon: "📧",
+				color: "text-blue-400",
+			};
+
 		const type = searchParams.get("type") || "email";
 
 		switch (type) {
