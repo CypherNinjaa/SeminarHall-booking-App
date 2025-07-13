@@ -959,6 +959,76 @@ class SmartBookingService {
       return await this.getUserBookings(userId, status, limit);
     }
   }
+
+  /**
+   * Get user's booking statistics for the profile screen
+   */
+  async getUserBookingStats(userId: string): Promise<{
+    totalBookings: number;
+    thisMonthBookings: number;
+    approvedBookings: number;
+    pendingBookings: number;
+    completedBookings: number;
+    averageRating: number;
+  }> {
+    try {
+      // Get all user bookings
+      const { data: allBookings, error: allError } = await supabase
+        .from('booking_details')
+        .select('*')
+        .eq('user_id', userId);
+
+      if (allError) {
+        console.error('Error fetching all bookings:', allError);
+        throw allError;
+      }
+
+      // Get current month bookings
+      const currentDate = new Date();
+      const currentMonth = String(currentDate.getMonth() + 1).padStart(2, '0');
+      const currentYear = currentDate.getFullYear();
+      const currentMonthPattern = `${String(currentDate.getDate()).padStart(2, '0')}${currentMonth}${currentYear}`;
+      
+      // Filter bookings for current month (checking if booking_date starts with DDMM of current month)
+      const currentMonthString = `${currentMonth}${currentYear}`;
+      const thisMonthBookings = allBookings?.filter(booking => 
+        booking.booking_date.endsWith(currentMonthString)
+      ) || [];
+
+      // Calculate statistics
+      const totalBookings = allBookings?.length || 0;
+      const approvedBookings = allBookings?.filter(b => b.status === 'approved').length || 0;
+      const pendingBookings = allBookings?.filter(b => b.status === 'pending').length || 0;
+      const completedBookings = allBookings?.filter(b => b.status === 'completed').length || 0;
+
+      // For rating, we'll use a simple calculation based on approved/completed bookings
+      // In a real app, you might have actual user ratings
+      const successfulBookings = approvedBookings + completedBookings;
+      const averageRating = totalBookings > 0 
+        ? Math.min(5.0, 3.5 + (successfulBookings / totalBookings) * 1.5)
+        : 0;
+
+      return {
+        totalBookings,
+        thisMonthBookings: thisMonthBookings.length,
+        approvedBookings,
+        pendingBookings,
+        completedBookings,
+        averageRating: Math.round(averageRating * 10) / 10, // Round to 1 decimal place
+      };
+    } catch (error) {
+      console.error('Error getting user booking stats:', error);
+      // Return default values on error
+      return {
+        totalBookings: 0,
+        thisMonthBookings: 0,
+        approvedBookings: 0,
+        pendingBookings: 0,
+        completedBookings: 0,
+        averageRating: 0,
+      };
+    }
+  }
 }
 
 export const smartBookingService = new SmartBookingService();

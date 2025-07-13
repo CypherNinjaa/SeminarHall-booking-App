@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
 	View,
 	Text,
@@ -7,12 +7,22 @@ import {
 	ScrollView,
 	TouchableOpacity,
 	Image,
+	ActivityIndicator,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import { useAuthStore } from "../stores/authStore";
+import { useTheme } from "../contexts/ThemeContext";
+import {
+	Colors,
+	Typography,
+	Spacing,
+	BorderRadius,
+	Shadows,
+} from "../constants/theme";
+import { smartBookingService } from "../services/smartBookingService";
 
 type ProfileScreenNavigationProp = StackNavigationProp<
 	RootStackParamList,
@@ -25,6 +35,42 @@ interface Props {
 
 export default function ProfileScreen({ navigation }: Props) {
 	const { user, logout } = useAuthStore();
+	const { isDark } = useTheme();
+
+	// State for user statistics
+	const [userStats, setUserStats] = useState({
+		totalBookings: 0,
+		thisMonthBookings: 0,
+		averageRating: 0,
+	});
+	const [isLoadingStats, setIsLoadingStats] = useState(true);
+
+	// Load user statistics on component mount
+	useEffect(() => {
+		const loadUserStats = async () => {
+			if (!user?.id) {
+				setIsLoadingStats(false);
+				return;
+			}
+
+			try {
+				setIsLoadingStats(true);
+				const stats = await smartBookingService.getUserBookingStats(user.id);
+				setUserStats({
+					totalBookings: stats.totalBookings,
+					thisMonthBookings: stats.thisMonthBookings,
+					averageRating: stats.averageRating,
+				});
+			} catch (error) {
+				console.error("Error loading user stats:", error);
+				// Keep default values on error
+			} finally {
+				setIsLoadingStats(false);
+			}
+		};
+
+		loadUserStats();
+	}, [user?.id]);
 
 	const handleLogout = async () => {
 		try {
@@ -41,7 +87,7 @@ export default function ProfileScreen({ navigation }: Props) {
 			icon: "person-outline",
 			title: "Edit Profile",
 			description: "Update your personal information",
-			action: () => {},
+			action: () => navigation.navigate("EditProfile"),
 		},
 		{
 			icon: "calendar-outline",
@@ -95,68 +141,157 @@ export default function ProfileScreen({ navigation }: Props) {
 	}
 
 	return (
-		<SafeAreaView style={styles.container}>
-			<StatusBar style="auto" />
+		<SafeAreaView style={[styles.container, isDark && styles.containerDark]}>
+			<StatusBar style={isDark ? "light" : "dark"} />
 			<ScrollView showsVerticalScrollIndicator={false}>
 				{/* Profile Header */}
-				<View style={styles.profileHeader}>
+				<View
+					style={[styles.profileHeader, isDark && styles.profileHeaderDark]}
+				>
 					<Image
 						source={{ uri: user?.avatar || "https://via.placeholder.com/100" }}
 						style={styles.avatar}
 					/>
-					<Text style={styles.userName}>{user?.name || "User"}</Text>
-					<Text style={styles.userRole}>{user?.role || "Guest"}</Text>
-					<Text style={styles.userEmail}>{user?.email || "No email"}</Text>
+					<Text style={[styles.userName, isDark && styles.userNameDark]}>
+						{user?.name || "User"}
+					</Text>
+					<Text style={[styles.userRole, isDark && styles.userRoleDark]}>
+						{user?.role || "Guest"}
+					</Text>
+					<Text style={[styles.userEmail, isDark && styles.userEmailDark]}>
+						{user?.email || "No email"}
+					</Text>
 				</View>
 
 				{/* Stats Section */}
-				<View style={styles.statsContainer}>
+				<View
+					style={[styles.statsContainer, isDark && styles.statsContainerDark]}
+				>
 					<View style={styles.statItem}>
-						<Text style={styles.statNumber}>12</Text>
-						<Text style={styles.statLabel}>Total Bookings</Text>
+						{isLoadingStats ? (
+							<ActivityIndicator
+								size="small"
+								color={isDark ? Colors.primary[200] : Colors.primary[500]}
+							/>
+						) : (
+							<Text
+								style={[styles.statNumber, isDark && styles.statNumberDark]}
+							>
+								{userStats.totalBookings}
+							</Text>
+						)}
+						<Text style={[styles.statLabel, isDark && styles.statLabelDark]}>
+							Total Bookings
+						</Text>
 					</View>
 					<View style={styles.statItem}>
-						<Text style={styles.statNumber}>3</Text>
-						<Text style={styles.statLabel}>This Month</Text>
+						{isLoadingStats ? (
+							<ActivityIndicator
+								size="small"
+								color={isDark ? Colors.primary[200] : Colors.primary[500]}
+							/>
+						) : (
+							<Text
+								style={[styles.statNumber, isDark && styles.statNumberDark]}
+							>
+								{userStats.thisMonthBookings}
+							</Text>
+						)}
+						<Text style={[styles.statLabel, isDark && styles.statLabelDark]}>
+							This Month
+						</Text>
 					</View>
 					<View style={styles.statItem}>
-						<Text style={styles.statNumber}>4.8</Text>
-						<Text style={styles.statLabel}>Rating</Text>
+						{isLoadingStats ? (
+							<ActivityIndicator
+								size="small"
+								color={isDark ? Colors.primary[200] : Colors.primary[500]}
+							/>
+						) : (
+							<Text
+								style={[styles.statNumber, isDark && styles.statNumberDark]}
+							>
+								{userStats.averageRating.toFixed(1)}
+							</Text>
+						)}
+						<Text style={[styles.statLabel, isDark && styles.statLabelDark]}>
+							Rating
+						</Text>
 					</View>
 				</View>
 
 				{/* Menu Items */}
-				<View style={styles.menuContainer}>
+				<View
+					style={[styles.menuContainer, isDark && styles.menuContainerDark]}
+				>
 					{menuItems.map((item, index) => (
 						<TouchableOpacity
 							key={index}
-							style={styles.menuItem}
+							style={[
+								styles.menuItem,
+								isDark && styles.menuItemDark,
+								index === menuItems.length - 1 && styles.menuItemLast,
+							]}
 							onPress={item.action}
 						>
 							<View style={styles.menuItemLeft}>
-								<View style={styles.iconContainer}>
-									<Ionicons name={item.icon as any} size={24} color="#007AFF" />
+								<View
+									style={[
+										styles.iconContainer,
+										isDark && styles.iconContainerDark,
+									]}
+								>
+									<Ionicons
+										name={item.icon as any}
+										size={24}
+										color={isDark ? Colors.primary[200] : Colors.primary[500]}
+									/>
 								</View>
 								<View style={styles.menuItemText}>
-									<Text style={styles.menuItemTitle}>{item.title}</Text>
-									<Text style={styles.menuItemDescription}>
+									<Text
+										style={[
+											styles.menuItemTitle,
+											isDark && styles.menuItemTitleDark,
+										]}
+									>
+										{item.title}
+									</Text>
+									<Text
+										style={[
+											styles.menuItemDescription,
+											isDark && styles.menuItemDescriptionDark,
+										]}
+									>
 										{item.description}
 									</Text>
 								</View>
 							</View>
-							<Ionicons name="chevron-forward" size={20} color="#ccc" />
+							<Ionicons
+								name="chevron-forward"
+								size={20}
+								color={isDark ? Colors.gray[400] : Colors.gray[500]}
+							/>
 						</TouchableOpacity>
 					))}
 				</View>
 
 				{/* Logout Button */}
-				<TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-					<Ionicons name="log-out-outline" size={20} color="#DC3545" />
+				<TouchableOpacity
+					style={[styles.logoutButton, isDark && styles.logoutButtonDark]}
+					onPress={handleLogout}
+				>
+					<Ionicons
+						name="log-out-outline"
+						size={20}
+						color={Colors.error.dark}
+					/>
 					<Text style={styles.logoutText}>Sign Out</Text>
 				</TouchableOpacity>
 
 				{/* App Version */}
-				<Text style={styles.versionText}>Version 1.0.0</Text>
+				<Text style={[styles.versionText, isDark && styles.versionTextDark]}>
+					Version 1.0.0
+				</Text>
 			</ScrollView>
 		</SafeAreaView>
 	);
@@ -165,88 +300,107 @@ export default function ProfileScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
 	container: {
 		flex: 1,
-		backgroundColor: "#f8f9fa",
+		backgroundColor: Colors.background.primary,
+	},
+	containerDark: {
+		backgroundColor: Colors.dark.background.primary,
 	},
 	profileHeader: {
-		backgroundColor: "white",
+		backgroundColor: Colors.background.primary,
 		alignItems: "center",
-		paddingVertical: 30,
-		marginBottom: 20,
+		paddingVertical: Spacing[8], // 32px
+		marginBottom: Spacing[5], // 20px
+	},
+	profileHeaderDark: {
+		backgroundColor: Colors.dark.background.secondary,
 	},
 	avatar: {
 		width: 100,
 		height: 100,
-		borderRadius: 50,
-		marginBottom: 16,
+		borderRadius: BorderRadius.full,
+		marginBottom: Spacing[4], // 16px
 	},
 	userName: {
-		fontSize: 24,
-		fontWeight: "bold",
-		color: "#333",
-		marginBottom: 4,
+		fontSize: Typography.fontSize.xl,
+		fontWeight: Typography.fontWeight.bold as any,
+		color: Colors.text.primary,
+		marginBottom: Spacing[1], // 4px
+	},
+	userNameDark: {
+		color: Colors.dark.text.primary,
 	},
 	userRole: {
-		fontSize: 16,
-		color: "#007AFF",
-		fontWeight: "600",
-		marginBottom: 4,
+		fontSize: Typography.fontSize.base,
+		color: Colors.primary[500],
+		fontWeight: Typography.fontWeight.semibold as any,
+		marginBottom: Spacing[1], // 4px
+	},
+	userRoleDark: {
+		color: Colors.primary[200],
 	},
 	userEmail: {
-		fontSize: 14,
-		color: "#666",
+		fontSize: Typography.fontSize.sm,
+		color: Colors.text.secondary,
+	},
+	userEmailDark: {
+		color: Colors.dark.text.secondary,
 	},
 	statsContainer: {
 		flexDirection: "row",
-		backgroundColor: "white",
-		marginHorizontal: 16,
-		borderRadius: 16,
-		padding: 20,
-		marginBottom: 20,
-		shadowColor: "#000",
-		shadowOffset: {
-			width: 0,
-			height: 2,
-		},
-		shadowOpacity: 0.1,
-		shadowRadius: 3.84,
-		elevation: 5,
+		backgroundColor: Colors.background.primary,
+		marginHorizontal: Spacing[4], // 16px
+		borderRadius: BorderRadius.lg,
+		padding: Spacing[5], // 20px
+		marginBottom: Spacing[5], // 20px
+		...Shadows.sm,
+	},
+	statsContainerDark: {
+		backgroundColor: Colors.dark.background.secondary,
 	},
 	statItem: {
 		flex: 1,
 		alignItems: "center",
 	},
 	statNumber: {
-		fontSize: 24,
-		fontWeight: "bold",
-		color: "#333",
-		marginBottom: 4,
+		fontSize: Typography.fontSize.xl,
+		fontWeight: Typography.fontWeight.bold as any,
+		color: Colors.text.primary,
+		marginBottom: Spacing[1], // 4px
+	},
+	statNumberDark: {
+		color: Colors.dark.text.primary,
 	},
 	statLabel: {
-		fontSize: 12,
-		color: "#666",
+		fontSize: Typography.fontSize.xs,
+		color: Colors.text.secondary,
 		textAlign: "center",
 	},
+	statLabelDark: {
+		color: Colors.dark.text.secondary,
+	},
 	menuContainer: {
-		backgroundColor: "white",
-		marginHorizontal: 16,
-		borderRadius: 16,
-		marginBottom: 20,
-		shadowColor: "#000",
-		shadowOffset: {
-			width: 0,
-			height: 2,
-		},
-		shadowOpacity: 0.1,
-		shadowRadius: 3.84,
-		elevation: 5,
+		backgroundColor: Colors.background.primary,
+		marginHorizontal: Spacing[4], // 16px
+		borderRadius: BorderRadius.lg,
+		marginBottom: Spacing[5], // 20px
+		...Shadows.sm,
+	},
+	menuContainerDark: {
+		backgroundColor: Colors.dark.background.secondary,
 	},
 	menuItem: {
 		flexDirection: "row",
 		alignItems: "center",
 		justifyContent: "space-between",
-		padding: 16,
+		padding: Spacing[4], // 16px
 		borderBottomWidth: 1,
-		borderBottomColor: "#f0f0f0",
+		borderBottomColor: Colors.border.light,
+	},
+	menuItemDark: {
+		borderBottomColor: Colors.dark.border.light,
+	},
+	menuItemLast: {
+		borderBottomWidth: 0,
 	},
 	menuItemLeft: {
 		flexDirection: "row",
@@ -256,53 +410,61 @@ const styles = StyleSheet.create({
 	iconContainer: {
 		width: 40,
 		height: 40,
-		borderRadius: 20,
-		backgroundColor: "#f0f8ff",
+		borderRadius: BorderRadius.full,
+		backgroundColor: Colors.primary[50],
 		justifyContent: "center",
 		alignItems: "center",
-		marginRight: 12,
+		marginRight: Spacing[3], // 12px
+	},
+	iconContainerDark: {
+		backgroundColor: Colors.primary[900],
 	},
 	menuItemText: {
 		flex: 1,
 	},
 	menuItemTitle: {
-		fontSize: 16,
-		fontWeight: "600",
-		color: "#333",
+		fontSize: Typography.fontSize.base,
+		fontWeight: Typography.fontWeight.semibold as any,
+		color: Colors.text.primary,
 		marginBottom: 2,
 	},
+	menuItemTitleDark: {
+		color: Colors.dark.text.primary,
+	},
 	menuItemDescription: {
-		fontSize: 12,
-		color: "#666",
+		fontSize: Typography.fontSize.xs,
+		color: Colors.text.secondary,
+	},
+	menuItemDescriptionDark: {
+		color: Colors.dark.text.secondary,
 	},
 	logoutButton: {
 		flexDirection: "row",
 		alignItems: "center",
 		justifyContent: "center",
-		backgroundColor: "white",
-		marginHorizontal: 16,
-		borderRadius: 16,
-		padding: 16,
-		marginBottom: 20,
-		shadowColor: "#000",
-		shadowOffset: {
-			width: 0,
-			height: 2,
-		},
-		shadowOpacity: 0.1,
-		shadowRadius: 3.84,
-		elevation: 5,
+		backgroundColor: Colors.background.primary,
+		marginHorizontal: Spacing[4], // 16px
+		borderRadius: BorderRadius.lg,
+		padding: Spacing[4], // 16px
+		marginBottom: Spacing[5], // 20px
+		...Shadows.sm,
+	},
+	logoutButtonDark: {
+		backgroundColor: Colors.dark.background.secondary,
 	},
 	logoutText: {
-		fontSize: 16,
-		fontWeight: "600",
-		color: "#DC3545",
-		marginLeft: 8,
+		fontSize: Typography.fontSize.base,
+		fontWeight: Typography.fontWeight.semibold as any,
+		color: Colors.error.dark,
+		marginLeft: Spacing[2], // 8px
 	},
 	versionText: {
 		textAlign: "center",
-		color: "#999",
-		fontSize: 12,
-		marginBottom: 20,
+		color: Colors.text.tertiary,
+		fontSize: Typography.fontSize.xs,
+		marginBottom: Spacing[5], // 20px
+	},
+	versionTextDark: {
+		color: Colors.dark.text.tertiary,
 	},
 });
