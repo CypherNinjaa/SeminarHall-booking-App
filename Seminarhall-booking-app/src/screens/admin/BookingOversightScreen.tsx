@@ -33,6 +33,13 @@ import {
 
 const BookingOversightScreen: React.FC = () => {
 	const { isDark } = useTheme();
+	// Helper function to parse DDMMYYYY date format
+	const parseBookingDate = (dateStr: string): Date => {
+		const day = parseInt(dateStr.substring(0, 2), 10);
+		const month = parseInt(dateStr.substring(2, 4), 10) - 1;
+		const year = parseInt(dateStr.substring(4, 8), 10);
+		return new Date(year, month, day);
+	};
 	const [bookings, setBookings] = useState<BookingDetails[]>([]);
 	const [filteredBookings, setFilteredBookings] = useState<BookingDetails[]>(
 		[]
@@ -78,8 +85,7 @@ const BookingOversightScreen: React.FC = () => {
 	// Filter and search functionality
 	useEffect(() => {
 		let filtered = [...bookings];
-
-		// Apply search filter
+		// Search
 		if (searchQuery.trim()) {
 			filtered = filtered.filter(
 				(booking) =>
@@ -88,30 +94,26 @@ const BookingOversightScreen: React.FC = () => {
 					booking.purpose.toLowerCase().includes(searchQuery.toLowerCase())
 			);
 		}
-
-		// Apply status filter
+		// Status
 		if (filters.status !== "all") {
 			filtered = filtered.filter(
 				(booking) => booking.status === filters.status
 			);
 		}
-
-		// Apply priority filter
+		// Priority
 		if (filters.priority !== "all") {
 			filtered = filtered.filter(
 				(booking) => booking.priority === filters.priority
 			);
 		}
-
-		// Apply date range filter
+		// Date range
 		const today = new Date();
 		const startOfWeek = new Date(today);
 		startOfWeek.setDate(today.getDate() - today.getDay());
 		const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-
 		if (filters.date_range !== "all") {
 			filtered = filtered.filter((booking) => {
-				const bookingDate = new Date(booking.date);
+				const bookingDate = parseBookingDate(booking.booking_date);
 				switch (filters.date_range) {
 					case "today":
 						return bookingDate.toDateString() === today.toDateString();
@@ -124,7 +126,6 @@ const BookingOversightScreen: React.FC = () => {
 				}
 			});
 		}
-
 		setFilteredBookings(filtered);
 	}, [bookings, searchQuery, filters]);
 
@@ -176,106 +177,125 @@ const BookingOversightScreen: React.FC = () => {
 		}
 	};
 
+	// Redesigned booking card
 	const renderBookingCard = ({ item }: { item: BookingDetails }) => (
-		<View style={[styles.bookingCard, isDark && styles.bookingCardDark]}>
-			{/* Header */}
-			<View style={styles.bookingHeader}>
-				<View style={styles.bookingTitleRow}>
+		<View
+			style={[
+				styles.bookingCard,
+				isDark && styles.bookingCardDark,
+				{
+					shadowColor: Colors.primary[500],
+					shadowOpacity: 0.12,
+					shadowRadius: 12,
+					elevation: 4,
+				},
+			]}
+			accessibilityLabel={`Booking for ${item.hall_name} by ${item.user_name}`}
+			accessibilityHint={`Purpose: ${item.purpose}`}
+		>
+			<View style={styles.cardHeaderRow}>
+				<View style={styles.cardTitleCol}>
 					<Text
 						style={[styles.hallName, isDark && styles.hallNameDark]}
 						numberOfLines={1}
 					>
 						{item.hall_name}
 					</Text>
-					<View style={styles.statusBadgeContainer}>
-						<View
-							style={[
-								styles.priorityDot,
-								{ backgroundColor: getPriorityColor(item.priority) },
-							]}
-						/>
-						<View
-							style={[
-								styles.statusBadge,
-								{ backgroundColor: getStatusColor(item.status) },
-							]}
-						>
-							<Text style={styles.statusText}>{item.status.toUpperCase()}</Text>
-						</View>
+					<Text
+						style={[styles.purpose, isDark && styles.purposeDark]}
+						numberOfLines={2}
+					>
+						{item.purpose}
+					</Text>
+				</View>
+				<View style={styles.statusPillRow}>
+					<View
+						style={[
+							styles.statusPill,
+							{ backgroundColor: getStatusColor(item.status) },
+						]}
+						accessibilityLabel={`Status: ${item.status}`}
+					>
+						<Text style={styles.statusPillText}>
+							{item.status.toUpperCase()}
+						</Text>
+					</View>
+					<View
+						style={[
+							styles.priorityPill,
+							{ backgroundColor: getPriorityColor(item.priority) },
+						]}
+						accessibilityLabel={`Priority: ${item.priority}`}
+					>
+						<Text style={styles.priorityPillText}>
+							{item.priority.toUpperCase()}
+						</Text>
 					</View>
 				</View>
-				<Text
-					style={[styles.purpose, isDark && styles.purposeDark]}
-					numberOfLines={2}
-				>
-					{item.purpose}
+			</View>
+			<View style={styles.cardDetailsRow}>
+				<Ionicons
+					name="person-outline"
+					size={16}
+					color={isDark ? Colors.dark.text.secondary : Colors.text.secondary}
+				/>
+				<Text style={[styles.detailText, isDark && styles.detailTextDark]}>
+					{item.user_name}
+				</Text>
+				<Ionicons
+					name="calendar-outline"
+					size={16}
+					color={isDark ? Colors.dark.text.secondary : Colors.text.secondary}
+					style={{ marginLeft: 12 }}
+				/>
+				<Text style={[styles.detailText, isDark && styles.detailTextDark]}>
+					{parseBookingDate(item.booking_date).toLocaleDateString()} •{" "}
+					{item.start_time} - {item.end_time}
 				</Text>
 			</View>
-
-			{/* Details */}
-			<View style={styles.bookingDetails}>
-				<View style={styles.detailRow}>
-					<Ionicons
-						name="person-outline"
-						size={16}
-						color={isDark ? Colors.dark.text.secondary : Colors.text.secondary}
-					/>
-					<Text style={[styles.detailText, isDark && styles.detailTextDark]}>
-						{item.user_name}
-					</Text>
-				</View>
-				<View style={styles.detailRow}>
-					<Ionicons
-						name="calendar-outline"
-						size={16}
-						color={isDark ? Colors.dark.text.secondary : Colors.text.secondary}
-					/>
-					<Text style={[styles.detailText, isDark && styles.detailTextDark]}>
-						{new Date(item.date).toLocaleDateString()} • {item.start_time} -{" "}
-						{item.end_time}
-					</Text>
-				</View>
-				<View style={styles.detailRow}>
-					<Ionicons
-						name="people-outline"
-						size={16}
-						color={isDark ? Colors.dark.text.secondary : Colors.text.secondary}
-					/>
-					<Text style={[styles.detailText, isDark && styles.detailTextDark]}>
-						{item.attendees_count} attendees
-					</Text>
-				</View>
+			<View style={styles.cardDetailsRow}>
+				<Ionicons
+					name="people-outline"
+					size={16}
+					color={isDark ? Colors.dark.text.secondary : Colors.text.secondary}
+				/>
+				<Text style={[styles.detailText, isDark && styles.detailTextDark]}>
+					{item.attendees_count} attendees
+				</Text>
 				{item.equipment_needed && item.equipment_needed.length > 0 && (
-					<View style={styles.detailRow}>
+					<>
 						<Ionicons
 							name="construct-outline"
 							size={16}
 							color={
 								isDark ? Colors.dark.text.secondary : Colors.text.secondary
 							}
+							style={{ marginLeft: 12 }}
 						/>
 						<Text style={[styles.detailText, isDark && styles.detailTextDark]}>
 							{item.equipment_needed.join(", ")}
 						</Text>
-					</View>
+					</>
 				)}
 			</View>
-
-			{/* Actions */}
 			{item.status === "pending" && (
-				<View style={styles.actionButtons}>
+				<View style={styles.actionButtonsRow}>
 					<TouchableOpacity
 						style={[styles.actionButton, styles.rejectButton]}
 						onPress={() => handleBookingAction(item.id, "reject")}
+						accessibilityLabel="Reject booking"
+						accessibilityHint="Reject this booking request"
 					>
-						<Ionicons name="close" size={16} color={Colors.text.inverse} />
+						<Ionicons name="close" size={18} color={Colors.text.inverse} />
 						<Text style={styles.actionButtonText}>Reject</Text>
 					</TouchableOpacity>
 					<TouchableOpacity
 						style={[styles.actionButton, styles.approveButton]}
 						onPress={() => handleBookingAction(item.id, "approve")}
+						accessibilityLabel="Approve booking"
+						accessibilityHint="Approve this booking request"
 					>
-						<Ionicons name="checkmark" size={16} color={Colors.text.inverse} />
+						<Ionicons name="checkmark" size={18} color={Colors.text.inverse} />
 						<Text style={styles.actionButtonText}>Approve</Text>
 					</TouchableOpacity>
 				</View>
@@ -283,17 +303,14 @@ const BookingOversightScreen: React.FC = () => {
 		</View>
 	);
 
+	// Redesigned filter chips
 	const renderFilterChips = () => (
-		<ScrollView
-			horizontal
-			showsHorizontalScrollIndicator={false}
-			style={styles.filterChips}
-		>
+		<View style={styles.filterChipsRow}>
 			<TouchableOpacity
 				style={[
-					styles.filterChip,
-					filters.status !== "all" && styles.activeFilterChip,
-					isDark && styles.filterChipDark,
+					styles.filterPill,
+					filters.status !== "all" && styles.filterPillActive,
+					isDark && styles.filterPillDark,
 				]}
 				onPress={() =>
 					setFilters((prev) => ({
@@ -301,23 +318,33 @@ const BookingOversightScreen: React.FC = () => {
 						status: prev.status === "all" ? "pending" : "all",
 					}))
 				}
+				accessibilityLabel="Filter by status"
+				accessibilityHint="Toggle status filter"
 			>
+				<Ionicons
+					name="alert-circle-outline"
+					size={16}
+					color={
+						filters.status !== "all"
+							? Colors.primary[500]
+							: Colors.text.secondary
+					}
+				/>
 				<Text
 					style={[
-						styles.filterChipText,
-						filters.status !== "all" && styles.activeFilterChipText,
-						isDark && styles.filterChipTextDark,
+						styles.filterPillText,
+						filters.status !== "all" && styles.filterPillTextActive,
+						isDark && styles.filterPillTextDark,
 					]}
 				>
 					Status: {filters.status}
 				</Text>
 			</TouchableOpacity>
-
 			<TouchableOpacity
 				style={[
-					styles.filterChip,
-					filters.date_range !== "all" && styles.activeFilterChip,
-					isDark && styles.filterChipDark,
+					styles.filterPill,
+					filters.date_range !== "all" && styles.filterPillActive,
+					isDark && styles.filterPillDark,
 				]}
 				onPress={() => {
 					const ranges = ["all", "today", "this_week", "this_month"];
@@ -327,23 +354,33 @@ const BookingOversightScreen: React.FC = () => {
 					] as FilterOptions["date_range"];
 					setFilters((prev) => ({ ...prev, date_range: nextRange }));
 				}}
+				accessibilityLabel="Filter by date range"
+				accessibilityHint="Cycle through date range filters"
 			>
+				<Ionicons
+					name="calendar-outline"
+					size={16}
+					color={
+						filters.date_range !== "all"
+							? Colors.primary[500]
+							: Colors.text.secondary
+					}
+				/>
 				<Text
 					style={[
-						styles.filterChipText,
-						filters.date_range !== "all" && styles.activeFilterChipText,
-						isDark && styles.filterChipTextDark,
+						styles.filterPillText,
+						filters.date_range !== "all" && styles.filterPillTextActive,
+						isDark && styles.filterPillTextDark,
 					]}
 				>
 					{filters.date_range?.replace("_", " ") || "all"}
 				</Text>
 			</TouchableOpacity>
-
 			<TouchableOpacity
 				style={[
-					styles.filterChip,
-					filters.priority !== "all" && styles.activeFilterChip,
-					isDark && styles.filterChipDark,
+					styles.filterPill,
+					filters.priority !== "all" && styles.filterPillActive,
+					isDark && styles.filterPillDark,
 				]}
 				onPress={() => {
 					const priorities = ["all", "high", "medium", "low"];
@@ -353,25 +390,35 @@ const BookingOversightScreen: React.FC = () => {
 					] as FilterOptions["priority"];
 					setFilters((prev) => ({ ...prev, priority: nextPriority }));
 				}}
+				accessibilityLabel="Filter by priority"
+				accessibilityHint="Cycle through priority filters"
 			>
+				<Ionicons
+					name="star-outline"
+					size={16}
+					color={
+						filters.priority !== "all"
+							? Colors.primary[500]
+							: Colors.text.secondary
+					}
+				/>
 				<Text
 					style={[
-						styles.filterChipText,
-						filters.priority !== "all" && styles.activeFilterChipText,
-						isDark && styles.filterChipTextDark,
+						styles.filterPillText,
+						filters.priority !== "all" && styles.filterPillTextActive,
+						isDark && styles.filterPillTextDark,
 					]}
 				>
 					Priority: {filters.priority}
 				</Text>
 			</TouchableOpacity>
-		</ScrollView>
+		</View>
 	);
 
 	return (
 		<SafeAreaView style={[styles.container, isDark && styles.containerDark]}>
 			<StatusBar style={isDark ? "light" : "dark"} />
-
-			{/* Header */}
+			{/* Redesigned Header */}
 			<LinearGradient
 				colors={
 					isDark
@@ -389,8 +436,39 @@ const BookingOversightScreen: React.FC = () => {
 					{filteredBookings.length !== 1 ? "s" : ""}
 				</Text>
 			</LinearGradient>
-
-			{/* Search and Filters */}
+			{/* Statistics Bar - Redesigned */}
+			<View style={styles.statsBarRow}>
+				<View style={styles.statCard}>
+					<Ionicons name="time-outline" size={20} color={Colors.warning.main} />
+					<Text style={[styles.statNumber, { color: Colors.warning.main }]}>
+						{bookings.filter((b) => b.status === "pending").length}
+					</Text>
+					<Text style={styles.statLabel}>Pending</Text>
+				</View>
+				<View style={styles.statCard}>
+					<Ionicons
+						name="checkmark-circle-outline"
+						size={20}
+						color={Colors.success.main}
+					/>
+					<Text style={[styles.statNumber, { color: Colors.success.main }]}>
+						{bookings.filter((b) => b.status === "approved").length}
+					</Text>
+					<Text style={styles.statLabel}>Approved</Text>
+				</View>
+				<View style={styles.statCard}>
+					<Ionicons
+						name="close-circle-outline"
+						size={20}
+						color={Colors.error.main}
+					/>
+					<Text style={[styles.statNumber, { color: Colors.error.main }]}>
+						{bookings.filter((b) => b.status === "rejected").length}
+					</Text>
+					<Text style={styles.statLabel}>Rejected</Text>
+				</View>
+			</View>
+			{/* Search and Filters - Redesigned */}
 			<View
 				style={[styles.searchContainer, isDark && styles.searchContainerDark]}
 			>
@@ -408,9 +486,15 @@ const BookingOversightScreen: React.FC = () => {
 						}
 						value={searchQuery}
 						onChangeText={setSearchQuery}
+						accessibilityLabel="Search bookings"
+						accessibilityHint="Type to search bookings by hall, user, or purpose"
+						returnKeyType="search"
 					/>
 					{searchQuery.length > 0 && (
-						<TouchableOpacity onPress={() => setSearchQuery("")}>
+						<TouchableOpacity
+							onPress={() => setSearchQuery("")}
+							accessibilityLabel="Clear search"
+						>
 							<Ionicons
 								name="close-circle"
 								size={20}
@@ -422,38 +506,16 @@ const BookingOversightScreen: React.FC = () => {
 					)}
 				</View>
 			</View>
-
-			{/* Filter Chips */}
+			{/* Filter Chips - Redesigned */}
 			{renderFilterChips()}
-
-			{/* Statistics Bar */}
-			<View style={[styles.statsBar, isDark && styles.statsBarDark]}>
-				<View style={styles.statItem}>
-					<Text style={[styles.statNumber, { color: Colors.warning.main }]}>
-						{bookings.filter((b) => b.status === "pending").length}
-					</Text>
-					<Text style={[styles.statLabel, isDark && styles.statLabelDark]}>
-						Pending
-					</Text>
-				</View>
-				<View style={styles.statItem}>
-					<Text style={[styles.statNumber, { color: Colors.success.main }]}>
-						{bookings.filter((b) => b.status === "approved").length}
-					</Text>
-					<Text style={[styles.statLabel, isDark && styles.statLabelDark]}>
-						Approved
-					</Text>
-				</View>
-				<View style={styles.statItem}>
-					<Text style={[styles.statNumber, { color: Colors.error.main }]}>
-						{bookings.filter((b) => b.status === "rejected").length}
-					</Text>
-					<Text style={[styles.statLabel, isDark && styles.statLabelDark]}>
-						Rejected
-					</Text>
-				</View>
+			{/* Filter Hint */}
+			<View style={styles.filterHintContainer}>
+				<Text
+					style={[styles.filterHintText, isDark && styles.filterHintTextDark]}
+				>
+					💡 Tap filters to change options
+				</Text>
 			</View>
-
 			{/* Bookings List */}
 			{loading ? (
 				<View style={styles.loadingContainer}>
@@ -765,6 +827,145 @@ const styles = StyleSheet.create({
 		textAlign: "center",
 	},
 	emptyMessageDark: {
+		color: Colors.dark.text.secondary,
+	},
+	// --- PRO UI/UX ADDITIONS ---
+	cardHeaderRow: {
+		flexDirection: "row",
+		justifyContent: "space-between",
+		alignItems: "flex-start",
+		marginBottom: Spacing[2],
+	},
+	cardTitleCol: {
+		flex: 1,
+		marginRight: Spacing[2],
+	},
+	statusPillRow: {
+		flexDirection: "row",
+		alignItems: "center",
+		gap: 6,
+	},
+	statusPill: {
+		backgroundColor: Colors.warning.main,
+		borderRadius: BorderRadius.full,
+		paddingHorizontal: Spacing[3],
+		paddingVertical: 2,
+		marginRight: 4,
+		minWidth: 60,
+		alignItems: "center",
+		justifyContent: "center",
+	},
+	statusPillText: {
+		color: Colors.text.inverse,
+		fontWeight: "bold",
+		fontSize: Typography.fontSize.xs,
+		letterSpacing: 0.5,
+	},
+	priorityPill: {
+		backgroundColor: Colors.success.main,
+		borderRadius: BorderRadius.full,
+		paddingHorizontal: Spacing[3],
+		paddingVertical: 2,
+		minWidth: 60,
+		alignItems: "center",
+		justifyContent: "center",
+	},
+	priorityPillText: {
+		color: Colors.text.inverse,
+		fontWeight: "bold",
+		fontSize: Typography.fontSize.xs,
+		letterSpacing: 0.5,
+	},
+	cardDetailsRow: {
+		flexDirection: "row",
+		alignItems: "center",
+		marginTop: 4,
+		marginBottom: 2,
+		gap: 8,
+	},
+	actionButtonsRow: {
+		flexDirection: "row",
+		justifyContent: "flex-end",
+		alignItems: "center",
+		marginTop: 10,
+		gap: 12,
+	},
+	filterChipsRow: {
+		flexDirection: "row",
+		justifyContent: "center",
+		alignItems: "center",
+		marginHorizontal: 8,
+		marginBottom: 8,
+		gap: 8,
+	},
+	filterPill: {
+		flexDirection: "row",
+		alignItems: "center",
+		backgroundColor: Colors.background.secondary,
+		borderRadius: BorderRadius.full,
+		paddingHorizontal: Spacing[4],
+		paddingVertical: Spacing[2],
+		marginHorizontal: 4,
+		borderWidth: 1,
+		borderColor: Colors.border.main,
+		minHeight: 40,
+	},
+	filterPillActive: {
+		backgroundColor: Colors.primary[50],
+		borderColor: Colors.primary[500],
+	},
+	filterPillDark: {
+		backgroundColor: Colors.dark.background.secondary,
+		borderColor: Colors.primary[700],
+	},
+	filterPillText: {
+		fontSize: Typography.fontSize.sm,
+		color: Colors.text.primary,
+		marginLeft: 8,
+		fontWeight: "600",
+	},
+	filterPillTextActive: {
+		color: Colors.primary[500],
+	},
+	filterPillTextDark: {
+		color: Colors.dark.text.primary,
+	},
+	statsBarRow: {
+		flexDirection: "row",
+		justifyContent: "space-between",
+		alignItems: "center",
+		marginHorizontal: 16,
+		marginTop: -24,
+		marginBottom: 12,
+		zIndex: 2,
+	},
+	statCard: {
+		flex: 1,
+		backgroundColor: Colors.background.secondary,
+		borderRadius: BorderRadius.lg,
+		marginHorizontal: 4,
+		alignItems: "center",
+		paddingVertical: 16,
+		shadowColor: Colors.primary[500],
+		shadowOpacity: 0.08,
+		shadowRadius: 8,
+		elevation: 2,
+	},
+	// --- END PRO UI/UX ADDITIONS ---
+
+	// Filter hint
+	filterHintContainer: {
+		alignItems: "center",
+		marginBottom: Spacing[3],
+		paddingHorizontal: Spacing[5],
+	},
+	filterHintText: {
+		fontSize: Typography.fontSize.xs,
+		color: Colors.text.secondary,
+		fontStyle: "italic",
+		opacity: 0.7,
+	},
+	filterHintTextDark: {
 		color: Colors.dark.text.secondary,
 	},
 });
