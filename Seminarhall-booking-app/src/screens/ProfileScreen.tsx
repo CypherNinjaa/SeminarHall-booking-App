@@ -12,6 +12,7 @@ import {
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { StackNavigationProp } from "@react-navigation/stack";
+import { useFocusEffect } from "@react-navigation/native";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import { useAuthStore } from "../stores/authStore";
 import { useTheme } from "../contexts/ThemeContext";
@@ -23,6 +24,7 @@ import {
 	Shadows,
 } from "../constants/theme";
 import { smartBookingService } from "../services/smartBookingService";
+import { notificationService } from "../services/notificationService";
 
 type ProfileScreenNavigationProp = StackNavigationProp<
 	RootStackParamList,
@@ -44,6 +46,7 @@ export default function ProfileScreen({ navigation }: Props) {
 		averageRating: 0,
 	});
 	const [isLoadingStats, setIsLoadingStats] = useState(true);
+	const [unreadNotifications, setUnreadNotifications] = useState(0);
 
 	// Load user statistics on component mount
 	useEffect(() => {
@@ -72,6 +75,58 @@ export default function ProfileScreen({ navigation }: Props) {
 		loadUserStats();
 	}, [user?.id]);
 
+	// Load unread notifications count and set up real-time updates
+	useEffect(() => {
+		const loadUnreadCount = async () => {
+			if (!user?.id) return;
+
+			try {
+				const count = await notificationService.getUnreadCount(user.id);
+				setUnreadNotifications(count);
+			} catch (error) {
+				console.error("Error loading unread notifications count:", error);
+			}
+		};
+
+		loadUnreadCount();
+
+		// Set up real-time subscription for notification updates
+		let subscription: any;
+		if (user?.id) {
+			subscription = notificationService.subscribeToUserNotifications(
+				user.id,
+				() => {
+					// Reload count when notifications change
+					loadUnreadCount();
+				}
+			);
+		}
+
+		return () => {
+			if (subscription) {
+				subscription.unsubscribe();
+			}
+		};
+	}, [user?.id]);
+
+	// Refresh notification count when screen comes into focus
+	useFocusEffect(
+		React.useCallback(() => {
+			const refreshNotificationCount = async () => {
+				if (!user?.id) return;
+
+				try {
+					const count = await notificationService.getUnreadCount(user.id);
+					setUnreadNotifications(count);
+				} catch (error) {
+					console.error("Error refreshing notification count:", error);
+				}
+			};
+
+			refreshNotificationCount();
+		}, [user?.id])
+	);
+
 	const handleLogout = async () => {
 		try {
 			await logout();
@@ -93,25 +148,25 @@ export default function ProfileScreen({ navigation }: Props) {
 			icon: "calendar-outline",
 			title: "Booking History",
 			description: "View all your past bookings",
-			action: () => {},
+			action: () => navigation.navigate("BookingHistory"),
 		},
 		{
 			icon: "notifications-outline",
 			title: "Notifications",
 			description: "Manage notification preferences",
-			action: () => {},
+			action: () => navigation.navigate("Notifications"),
 		},
 		{
 			icon: "help-circle-outline",
 			title: "Help & Support",
 			description: "Get help and contact support",
-			action: () => {},
+			action: () => navigation.navigate("HelpSupport"),
 		},
 		{
 			icon: "settings-outline",
 			title: "Settings",
 			description: "App settings and preferences",
-			action: () => {},
+			action: () => navigation.navigate("Settings"),
 		},
 	];
 
@@ -266,11 +321,27 @@ export default function ProfileScreen({ navigation }: Props) {
 									</Text>
 								</View>
 							</View>
-							<Ionicons
-								name="chevron-forward"
-								size={20}
-								color={isDark ? Colors.gray[400] : Colors.gray[500]}
-							/>
+							<View style={styles.menuItemRight}>
+								{item.title === "Notifications" && unreadNotifications > 0 && (
+									<View
+										style={[
+											styles.notificationBadge,
+											isDark && styles.notificationBadgeDark,
+										]}
+									>
+										<Text style={styles.notificationBadgeText}>
+											{unreadNotifications > 99
+												? "99+"
+												: unreadNotifications.toString()}
+										</Text>
+									</View>
+								)}
+								<Ionicons
+									name="chevron-forward"
+									size={20}
+									color={isDark ? Colors.gray[400] : Colors.gray[500]}
+								/>
+							</View>
 						</TouchableOpacity>
 					))}
 				</View>
@@ -466,5 +537,28 @@ const styles = StyleSheet.create({
 	},
 	versionTextDark: {
 		color: Colors.dark.text.tertiary,
+	},
+	menuItemRight: {
+		flexDirection: "row",
+		alignItems: "center",
+	},
+	notificationBadge: {
+		backgroundColor: Colors.error.light,
+		borderRadius: BorderRadius.full,
+		minWidth: 20,
+		height: 20,
+		paddingHorizontal: 6,
+		justifyContent: "center",
+		alignItems: "center",
+		marginRight: Spacing[2], // 8px
+	},
+	notificationBadgeDark: {
+		backgroundColor: Colors.error.dark,
+	},
+	notificationBadgeText: {
+		color: Colors.background.primary,
+		fontSize: Typography.fontSize.xs,
+		fontWeight: Typography.fontWeight.bold as any,
+		textAlign: "center",
 	},
 });

@@ -30,6 +30,7 @@ import {
 	smartBookingService,
 	SmartBooking,
 } from "../services/smartBookingService";
+import { notificationService } from "../services/notificationService";
 import {
 	Colors,
 	Typography,
@@ -51,6 +52,7 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
 	const [halls, setHalls] = useState<Hall[]>([]);
 	const [bookings, setBookings] = useState<SmartBooking[]>([]);
 	const [loading, setLoading] = useState(true);
+	const [unreadNotifications, setUnreadNotifications] = useState(0);
 	const [stats, setStats] = useState({
 		availableHalls: 0,
 		thisMonthBookings: 0,
@@ -81,6 +83,16 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
 
 			setHalls(hallsData);
 			setBookings(bookingsData);
+
+			// Fetch notification count
+			try {
+				const notificationCount = await notificationService.getUnreadCount(
+					user.id
+				);
+				setUnreadNotifications(notificationCount);
+			} catch (error) {
+				console.error("Error fetching notification count:", error);
+			}
 
 			// Calculate statistics
 			const availableHalls = hallsData.filter(
@@ -167,6 +179,31 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
 
 		return () => clearInterval(timer);
 	}, []);
+
+	// Real-time notification updates
+	useEffect(() => {
+		let subscription: any;
+		if (user?.id) {
+			subscription = notificationService.subscribeToUserNotifications(
+				user.id,
+				async () => {
+					// Reload notification count when notifications change
+					try {
+						const count = await notificationService.getUnreadCount(user.id);
+						setUnreadNotifications(count);
+					} catch (error) {
+						console.error("Error updating notification count:", error);
+					}
+				}
+			);
+		}
+
+		return () => {
+			if (subscription) {
+				subscription.unsubscribe();
+			}
+		};
+	}, [user?.id]);
 
 	const getGreeting = () => {
 		const hour = currentTime.getHours();
@@ -480,12 +517,20 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
 									size={20}
 									color={themeColors.text.primary}
 								/>
-								<Animated.View
-									style={[
-										styles.notificationBadge,
-										{ transform: [{ scale: pulseAnim }] },
-									]}
-								/>
+								{unreadNotifications > 0 && (
+									<Animated.View
+										style={[
+											styles.notificationBadgeWithCount,
+											{ transform: [{ scale: pulseAnim }] },
+										]}
+									>
+										<Text style={styles.notificationBadgeText}>
+											{unreadNotifications > 99
+												? "99+"
+												: unreadNotifications.toString()}
+										</Text>
+									</Animated.View>
+								)}
 							</TouchableOpacity>
 						</View>
 					</View>
@@ -999,6 +1044,27 @@ const styles = StyleSheet.create({
 		height: 8,
 		borderRadius: 4,
 		backgroundColor: Colors.error.main,
+	},
+	notificationBadgeWithCount: {
+		position: "absolute",
+		top: 2,
+		right: 2,
+		backgroundColor: Colors.error.main,
+		borderRadius: BorderRadius.full,
+		minWidth: 18,
+		height: 18,
+		paddingHorizontal: 5,
+		justifyContent: "center",
+		alignItems: "center",
+		borderWidth: 2,
+		borderColor: "#FFFFFF",
+	},
+	notificationBadgeText: {
+		color: "#FFFFFF",
+		fontSize: 10,
+		fontWeight: Typography.fontWeight.bold as any,
+		textAlign: "center",
+		lineHeight: 12,
 	},
 	logoSection: {
 		alignItems: "center",
