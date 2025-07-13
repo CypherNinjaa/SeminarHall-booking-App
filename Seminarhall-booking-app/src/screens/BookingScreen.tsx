@@ -857,6 +857,53 @@ const BookingScreen: React.FC<BookingScreenProps> = ({ navigation }) => {
 												</Text>
 											</View>
 
+											{!availabilityCheck.is_available && (
+												<View style={styles.conflictInfo}>
+													<Text style={styles.conflictTitle}>
+														⚠️ Time Slot Already Booked
+													</Text>
+													<Text style={styles.conflictSubtitle}>
+														This time period has been reserved by:
+													</Text>
+													{availabilityCheck.conflicting_bookings.map(
+														(conflict, index) => (
+															<View key={index} style={styles.conflictItem}>
+																<View style={styles.conflictHeader}>
+																	<Ionicons
+																		name="business"
+																		size={18}
+																		color={theme.colors.error}
+																	/>
+																	<Text style={styles.conflictDepartmentText}>
+																		{conflict.user_name ||
+																			conflict.user_email ||
+																			"Department User"}
+																	</Text>
+																</View>
+																<View style={styles.conflictDetails}>
+																	<Text style={styles.conflictTimeText}>
+																		🕒 {formatTime(conflict.start_time)} -{" "}
+																		{formatTime(conflict.end_time)}
+																	</Text>
+																	<Text style={styles.conflictPurposeText}>
+																		📝 Purpose: {conflict.purpose}
+																	</Text>
+																	<Text style={styles.conflictStatusText}>
+																		📊 Status:{" "}
+																		{conflict.status.charAt(0).toUpperCase() +
+																			conflict.status.slice(1)}
+																	</Text>
+																</View>
+															</View>
+														)
+													)}
+													<Text style={styles.conflictAdvice}>
+														💡 Please choose a different time slot or check the
+														suggested times below.
+													</Text>
+												</View>
+											)}
+
 											{!availabilityCheck.is_available &&
 												availabilityCheck.suggested_slots.length > 0 && (
 													<View style={styles.suggestedSlots}>
@@ -1494,6 +1541,82 @@ const createStyles = (dynamicTheme: any) =>
 		priorityOptionTextSelected: {
 			color: theme.colors.primary,
 			fontWeight: "600",
+		},
+		conflictInfo: {
+			backgroundColor: theme.colors.error + "10",
+			borderRadius: theme.borderRadius.sm,
+			padding: dynamicTheme.spacing.md,
+			marginTop: dynamicTheme.spacing.sm,
+			borderLeftWidth: 4,
+			borderLeftColor: theme.colors.error,
+		},
+		conflictTitle: {
+			fontSize: 16,
+			fontWeight: "600",
+			color: theme.colors.error,
+			marginBottom: dynamicTheme.spacing.sm,
+		},
+		conflictItem: {
+			backgroundColor: dynamicTheme.colors.surface,
+			borderRadius: theme.borderRadius.sm,
+			padding: dynamicTheme.spacing.sm,
+			marginBottom: dynamicTheme.spacing.xs,
+			borderWidth: 1,
+			borderColor: theme.colors.error + "20",
+		},
+		conflictHeader: {
+			flexDirection: "row",
+			alignItems: "center",
+			marginBottom: dynamicTheme.spacing.xs,
+			gap: dynamicTheme.spacing.xs,
+		},
+		conflictUserText: {
+			fontSize: 14,
+			fontWeight: "600",
+			color: dynamicTheme.colors.text.primary,
+			flex: 1,
+		},
+		conflictTimeText: {
+			fontSize: 12,
+			fontWeight: "500",
+			color: theme.colors.error,
+			backgroundColor: theme.colors.error + "15",
+			paddingHorizontal: dynamicTheme.spacing.xs,
+			paddingVertical: 2,
+			borderRadius: theme.borderRadius.sm,
+		},
+		conflictPurposeText: {
+			fontSize: 12,
+			color: dynamicTheme.colors.text.secondary,
+			fontStyle: "italic",
+			marginBottom: 2,
+		},
+		conflictStatusText: {
+			fontSize: 12,
+			color: theme.colors.warning,
+			fontWeight: "500",
+		},
+		conflictSubtitle: {
+			fontSize: 14,
+			color: dynamicTheme.colors.text.primary,
+			marginBottom: dynamicTheme.spacing.sm,
+			fontWeight: "500",
+		},
+		conflictDepartmentText: {
+			fontSize: 14,
+			fontWeight: "bold",
+			color: dynamicTheme.colors.text.primary,
+			flex: 1,
+		},
+		conflictDetails: {
+			paddingLeft: dynamicTheme.spacing.md,
+		},
+		conflictAdvice: {
+			fontSize: 14,
+			color: theme.colors.primary,
+			fontStyle: "italic",
+			marginTop: dynamicTheme.spacing.sm,
+			textAlign: "center",
 		},
 		fabContainer: {
 			position: "absolute",

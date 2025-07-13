@@ -1,4 +1,5 @@
 import { supabase } from '../utils/supabaseSetup';
+import { adminLoggingService } from './adminLoggingService';
 
 export interface BookingDetails {
   id: string;
@@ -23,13 +24,15 @@ export interface BookingDetails {
   approved_by?: string;
   approved_at?: string;
   rejected_reason?: string;
+  cancelled_at?: string;
+  completed_at?: string;
   admin_notes?: string;
   created_at: string;
   updated_at: string;
 }
 
 export interface FilterOptions {
-  status: 'all' | 'pending' | 'approved' | 'rejected' | 'cancelled';
+  status: 'all' | 'pending' | 'approved' | 'rejected' | 'cancelled' | 'completed';
   date_range: 'today' | 'this_week' | 'this_month' | 'all';
   hall: 'all' | string;
   priority: 'all' | 'low' | 'medium' | 'high';
@@ -161,21 +164,40 @@ class BookingOversightService {
   }
 
   /**
-   * Update booking status (approve/reject)
+   * Update booking status (approve/reject/cancel/complete)
    */
   async updateBookingStatus(
     bookingId: string, 
-    status: 'approved' | 'rejected',
-    adminNotes?: string
+    status: 'approved' | 'rejected' | 'cancelled' | 'completed',
+    adminNotes?: string,
+    rejectedReason?: string
   ): Promise<void> {
     try {
+      console.log(`[BookingOversight] Updating booking ${bookingId} to status: ${status}`);
+
+      // Get current admin user for approved_by field
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      const updateData: any = {
+        status,
+        admin_notes: adminNotes,
+        updated_at: new Date().toISOString(),
+      };
+
+      // Add specific fields based on status
+      if (status === 'approved') {
+        updateData.approved_by = user?.id;
+        updateData.approved_at = new Date().toISOString();
+        updateData.rejected_reason = null; // Clear any previous rejection reason
+      } else if (status === 'rejected') {
+        updateData.rejected_reason = rejectedReason || adminNotes || 'No reason provided';
+        updateData.approved_by = null;
+        updateData.approved_at = null;
+      }
+
       const { error } = await supabase
-        .from('bookings')
-        .update({
-          status,
-          admin_notes: adminNotes,
-          updated_at: new Date().toISOString(),
-        })
+        .from('smart_bookings')
+        .update(updateData)
         .eq('id', bookingId);
 
       if (error) {
@@ -183,8 +205,10 @@ class BookingOversightService {
         throw new Error('Failed to update booking status');
       }
 
+      console.log(`[BookingOversight] Successfully updated booking ${bookingId} to ${status}`);
+
       // Log the admin action
-      await this.logAdminAction(bookingId, `Booking ${status}`, adminNotes);
+      await this.logAdminAction(bookingId, `Booking ${status}`, adminNotes || rejectedReason);
     } catch (error) {
       console.error('Error in updateBookingStatus:', error);
       throw error;
@@ -198,11 +222,13 @@ class BookingOversightService {
     pending: number;
     approved: number;
     rejected: number;
+    cancelled: number;
+    completed: number;
     total: number;
   }> {
     try {
       const { data, error } = await supabase
-        .from('bookings')
+        .from('smart_bookings')
         .select('status');
 
       if (error) {
@@ -214,18 +240,104 @@ class BookingOversightService {
         pending: 0,
         approved: 0,
         rejected: 0,
+        cancelled: 0,
+        completed: 0,
         total: data?.length || 0,
       };
 
       data?.forEach(booking => {
-        if (booking.status === 'pending') stats.pending++;
-        else if (booking.status === 'approved') stats.approved++;
-        else if (booking.status === 'rejected') stats.rejected++;
+        switch (booking.status) {
+          case 'pending':
+            stats.pending++;
+            break;
+          case 'approved':
+            stats.approved++;
+            break;
+          case 'rejected':
+            stats.rejected++;
+            break;
+          case 'cancelled':
+            stats.cancelled++;
+            break;
+          case 'completed':
+            stats.completed++;
+            break;
+        }
       });
 
       return stats;
     } catch (error) {
       console.error('Error in getBookingStatistics:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Cancel a booking
+   */
+  async cancelBooking(
+    bookingId: string,
+    reason?: string,
+    adminNotes?: string
+  ): Promise<void> {
+    try {
+      console.log(`[BookingOversight] Cancelling booking ${bookingId}`);
+
+      const { error } = await supabase
+        .from('smart_bookings')
+        .update({
+          status: 'cancelled',
+          rejected_reason: reason || 'Cancelled by admin',
+          admin_notes: adminNotes,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', bookingId);
+
+      if (error) {
+        console.error('Error cancelling booking:', error);
+        throw new Error('Failed to cancel booking');
+      }
+
+      console.log(`[BookingOversight] Successfully cancelled booking ${bookingId}`);
+
+      // Log the admin action
+      await this.logAdminAction(bookingId, 'Booking cancelled', reason || adminNotes);
+    } catch (error) {
+      console.error('Error in cancelBooking:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Complete a booking (mark as completed)
+   */
+  async completeBooking(
+    bookingId: string,
+    adminNotes?: string
+  ): Promise<void> {
+    try {
+      console.log(`[BookingOversight] Completing booking ${bookingId}`);
+
+      const { error } = await supabase
+        .from('smart_bookings')
+        .update({
+          status: 'completed',
+          admin_notes: adminNotes,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', bookingId);
+
+      if (error) {
+        console.error('Error completing booking:', error);
+        throw new Error('Failed to complete booking');
+      }
+
+      console.log(`[BookingOversight] Successfully completed booking ${bookingId}`);
+
+      // Log the admin action
+      await this.logAdminAction(bookingId, 'Booking completed', adminNotes);
+    } catch (error) {
+      console.error('Error in completeBooking:', error);
       throw error;
     }
   }
@@ -237,10 +349,10 @@ class BookingOversightService {
     try {
       // Get pending bookings that might have conflicts
       const { data: bookingsData, error } = await supabase
-        .from('bookings')
+        .from('smart_bookings')
         .select('*')
         .eq('status', 'pending')
-        .order('date', { ascending: true });
+        .order('booking_date', { ascending: true });
 
       if (error) {
         console.error('Error fetching booking conflicts:', error);
@@ -415,24 +527,12 @@ class BookingOversightService {
     action: string,
     notes?: string
   ): Promise<void> {
-    try {
-      const { error } = await supabase
-        .from('admin_activity_logs')
-        .insert({
-          booking_id: bookingId,
-          action,
-          notes,
-          timestamp: new Date().toISOString(),
-        });
-
-      if (error) {
-        console.error('Error logging admin action:', error);
-        // Don't throw here as this is just logging
-      }
-    } catch (error) {
-      console.error('Error in logAdminAction:', error);
-      // Don't throw here as this is just logging
-    }
+    // Use the centralized admin logging service
+    await adminLoggingService.logBookingAction(
+      bookingId,
+      action as any, // Type assertion for compatibility
+      notes
+    );
   }
 
   /**

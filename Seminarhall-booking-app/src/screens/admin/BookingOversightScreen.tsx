@@ -131,16 +131,44 @@ const BookingOversightScreen: React.FC = () => {
 
 	const handleBookingAction = async (
 		bookingId: string,
-		action: "approve" | "reject"
+		action: "approve" | "reject" | "cancel" | "complete"
 	) => {
 		try {
-			// Use real service call
-			await bookingOversightService.updateBookingStatus(
-				bookingId,
-				action === "approve" ? "approved" : "rejected"
-			);
+			let actionText: string;
+			let successMessage: string;
 
-			Alert.alert("Success", `Booking ${action}d successfully!`, [
+			switch (action) {
+				case "approve":
+					await bookingOversightService.updateBookingStatus(
+						bookingId,
+						"approved"
+					);
+					actionText = "approve";
+					successMessage = "Booking approved successfully!";
+					break;
+				case "reject":
+					await bookingOversightService.updateBookingStatus(
+						bookingId,
+						"rejected"
+					);
+					actionText = "reject";
+					successMessage = "Booking rejected successfully!";
+					break;
+				case "cancel":
+					await bookingOversightService.cancelBooking(bookingId);
+					actionText = "cancel";
+					successMessage = "Booking cancelled successfully!";
+					break;
+				case "complete":
+					await bookingOversightService.completeBooking(bookingId);
+					actionText = "complete";
+					successMessage = "Booking marked as completed!";
+					break;
+				default:
+					throw new Error("Invalid action");
+			}
+
+			Alert.alert("Success", successMessage, [
 				{ text: "OK", onPress: () => loadBookings() },
 			]);
 		} catch (error) {
@@ -278,6 +306,7 @@ const BookingOversightScreen: React.FC = () => {
 					</>
 				)}
 			</View>
+			{/* Dynamic action buttons based on status */}
 			{item.status === "pending" && (
 				<View style={styles.actionButtonsRow}>
 					<TouchableOpacity
@@ -298,6 +327,78 @@ const BookingOversightScreen: React.FC = () => {
 						<Ionicons name="checkmark" size={18} color={Colors.text.inverse} />
 						<Text style={styles.actionButtonText}>Approve</Text>
 					</TouchableOpacity>
+				</View>
+			)}
+			{item.status === "approved" && (
+				<View style={styles.actionButtonsRow}>
+					<TouchableOpacity
+						style={[styles.actionButton, styles.rejectButton]}
+						onPress={() => handleBookingAction(item.id, "reject")}
+						accessibilityLabel="Reject booking"
+						accessibilityHint="Reject this approved booking"
+					>
+						<Ionicons name="close" size={18} color={Colors.text.inverse} />
+						<Text style={styles.actionButtonText}>Reject</Text>
+					</TouchableOpacity>
+					<TouchableOpacity
+						style={[styles.actionButton, styles.cancelButton]}
+						onPress={() => handleBookingAction(item.id, "cancel")}
+						accessibilityLabel="Cancel booking"
+						accessibilityHint="Cancel this approved booking"
+					>
+						<Ionicons name="ban" size={18} color={Colors.text.inverse} />
+						<Text style={styles.actionButtonText}>Cancel</Text>
+					</TouchableOpacity>
+					<TouchableOpacity
+						style={[styles.actionButton, styles.completeButton]}
+						onPress={() => handleBookingAction(item.id, "complete")}
+						accessibilityLabel="Mark complete"
+						accessibilityHint="Mark this booking as completed"
+					>
+						<Ionicons
+							name="checkmark-done"
+							size={18}
+							color={Colors.text.inverse}
+						/>
+						<Text style={styles.actionButtonText}>Complete</Text>
+					</TouchableOpacity>
+				</View>
+			)}
+			{/* Allow cancel for any active booking (pending or approved) */}
+			{item.status === "pending" && (
+				<View style={styles.actionButtonsRow}>
+					<TouchableOpacity
+						style={[styles.actionButton, styles.cancelButton]}
+						onPress={() => handleBookingAction(item.id, "cancel")}
+						accessibilityLabel="Cancel booking"
+						accessibilityHint="Cancel this booking request"
+					>
+						<Ionicons name="ban" size={18} color={Colors.text.inverse} />
+						<Text style={styles.actionButtonText}>Cancel</Text>
+					</TouchableOpacity>
+				</View>
+			)}
+			{(item.status === "rejected" ||
+				item.status === "cancelled" ||
+				item.status === "completed") && (
+				<View style={styles.statusInfoRow}>
+					<Text style={[styles.statusText, isDark && styles.statusTextDark]}>
+						Status: {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
+					</Text>
+					{item.cancelled_at && (
+						<Text
+							style={[styles.timestampText, isDark && styles.timestampTextDark]}
+						>
+							Cancelled: {new Date(item.cancelled_at).toLocaleDateString()}
+						</Text>
+					)}
+					{item.completed_at && (
+						<Text
+							style={[styles.timestampText, isDark && styles.timestampTextDark]}
+						>
+							Completed: {new Date(item.completed_at).toLocaleDateString()}
+						</Text>
+					)}
 				</View>
 			)}
 		</View>
@@ -779,12 +880,6 @@ const styles = StyleSheet.create({
 		borderRadius: BorderRadius.md,
 		gap: Spacing[2],
 	},
-	rejectButton: {
-		backgroundColor: Colors.error.main,
-	},
-	approveButton: {
-		backgroundColor: Colors.success.main,
-	},
 	actionButtonText: {
 		fontSize: Typography.fontSize.sm,
 		color: Colors.text.inverse,
@@ -844,6 +939,35 @@ const styles = StyleSheet.create({
 		flexDirection: "row",
 		alignItems: "center",
 		gap: 6,
+	},
+	approveButton: {
+		backgroundColor: Colors.success.main,
+	},
+	rejectButton: {
+		backgroundColor: Colors.error.main,
+	},
+	cancelButton: {
+		backgroundColor: Colors.warning.main,
+	},
+	completeButton: {
+		backgroundColor: Colors.primary[500],
+	},
+	statusInfoRow: {
+		marginTop: Spacing[3],
+		paddingTop: Spacing[2],
+		borderTopWidth: 1,
+		borderTopColor: Colors.border.main,
+	},
+	statusTextDark: {
+		color: Colors.dark.text.secondary,
+	},
+	timestampText: {
+		fontSize: Typography.fontSize.xs,
+		color: Colors.text.tertiary,
+		marginTop: 2,
+	},
+	timestampTextDark: {
+		color: Colors.dark.text.tertiary,
 	},
 	statusPill: {
 		backgroundColor: Colors.warning.main,
