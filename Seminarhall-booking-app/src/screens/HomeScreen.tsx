@@ -59,6 +59,22 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
 		pendingBookings: 0,
 	});
 
+	// Weather and Campus Status State
+	const [weather, setWeather] = useState({
+		temperature: null as number | null,
+		condition: "Clear" as string,
+		icon: "sunny" as string,
+		windSpeed: null as number | null,
+		windDirection: null as number | null,
+		loading: true,
+		error: null as string | null,
+	});
+	const [campusStatus, setCampusStatus] = useState({
+		isOnline: false,
+		statusText: "Campus Offline",
+		nextStatusChange: null as Date | null,
+	});
+
 	// Animation values
 	const fadeAnim = useRef(new Animated.Value(0)).current;
 	const slideAnim = useRef(new Animated.Value(50)).current;
@@ -69,17 +85,24 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
 	const fetchData = useCallback(async () => {
 		if (!isAuthenticated || !user) {
 			console.log("User not authenticated, skipping data fetch");
+			// Still update campus status and weather even if not authenticated
+			updateCampusStatus();
+			fetchWeatherData();
 			return;
 		}
 
 		try {
 			setLoading(true);
 
-			// Fetch halls and user bookings in parallel
+			// Fetch halls, user bookings, weather, and update campus status in parallel
 			const [hallsData, bookingsData] = await Promise.all([
 				hallManagementService.getAllHalls(),
 				smartBookingService.getUserBookingsWithRealTimeStatus(user.id), // Use real-time status checking
+				fetchWeatherData(), // Fetch weather data
 			]);
+
+			// Update campus status
+			updateCampusStatus();
 
 			setHalls(hallsData);
 			setBookings(bookingsData);
@@ -136,6 +159,109 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
 		}, [fetchData])
 	);
 
+	// Function to update campus status based on university timing (9:00 AM to 6:00 PM)
+	const updateCampusStatus = useCallback(() => {
+		const now = new Date();
+		const currentHour = now.getHours();
+		const currentMinutes = now.getMinutes();
+		const currentTime = currentHour * 60 + currentMinutes;
+
+		// University timing: 9:00 AM (540 minutes) to 6:00 PM (1080 minutes)
+		const openTime = 9 * 60; // 9:00 AM in minutes
+		const closeTime = 18 * 60; // 6:00 PM in minutes
+
+		const isOnline = currentTime >= openTime && currentTime < closeTime;
+
+		let statusText = "";
+		let nextStatusChange: Date | null = null;
+
+		if (isOnline) {
+			statusText = "Campus Online";
+			// Next change is at 6:00 PM today
+			nextStatusChange = new Date();
+			nextStatusChange.setHours(18, 0, 0, 0);
+		} else {
+			statusText = "Campus Offline";
+			// Calculate next opening time
+			nextStatusChange = new Date();
+			if (currentTime < openTime) {
+				// Same day opening at 9:00 AM
+				nextStatusChange.setHours(9, 0, 0, 0);
+			} else {
+				// Next day opening at 9:00 AM
+				nextStatusChange.setDate(nextStatusChange.getDate() + 1);
+				nextStatusChange.setHours(9, 0, 0, 0);
+			}
+		}
+
+		setCampusStatus({
+			isOnline,
+			statusText,
+			nextStatusChange,
+		});
+	}, []);
+
+	// Function to fetch weather data using Open-Meteo API (free, no API key needed)
+	const fetchWeatherData = useCallback(async () => {
+		try {
+			setWeather((prev) => ({ ...prev, loading: true, error: null }));
+
+			// Patna, Bihar coordinates
+			const latitude = 25.5941;
+			const longitude = 85.1376;
+			const URL = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true&hourly=temperature_2m,weathercode&timezone=Asia/Kolkata`;
+
+			const response = await fetch(URL);
+			if (!response.ok) {
+				throw new Error("Weather data unavailable");
+			}
+
+			const data = await response.json();
+			const currentWeather = data.current_weather;
+
+			// Map weather codes to readable conditions
+			const getWeatherCondition = (code: number) => {
+				if (code === 0) return "Clear";
+				if (code <= 3) return "Partly Cloudy";
+				if (code <= 48) return "Cloudy";
+				if (code <= 67) return "Rainy";
+				if (code <= 77) return "Snowy";
+				if (code <= 82) return "Rainy";
+				if (code <= 99) return "Stormy";
+				return "Unknown";
+			};
+
+			// Map weather codes to icons
+			const getWeatherIcon = (code: number) => {
+				if (code === 0) return "sunny";
+				if (code <= 3) return "partly-sunny";
+				if (code <= 48) return "cloudy";
+				if (code <= 67) return "rainy";
+				if (code <= 77) return "snow";
+				if (code <= 82) return "rainy";
+				if (code <= 99) return "thunderstorm";
+				return "cloudy";
+			};
+
+			setWeather({
+				temperature: Math.round(currentWeather.temperature),
+				condition: getWeatherCondition(currentWeather.weathercode),
+				icon: getWeatherIcon(currentWeather.weathercode),
+				windSpeed: currentWeather.windspeed,
+				windDirection: currentWeather.winddirection,
+				loading: false,
+				error: null,
+			});
+		} catch (error) {
+			console.error("Weather fetch error:", error);
+			setWeather((prev) => ({
+				...prev,
+				loading: false,
+				error: "Weather unavailable",
+			}));
+		}
+	}, []);
+
 	useEffect(() => {
 		// Entrance animations
 		Animated.parallel([
@@ -173,12 +299,25 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
 		).start();
 
 		// Update time every minute
-		const timer = setInterval(() => {
+		const timeTimer = setInterval(() => {
 			setCurrentTime(new Date());
+			updateCampusStatus(); // Also update campus status every minute
 		}, 60000);
 
-		return () => clearInterval(timer);
-	}, []);
+		// Update weather every 10 minutes
+		const weatherTimer = setInterval(() => {
+			fetchWeatherData();
+		}, 10 * 60 * 1000);
+
+		// Initial updates
+		updateCampusStatus();
+		fetchWeatherData();
+
+		return () => {
+			clearInterval(timeTimer);
+			clearInterval(weatherTimer);
+		};
+	}, [updateCampusStatus, fetchWeatherData]);
 
 	// Real-time notification updates
 	useEffect(() => {
@@ -407,13 +546,40 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
 		Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
 		try {
-			await fetchData();
+			await Promise.all([fetchData(), fetchWeatherData()]);
+			updateCampusStatus();
 		} catch (error) {
 			console.error("Error refreshing data:", error);
 		} finally {
 			setRefreshing(false);
 		}
 	};
+
+	const getTimeUntilStatusChange = () => {
+		if (!campusStatus.nextStatusChange) return "";
+
+		const now = new Date();
+		const timeDiff = campusStatus.nextStatusChange.getTime() - now.getTime();
+
+		if (timeDiff <= 0) return "";
+
+		const hours = Math.floor(timeDiff / (1000 * 60 * 60));
+		const minutes = Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60));
+
+		if (hours > 0) {
+			return `${hours}h ${minutes}m until ${
+				campusStatus.isOnline ? "offline" : "online"
+			}`;
+		} else if (minutes > 0) {
+			return `${minutes}m until ${
+				campusStatus.isOnline ? "offline" : "online"
+			}`;
+		} else {
+			return "Status changing soon...";
+		}
+	};
+
+	// ...existing code...
 
 	return (
 		<SafeAreaView
@@ -600,7 +766,22 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
 						>
 							<View style={styles.weatherContent}>
 								<View style={styles.weatherLeft}>
-									<Ionicons name="sunny" size={32} color="#f59e0b" />
+									<Ionicons
+										name={weather.icon as any}
+										size={32}
+										color={
+											weather.icon === "sunny"
+												? "#f59e0b"
+												: weather.icon === "rainy" ||
+												  weather.icon === "thunderstorm"
+												? "#3b82f6"
+												: weather.icon === "snow"
+												? "#e5e7eb"
+												: weather.icon === "partly-sunny"
+												? "#f97316"
+												: "#6b7280"
+										}
+									/>
 									<View style={styles.weatherInfo}>
 										<Text
 											style={[
@@ -608,7 +789,19 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
 												{ color: themeColors.text.primary },
 											]}
 										>
-											24°C
+											{weather.loading
+												? "..."
+												: weather.temperature
+												? `${weather.temperature}°C`
+												: "N/A"}
+										</Text>
+										<Text
+											style={[
+												styles.weatherLocation,
+												{ color: themeColors.text.secondary },
+											]}
+										>
+											{weather.condition}
 										</Text>
 										<Text
 											style={[
@@ -618,11 +811,37 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
 										>
 											Patna, Bihar
 										</Text>
+										{weather.error && (
+											<Text
+												style={[
+													styles.weatherLocation,
+													{ color: Colors.warning.main, fontSize: 10 },
+												]}
+											>
+												{weather.error}
+											</Text>
+										)}
 									</View>
 								</View>
 								<View style={styles.weatherRight}>
-									<View style={[styles.statusIndicator, styles.statusOnline]}>
-										<View style={styles.statusDot} />
+									<View
+										style={[
+											styles.statusIndicator,
+											campusStatus.isOnline
+												? styles.statusOnline
+												: styles.statusOffline,
+										]}
+									>
+										<View
+											style={[
+												styles.statusDot,
+												{
+													backgroundColor: campusStatus.isOnline
+														? Colors.success.main
+														: Colors.error.main,
+												},
+											]}
+										/>
 									</View>
 									<Text
 										style={[
@@ -630,7 +849,19 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
 											{ color: themeColors.text.secondary },
 										]}
 									>
-										Campus Online
+										{campusStatus.statusText}
+									</Text>
+									<Text
+										style={[
+											styles.weatherLocation,
+											{
+												color: themeColors.text.secondary,
+												fontSize: 10,
+												marginTop: 2,
+											},
+										]}
+									>
+										{getTimeUntilStatusChange()}
 									</Text>
 								</View>
 							</View>
@@ -1137,6 +1368,10 @@ const styles = StyleSheet.create({
 
 	statusOnline: {
 		backgroundColor: "rgba(16,185,129,0.2)",
+	},
+
+	statusOffline: {
+		backgroundColor: "rgba(239,68,68,0.2)",
 	},
 
 	statusDot: {
