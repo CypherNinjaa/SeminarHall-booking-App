@@ -899,6 +899,10 @@ export default function SuperAdminScreen({
 			console.log("🔐 SuperAdmin: Loading analytics...");
 			const data = await userManagementService.getUserAnalytics();
 
+			console.log("📊 Raw analytics data received:", data);
+			console.log("📊 Data type:", typeof data);
+			console.log("📊 Is array:", Array.isArray(data));
+
 			// Provide fallback values if the API returns invalid data
 			const safeAnalytics = {
 				total_users: Number(data?.total_users) || 0,
@@ -910,6 +914,7 @@ export default function SuperAdminScreen({
 				new_users_last_30_days: Number(data?.new_users_last_30_days) || 0,
 			};
 
+			console.log("📊 Safe analytics after processing:", safeAnalytics);
 			setAnalytics(safeAnalytics);
 		} catch (error) {
 			console.error("Error loading analytics:", error);
