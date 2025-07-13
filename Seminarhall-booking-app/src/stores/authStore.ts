@@ -124,10 +124,11 @@ export const useAuthStore = create<AuthState>()(
 									profileError
 								);
 
-								// If it's a policy error, try to create the profile
+								// If it's a policy error or missing profile, try to create/update it
 								if (
 									profileError?.code === "42P17" ||
-									profileError?.code === "PGRST116"
+									profileError?.code === "PGRST116" ||
+									profileError?.code === "PGRST301"
 								) {
 									console.log("Attempting to create profile for new user...");
 
@@ -148,19 +149,42 @@ export const useAuthStore = create<AuthState>()(
 											.single();
 
 									if (insertError) {
-										console.error("Failed to create profile:", insertError);
-										await supabase.auth.signOut();
-										set({
-											user: null,
-											isAuthenticated: false,
-											isLoading: false,
-											error:
-												"Failed to initialize user profile. Please try again.",
-										});
-										return;
+										// If duplicate key error, profile was created by trigger, get it instead
+										if (insertError.code === "23505") {
+											console.log("Profile already exists, fetching it...");
+											const { data: existingProfile, error: fetchError } = await supabase
+												.from("profiles")
+												.select("*")
+												.eq("id", session.user.id)
+												.single();
+											
+											if (!fetchError && existingProfile) {
+												profileData = existingProfile;
+											} else {
+												console.error("Failed to fetch existing profile:", fetchError);
+												await supabase.auth.signOut();
+												set({
+													user: null,
+													isAuthenticated: false,
+													isLoading: false,
+													error: "Failed to initialize user profile. Please try again.",
+												});
+												return;
+											}
+										} else {
+											console.error("Failed to create profile:", insertError);
+											await supabase.auth.signOut();
+											set({
+												user: null,
+												isAuthenticated: false,
+												isLoading: false,
+												error: "Failed to initialize user profile. Please try again.",
+											});
+											return;
+										}
+									} else {
+										profileData = newProfile;
 									}
-
-									profileData = newProfile;
 								} else {
 									await supabase.auth.signOut();
 									set({
@@ -449,26 +473,82 @@ export const useAuthStore = create<AuthState>()(
 						throw new Error("Registration failed");
 					}
 
-					// Create user profile in profiles table
-					const { data: profileData, error: profileError } = await supabase
+					// Wait a moment for the database trigger to create the profile
+					await new Promise((resolve) => setTimeout(resolve, 1000));
+
+					// Try to get existing profile (created by trigger) or update it
+					let profileData;
+					let profileError;
+
+					// First, try to get the existing profile created by the trigger
+					const { data: existingProfile, error: fetchError } = await supabase
 						.from("profiles")
-						.insert({
-							id: authData.user.id,
-							email: userData.email!,
-							name: userData.name!,
-							role: userData.role || "faculty",
-							department: userData.department,
-							employee_id: userData.employeeId,
-							phone: userData.phone,
-							is_active: true, // New users are active by default
-						})
-						.select()
+						.select("*")
+						.eq("id", authData.user.id)
 						.single();
 
-					if (profileError) {
-						console.error("Profile creation error:", profileError);
-						// Clean up auth user if profile creation fails
-						await supabase.auth.admin.deleteUser(authData.user.id);
+					if (existingProfile) {
+						// Profile exists (created by trigger), update it with additional details
+						const { data: updatedProfile, error: updateError } = await supabase
+							.from("profiles")
+							.update({
+								name: userData.name!,
+								role: userData.role || "faculty",
+								department: userData.department,
+								employee_id: userData.employeeId,
+								phone: userData.phone,
+								is_active: true,
+							})
+							.eq("id", authData.user.id)
+							.select()
+							.single();
+
+						profileData = updatedProfile;
+						profileError = updateError;
+					} else {
+						// Profile doesn't exist, create it manually (fallback)
+						const { data: newProfile, error: insertError } = await supabase
+							.from("profiles")
+							.insert({
+								id: authData.user.id,
+								email: userData.email!,
+								name: userData.name!,
+								role: userData.role || "faculty",
+								department: userData.department,
+								employee_id: userData.employeeId,
+								phone: userData.phone,
+								is_active: true,
+							})
+							.select()
+							.single();
+
+						profileData = newProfile;
+						profileError = insertError;
+
+						// If we get a duplicate key error, it means the trigger created the profile
+						// after our fetch attempt, so try to update instead
+						if (profileError?.code === "23505") {
+							const { data: retryProfile, error: retryError } = await supabase
+								.from("profiles")
+								.update({
+									name: userData.name!,
+									role: userData.role || "faculty",
+									department: userData.department,
+									employee_id: userData.employeeId,
+									phone: userData.phone,
+									is_active: true,
+								})
+								.eq("id", authData.user.id)
+								.select()
+								.single();
+
+							profileData = retryProfile;
+							profileError = retryError;
+						}
+					}
+
+					if (profileError || !profileData) {
+						console.error("Profile creation/update error:", profileError);
 						throw new Error("Failed to create user profile");
 					}
 

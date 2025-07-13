@@ -360,6 +360,11 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
 		toggleTheme();
 	};
 
+	const handleNotificationPress = () => {
+		Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+		navigation.navigate("Notifications");
+	};
+
 	const onRefresh = async () => {
 		setRefreshing(true);
 		Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -460,6 +465,7 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
 
 							{/* Notifications */}
 							<TouchableOpacity
+								onPress={handleNotificationPress}
 								style={[
 									styles.iconButton,
 									{ backgroundColor: themeColors.card },
