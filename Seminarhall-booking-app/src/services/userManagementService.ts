@@ -146,18 +146,93 @@ export const userManagementService = {
 	},
 
 	/**
-	 * Get user analytics
+	 * Get user analytics - Enhanced with fallback approach
 	 */
 	getUserAnalytics: async () => {
 		try {
-			const { data, error } = await supabase.rpc("get_user_analytics");
+			console.log("📊 Attempting to get analytics via RPC function...");
+			
+			// First, try the RPC function
+			const { data: rpcData, error: rpcError } = await supabase.rpc("get_user_analytics");
 
-			if (error) throw error;
+			if (!rpcError && rpcData) {
+				console.log("✅ Analytics from RPC:", rpcData);
+				
+				// Handle both JSON object format and table format
+				if (Array.isArray(rpcData) && rpcData.length > 0) {
+					// Table format - take the first row
+					return rpcData[0];
+				} else if (typeof rpcData === 'object') {
+					// JSON object format
+					return rpcData;
+				}
+			}
+			
+			console.log("⚠️ RPC failed or returned invalid data, using direct query fallback...");
+			console.log("RPC Error:", rpcError);
+			
+			// Fallback: Direct query approach
+			const { data: profiles, error: queryError } = await supabase
+				.from("profiles")
+				.select("role, is_active, created_at");
 
-			return data;
+			if (queryError) {
+				console.error("❌ Direct query also failed:", queryError);
+				throw queryError;
+			}
+
+			console.log("📊 Profiles data for analytics:", profiles?.length, "users found");
+
+			if (!profiles || profiles.length === 0) {
+				console.log("⚠️ No profiles found, returning zeros");
+				return {
+					total_users: 0,
+					super_admins: 0,
+					admins: 0,
+					faculty: 0,
+					active_users: 0,
+					inactive_users: 0,
+					new_users_last_month: 0,
+					new_users_last_30_days: 0
+				};
+			}
+
+			// Calculate analytics from the data
+			const thirtyDaysAgo = new Date();
+			thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+			const analytics = {
+				total_users: profiles.length,
+				super_admins: profiles.filter(p => p.role === 'super_admin').length,
+				admins: profiles.filter(p => p.role === 'admin').length,
+				faculty: profiles.filter(p => p.role === 'faculty').length,
+				active_users: profiles.filter(p => p.is_active === true).length,
+				inactive_users: profiles.filter(p => p.is_active === false).length,
+				new_users_last_month: profiles.filter(p => 
+					new Date(p.created_at) >= thirtyDaysAgo
+				).length,
+				new_users_last_30_days: profiles.filter(p => 
+					new Date(p.created_at) >= thirtyDaysAgo
+				).length
+			};
+
+			console.log("✅ Calculated analytics:", analytics);
+			return analytics;
+
 		} catch (error) {
-			console.error("Error getting user analytics:", error);
-			throw error;
+			console.error("❌ Error getting user analytics:", error);
+			
+			// Return zero values as absolute fallback
+			return {
+				total_users: 0,
+				super_admins: 0,
+				admins: 0,
+				faculty: 0,
+				active_users: 0,
+				inactive_users: 0,
+				new_users_last_month: 0,
+				new_users_last_30_days: 0
+			};
 		}
 	},
 
