@@ -83,7 +83,9 @@ class AdminReportsService {
    */
   async getMetrics(timeRange: TimeRange): Promise<ReportMetrics> {
     try {
+      console.log(`[AdminReports] Getting metrics for time range: ${timeRange}`);
       const dateRange = this.getDateRange(timeRange);
+      console.log(`[AdminReports] Date range: ${dateRange.startDate.toISOString()} to ${dateRange.endDate.toISOString()}`);
       
       const [
         totalBookings,
@@ -103,6 +105,8 @@ class AdminReportsService {
         this.getDetailedBookings(dateRange)
       ]);
 
+      console.log(`[AdminReports] Metrics summary: ${totalBookings} bookings, ${totalHalls} halls, ${popularHalls.length} popular halls, ${userActivity.length} active users, ${detailedBookings.length} detailed bookings`);
+
       return {
         total_bookings: totalBookings,
         total_halls: totalHalls,
@@ -113,7 +117,7 @@ class AdminReportsService {
         detailed_bookings: detailedBookings,
       };
     } catch (error) {
-      console.error('Error in getMetrics:', error);
+      console.error('[AdminReports] Error in getMetrics:', error);
       throw error;
     }
   }
@@ -230,6 +234,8 @@ class AdminReportsService {
    */
   private async getTotalBookings(dateRange: { startDate: Date; endDate: Date }): Promise<number> {
     try {
+      console.log(`[AdminReports] Getting total bookings from ${dateRange.startDate.toISOString()} to ${dateRange.endDate.toISOString()}`);
+      
       const { count, error } = await supabase
         .from('smart_bookings')
         .select('*', { count: 'exact', head: true })
@@ -237,13 +243,14 @@ class AdminReportsService {
         .lte('created_at', dateRange.endDate.toISOString());
 
       if (error) {
-        console.error('Error fetching total bookings:', error);
+        console.error('[AdminReports] Error fetching total bookings:', error);
         return 0;
       }
 
+      console.log(`[AdminReports] Total bookings count: ${count || 0}`);
       return count || 0;
     } catch (error) {
-      console.error('Error in getTotalBookings:', error);
+      console.error('[AdminReports] Error in getTotalBookings:', error);
       return 0;
     }
   }
@@ -253,19 +260,22 @@ class AdminReportsService {
    */
   private async getTotalHalls(): Promise<number> {
     try {
+      console.log('[AdminReports] Getting total halls count');
+      
       const { count, error } = await supabase
         .from('halls')
         .select('*', { count: 'exact', head: true })
         .eq('is_active', true);
 
       if (error) {
-        console.error('Error fetching total halls:', error);
+        console.error('[AdminReports] Error fetching total halls:', error);
         return 0;
       }
 
+      console.log(`[AdminReports] Total halls count: ${count || 0}`);
       return count || 0;
     } catch (error) {
-      console.error('Error in getTotalHalls:', error);
+      console.error('[AdminReports] Error in getTotalHalls:', error);
       return 0;
     }
   }
@@ -428,6 +438,8 @@ class AdminReportsService {
    */
   private async getUserActivity(dateRange: { startDate: Date; endDate: Date }): Promise<UserActivity[]> {
     try {
+      console.log(`[AdminReports] Getting user activity from ${dateRange.startDate.toISOString()} to ${dateRange.endDate.toISOString()}`);
+      
       // Get smart_bookings data without relationships
       const { data: bookings, error: bookingsError } = await supabase
         .from('smart_bookings')
@@ -436,22 +448,32 @@ class AdminReportsService {
         .lte('created_at', dateRange.endDate.toISOString());
 
       if (bookingsError) {
-        console.error('Error fetching user activity:', bookingsError);
+        console.error('[AdminReports] Error fetching user activity:', bookingsError);
         return [];
       }
 
+      console.log(`[AdminReports] Found ${bookings?.length || 0} bookings for user activity`);
+
       if (!bookings || bookings.length === 0) {
+        console.log('[AdminReports] No bookings found for user activity');
         return [];
       }
 
       // Get unique user IDs
       const userIds = [...new Set(bookings.map(b => b.user_id).filter(Boolean))];
+      console.log(`[AdminReports] Found ${userIds.length} unique users`);
 
       // Fetch user profiles data
-      const { data: profiles } = await supabase
+      const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
         .select('id, name, department')
         .in('id', userIds);
+
+      if (profilesError) {
+        console.error('[AdminReports] Error fetching profiles:', profilesError);
+      }
+
+      console.log(`[AdminReports] Found ${profiles?.length || 0} profiles`);
 
       // Create user map
       const profilesMap = new Map(profiles?.map(p => [p.id, p]) || []);
@@ -475,8 +497,10 @@ class AdminReportsService {
         }
       });
 
+      console.log(`[AdminReports] Processed user activity for ${userActivityMap.size} users`);
+
       // Convert to array and sort by activity
-      return Array.from(userActivityMap.entries())
+      const result = Array.from(userActivityMap.entries())
         .map(([userId, activity]) => ({
           user_id: userId,
           user_name: activity.name,
@@ -486,8 +510,11 @@ class AdminReportsService {
         }))
         .sort((a, b) => b.total_bookings - a.total_bookings)
         .slice(0, 5); // Top 5 users
+
+      console.log(`[AdminReports] Returning ${result.length} top users`);
+      return result;
     } catch (error) {
-      console.error('Error in getUserActivity:', error);
+      console.error('[AdminReports] Error in getUserActivity:', error);
       return [];
     }
   }
@@ -497,6 +524,8 @@ class AdminReportsService {
    */
   private async getDetailedBookings(dateRange: { startDate: Date; endDate: Date }): Promise<DetailedBooking[]> {
     try {
+      console.log(`[AdminReports] Getting detailed bookings from ${dateRange.startDate.toISOString().split('T')[0]} to ${dateRange.endDate.toISOString().split('T')[0]}`);
+      
       // First, get smart_bookings data without relationships
       const { data: bookings, error: bookingsError } = await supabase
         .from('smart_bookings')
@@ -530,11 +559,14 @@ class AdminReportsService {
         .order('booking_date', { ascending: false });
 
       if (bookingsError) {
-        console.error('Error fetching bookings:', bookingsError);
+        console.error('[AdminReports] Error fetching bookings:', bookingsError);
         return [];
       }
 
+      console.log(`[AdminReports] Found ${bookings?.length || 0} detailed bookings`);
+
       if (!bookings || bookings.length === 0) {
+        console.log('[AdminReports] No bookings found for detailed analysis');
         return [];
       }
 
@@ -543,23 +575,39 @@ class AdminReportsService {
       const userIds = [...new Set(bookings.map(b => b.user_id).filter(Boolean))];
       const approverIds = [...new Set(bookings.map(b => b.approved_by).filter(Boolean))];
 
+      console.log(`[AdminReports] Processing ${hallIds.length} halls, ${userIds.length} users, ${approverIds.length} approvers`);
+
       // Fetch halls data
-      const { data: halls } = await supabase
+      const { data: halls, error: hallsError } = await supabase
         .from('halls')
         .select('id, name, capacity, location, type')
         .in('id', hallIds);
 
+      if (hallsError) {
+        console.error('[AdminReports] Error fetching halls:', hallsError);
+      }
+
       // Fetch profiles data for users
-      const { data: profiles } = await supabase
+      const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
         .select('id, name, email, phone, department, role')
         .in('id', userIds);
 
+      if (profilesError) {
+        console.error('[AdminReports] Error fetching profiles:', profilesError);
+      }
+
       // Fetch approver profiles
-      const { data: approvers } = await supabase
+      const { data: approvers, error: approversError } = await supabase
         .from('profiles')
         .select('id, name')
         .in('id', approverIds);
+
+      if (approversError) {
+        console.error('[AdminReports] Error fetching approvers:', approversError);
+      }
+
+      console.log(`[AdminReports] Found ${halls?.length || 0} halls, ${profiles?.length || 0} profiles, ${approvers?.length || 0} approvers`);
 
       // Create lookup maps
       const hallsMap = new Map(halls?.map(h => [h.id, h]) || []);
@@ -567,7 +615,7 @@ class AdminReportsService {
       const approversMap = new Map(approvers?.map(a => [a.id, a]) || []);
 
       // Transform data to match DetailedBooking interface
-      return bookings.map((booking: any) => {
+      const result = bookings.map((booking: any) => {
         const hall = hallsMap.get(booking.hall_id);
         const profile = profilesMap.get(booking.user_id);
         const approver = approversMap.get(booking.approved_by);
@@ -614,8 +662,11 @@ class AdminReportsService {
           feedback_comments: booking.admin_notes,
         } as DetailedBooking;
       });
+
+      console.log(`[AdminReports] Returning ${result.length} detailed bookings`);
+      return result;
     } catch (error) {
-      console.error('Error in getDetailedBookings:', error);
+      console.error('[AdminReports] Error in getDetailedBookings:', error);
       return [];
     }
   }
@@ -908,6 +959,64 @@ class AdminReportsService {
     });
     
     return csvContent;
+  }
+
+  /**
+   * Debug method to check database contents
+   */
+  async debugDatabaseContents(): Promise<void> {
+    try {
+      console.log('[DEBUG] Checking database contents...');
+      
+      // Check smart_bookings
+      const { data: bookings, error: bookingsError } = await supabase
+        .from('smart_bookings')
+        .select('id, user_id, hall_id, booking_date, status, created_at')
+        .limit(5);
+      
+      console.log('[DEBUG] Smart bookings sample:', bookings);
+      if (bookingsError) console.error('[DEBUG] Bookings error:', bookingsError);
+      
+      // Check halls
+      const { data: halls, error: hallsError } = await supabase
+        .from('halls')
+        .select('id, name, is_active')
+        .limit(5);
+      
+      console.log('[DEBUG] Halls sample:', halls);
+      if (hallsError) console.error('[DEBUG] Halls error:', hallsError);
+      
+      // Check profiles
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, name, role, is_active')
+        .limit(5);
+      
+      console.log('[DEBUG] Profiles sample:', profiles);
+      if (profilesError) console.error('[DEBUG] Profiles error:', profilesError);
+      
+      // Count totals
+      const { count: bookingsCount } = await supabase
+        .from('smart_bookings')
+        .select('*', { count: 'exact', head: true });
+      
+      const { count: hallsCount } = await supabase
+        .from('halls')
+        .select('*', { count: 'exact', head: true });
+      
+      const { count: profilesCount } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true });
+      
+      console.log('[DEBUG] Total counts:', {
+        bookings: bookingsCount,
+        halls: hallsCount,
+        profiles: profilesCount
+      });
+      
+    } catch (error) {
+      console.error('[DEBUG] Error checking database:', error);
+    }
   }
 }
 
