@@ -11,11 +11,16 @@ import {
 	Dimensions,
 	Alert,
 	Animated,
+	Modal,
+	TextInput,
+	KeyboardAvoidingView,
+	Platform,
+	Keyboard,
+	TouchableWithoutFeedback,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useFocusEffect } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
 import * as Haptics from "expo-haptics";
 
@@ -322,97 +327,6 @@ const getRecentActivities = async (): Promise<RecentActivity[]> => {
 	} catch (error) {
 		console.error("Error fetching recent activities:", error);
 		return [];
-	}
-};
-
-// Helper function to check and update completed bookings
-const checkAndUpdateCompletedBookings = async (
-	bookings: any[]
-): Promise<any[]> => {
-	try {
-		const now = new Date();
-		const currentTime = now.toTimeString().slice(0, 5); // HH:MM format
-
-		console.log("🔄 Checking for completed bookings at:", currentTime);
-
-		// Find bookings that should be marked as completed
-		const bookingsToComplete = bookings.filter((booking) => {
-			// Skip if already completed
-			if (booking.status === "completed") return false;
-
-			// Parse buffer_end time
-			const bufferEndTime = booking.buffer_end || booking.end_time;
-			if (!bufferEndTime) return false;
-
-			// Compare current time with buffer_end time
-			const isTimeToComplete = currentTime > bufferEndTime;
-
-			if (isTimeToComplete) {
-				console.log("📋 Booking to complete:", {
-					id: booking.id,
-					hall: booking.hall_name,
-					bufferEnd: bufferEndTime,
-					currentTime: currentTime,
-					status: booking.status,
-				});
-			}
-
-			return isTimeToComplete;
-		});
-
-		if (bookingsToComplete.length > 0) {
-			console.log(
-				`🔄 Found ${bookingsToComplete.length} bookings to mark as completed`
-			);
-
-			// Optimistic update: Update local state first
-			const optimisticUpdatedBookings = bookings.map((booking) => {
-				const shouldComplete = bookingsToComplete.some(
-					(b) => b.id === booking.id
-				);
-				return shouldComplete ? { ...booking, status: "completed" } : booking;
-			});
-
-			// Update backend
-			try {
-				const updatePromises = bookingsToComplete.map(async (booking) => {
-					const { error } = await supabase
-						.from("smart_bookings")
-						.update({
-							status: "completed",
-							updated_at: new Date().toISOString(),
-						})
-						.eq("id", booking.id);
-
-					if (error) {
-						console.error("Error updating booking status:", error);
-						throw error;
-					}
-
-					console.log(`✅ Booking ${booking.id} marked as completed`);
-					return booking.id;
-				});
-
-				await Promise.all(updatePromises);
-
-				// Send haptic feedback for successful updates
-				if (bookingsToComplete.length > 0) {
-					Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-				}
-
-				return optimisticUpdatedBookings;
-			} catch (error) {
-				console.error("Error updating completed bookings:", error);
-				// Return original bookings if backend update fails
-				return bookings;
-			}
-		} else {
-			console.log("📋 No bookings need completion status update");
-			return bookings;
-		}
-	} catch (error) {
-		console.error("Error in checkAndUpdateCompletedBookings:", error);
-		return bookings;
 	}
 };
 
@@ -953,9 +867,18 @@ export default function AdminDashboardScreen({
 
 	// State management
 	const [isLoading, setIsLoading] = useState(true);
+	const [authChecked, setAuthChecked] = useState(false);
+	const [currentUser, setCurrentUser] = useState<any>(null);
 	const [refreshing, setRefreshing] = useState(false);
 	const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
 	const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
+
+	// Admin login modal state
+	const [showLoginModal, setShowLoginModal] = useState(false);
+	const [loginEmail, setLoginEmail] = useState("");
+	const [loginPassword, setLoginPassword] = useState("");
+	const [loginError, setLoginError] = useState("");
+	const [isLoggingIn, setIsLoggingIn] = useState(false);
 	const [stats, setStats] = useState<DashboardStats>({
 		// Legacy fields for backward compatibility
 		total_halls: 0,
@@ -1043,384 +966,580 @@ export default function AdminDashboardScreen({
 	// Real-time subscription
 	const subscriptionRef = useRef<any>(null);
 
-	// Load comprehensive dashboard data
-	const loadDashboardData = useCallback(async (showLoader = true) => {
+	// Throttling for booking completion checks (minimum 5 minutes between checks)
+	const lastBookingCompletionCheck = useRef<number>(0);
+	// Flag to prevent concurrent completion checks
+	const isCheckingCompletedBookings = useRef<boolean>(false);
+
+	// Helper function to check and update completed bookings - Optimized
+	const checkAndUpdateCompletedBookings = useCallback(
+		async (bookings: any[]): Promise<any[]> => {
+			try {
+				// Prevent concurrent execution
+				if (isCheckingCompletedBookings.current) {
+					console.log(
+						"🔄 Booking completion check already running, skipping..."
+					);
+					return bookings;
+				}
+
+				// Increase throttle interval to 5 minutes to reduce excessive calls
+				const currentTime = Date.now();
+				const THROTTLE_INTERVAL = 5 * 60 * 1000; // 5 minutes instead of 1
+
+				if (
+					currentTime - lastBookingCompletionCheck.current <
+					THROTTLE_INTERVAL
+				) {
+					console.log(
+						"🔄 Skipping booking completion check (throttled - 5 min cooldown)"
+					);
+					return bookings;
+				}
+
+				// Set flag to prevent concurrent execution
+				isCheckingCompletedBookings.current = true;
+				lastBookingCompletionCheck.current = currentTime;
+
+				// First check if user is authenticated before proceeding
+				const {
+					data: { user },
+				} = await supabase.auth.getUser();
+				if (!user) {
+					console.log(
+						"🔄 No authenticated user, skipping booking completion check"
+					);
+					return bookings;
+				}
+
+				// Skip if no bookings provided
+				if (!bookings || bookings.length === 0) {
+					console.log("🔄 No bookings to check for completion");
+					return bookings;
+				}
+
+				const now = new Date();
+				const currentTimeString = now.toTimeString().slice(0, 5); // HH:MM format
+
+				console.log(
+					"🔄 Checking for completed bookings at:",
+					currentTimeString,
+					"- Total bookings:",
+					bookings.length
+				);
+
+				// Find bookings that should be marked as completed
+				const bookingsToComplete = bookings.filter((booking) => {
+					// Skip if already completed
+					if (booking.status === "completed") return false;
+
+					// Parse buffer_end time
+					const bufferEndTime = booking.buffer_end || booking.end_time;
+					if (!bufferEndTime) return false;
+
+					// Compare current time with buffer_end time
+					const isTimeToComplete = currentTimeString > bufferEndTime;
+
+					if (isTimeToComplete) {
+						console.log("📋 Booking to complete:", {
+							id: booking.id,
+							hall: booking.hall_name,
+							bufferEnd: bufferEndTime,
+							currentTime: currentTimeString,
+							status: booking.status,
+						});
+					}
+
+					return isTimeToComplete;
+				});
+
+				if (bookingsToComplete.length > 0) {
+					console.log(
+						`🔄 Found ${bookingsToComplete.length} bookings to mark as completed`
+					);
+
+					// Optimistic update: Update local state first
+					const optimisticUpdatedBookings = bookings.map((booking) => {
+						const shouldComplete = bookingsToComplete.some(
+							(b) => b.id === booking.id
+						);
+						return shouldComplete
+							? { ...booking, status: "completed" }
+							: booking;
+					});
+
+					// Update backend
+					try {
+						const updatePromises = bookingsToComplete.map(async (booking) => {
+							const { error } = await supabase
+								.from("smart_bookings")
+								.update({
+									status: "completed",
+									updated_at: new Date().toISOString(),
+								})
+								.eq("id", booking.id);
+
+							if (error) {
+								console.error("Error updating booking status:", error);
+								throw error;
+							}
+
+							console.log(`✅ Booking ${booking.id} marked as completed`);
+							return booking.id;
+						});
+
+						await Promise.all(updatePromises);
+
+						// Send haptic feedback for successful updates
+						if (bookingsToComplete.length > 0) {
+							Haptics.notificationAsync(
+								Haptics.NotificationFeedbackType.Success
+							);
+						}
+
+						return optimisticUpdatedBookings;
+					} catch (error) {
+						console.error("Error updating completed bookings:", error);
+						// Return original bookings if backend update fails
+						return bookings;
+					}
+				} else {
+					console.log("📋 No bookings need completion status update");
+					return bookings;
+				}
+			} catch (error) {
+				console.error("Error in checkAndUpdateCompletedBookings:", error);
+				return bookings;
+			} finally {
+				// Always reset the flag when done
+				isCheckingCompletedBookings.current = false;
+			}
+		},
+		[]
+	);
+
+	// Admin login handler
+	const handleAdminLogin = useCallback(async () => {
+		if (!loginEmail.trim() || !loginPassword.trim()) {
+			setLoginError("Please enter both email and password");
+			return;
+		}
+
+		setIsLoggingIn(true);
+		setLoginError("");
+
 		try {
-			if (showLoader) setIsLoading(true);
+			console.log("🔐 Attempting admin login...");
 
-			console.log("📊 Starting enhanced dashboard data load...");
-
-			// Check current user and session
-			const {
-				data: { user: currentUser },
-				error: userError,
-			} = await supabase.auth.getUser();
-			console.log("📊 Current user:", {
-				userId: currentUser?.id,
-				email: currentUser?.email,
-				userError,
+			const { data, error } = await supabase.auth.signInWithPassword({
+				email: loginEmail.trim(),
+				password: loginPassword,
 			});
 
-			// Test direct database query to smart_bookings table
-			console.log("📊 Testing direct smart_bookings query...");
-			const { data: directBookings, error: directError } = await supabase
-				.from("smart_bookings")
-				.select("*");
+			if (error) {
+				console.error("🔐 Login error:", error);
+				setLoginError(error.message);
+				return;
+			}
 
-			console.log("📊 Direct smart_bookings query result:", {
-				count: directBookings?.length || 0,
-				error: directError,
-				data: directBookings,
-			});
+			if (data.session && data.user) {
+				console.log("🔐 Login successful:", {
+					userId: data.user.id,
+					email: data.user.email,
+				});
 
-			// If we're getting no data, let's use a fallback with the known data
-			// This is for debugging purposes - you can remove this later
-			if (directBookings?.length === 0 && !directError) {
-				console.log("📊 No bookings found, using fallback debug data...");
+				// Update the current user and close modal
+				setCurrentUser(data.user);
+				setShowLoginModal(false);
+				setAuthChecked(true);
 
-				// Based on the SQL data you provided
-				const debugBookings = [
-					{
-						id: "1",
-						hall_name: "Main Auditorium",
-						user_email: "user1@example.com",
-						purpose: "Conference",
-						booking_date: "12072025",
-						start_time: "09:00",
-						end_time: "11:00",
-						status: "approved",
-						created_at: "2025-07-12T08:00:00Z",
-					},
-					{
-						id: "2",
-						hall_name: "Conference Room A",
-						user_email: "user2@example.com",
-						purpose: "Meeting",
-						booking_date: "12072025",
-						start_time: "14:00",
-						end_time: "16:00",
-						status: "pending",
-						created_at: "2025-07-12T09:00:00Z",
-					},
-					{
-						id: "3",
-						hall_name: "Seminar Hall B",
-						user_email: "user3@example.com",
-						purpose: "Workshop",
-						booking_date: "13072025",
-						start_time: "10:00",
-						end_time: "12:00",
-						status: "completed",
-						created_at: "2025-07-11T10:00:00Z",
-					},
-					{
-						id: "4",
-						hall_name: "Main Auditorium",
-						user_email: "user4@example.com",
-						purpose: "Seminar",
-						booking_date: "14072025",
-						start_time: "15:00",
-						end_time: "17:00",
-						status: "approved",
-						created_at: "2025-07-12T11:00:00Z",
-					},
-					{
-						id: "5",
-						hall_name: "Conference Room A",
-						user_email: "user5@example.com",
-						purpose: "Training",
-						booking_date: "15072025",
-						start_time: "11:00",
-						end_time: "13:00",
-						status: "cancelled",
-						created_at: "2025-07-12T12:00:00Z",
-					},
-				];
+				// Clear login form
+				setLoginEmail("");
+				setLoginPassword("");
+				setLoginError("");
 
-				console.log("📊 Using debug booking data:", debugBookings);
+				// Show success feedback
+				Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-				// Calculate stats from debug data
-				const debugStats = {
-					totalBookings: debugBookings.length,
-					activeBookings: debugBookings.filter((b) => b.status === "approved")
-						.length,
-					pendingBookings: debugBookings.filter((b) => b.status === "pending")
-						.length,
-					approvedBookings: debugBookings.filter((b) => b.status === "approved")
-						.length,
-					completedBookings: debugBookings.filter(
-						(b) => b.status === "completed"
-					).length,
-					cancelledBookings: debugBookings.filter(
-						(b) => b.status === "cancelled"
-					).length,
-					rejectedBookings: debugBookings.filter((b) => b.status === "rejected")
-						.length,
-					todaysBookings: debugBookings.filter(
-						(b) => b.booking_date === "12072025"
-					).length,
-					tomorrowsBookings: debugBookings.filter(
-						(b) => b.booking_date === "13072025"
-					).length,
-					weeklyBookings: debugBookings.length,
-					monthlyBookings: debugBookings.length,
-					totalHalls: 4,
-					activeHalls: 4,
-					maintenanceHalls: 0,
-					hallUtilization: 75,
-					mostBookedHall: "Main Auditorium",
-					leastBookedHall: "Seminar Hall B",
-					averageBookingDuration: 120,
-					peakBookingHour: "10:00",
-					peakBookingDay: "Saturday",
-					bookingTrend: "up" as const,
+				// Load dashboard data
+				setTimeout(() => {
+					loadDashboardData();
+				}, 100);
+			}
+		} catch (error) {
+			console.error("🔐 Login exception:", error);
+			setLoginError("Login failed. Please try again.");
+		} finally {
+			setIsLoggingIn(false);
+		}
+	}, [loginEmail, loginPassword]);
+
+	// Handle login modal close
+	const handleCloseLoginModal = useCallback(() => {
+		setShowLoginModal(false);
+		// Reset to main tabs instead of staying on admin screen
+		navigation.reset({
+			index: 0,
+			routes: [{ name: "MainTabs" }],
+		});
+	}, [navigation]);
+
+	// Load comprehensive dashboard data
+	const loadDashboardData = useCallback(
+		async (showLoader = true) => {
+			try {
+				if (showLoader) setIsLoading(true);
+
+				console.log("📊 Starting enhanced dashboard data load...");
+
+				// Only proceed if we have a valid authenticated user
+				if (!currentUser?.id) {
+					console.log("📊 No authenticated user found, skipping data load");
+					if (showLoader) setIsLoading(false);
+					return;
+				}
+
+				console.log("📊 Current authenticated user:", {
+					userId: currentUser.id,
+					email: currentUser.email,
+				});
+
+				// Test direct database query to smart_bookings table
+				console.log("📊 Testing direct smart_bookings query...");
+				const { data: directBookings, error: directError } = await supabase
+					.from("smart_bookings")
+					.select("*");
+
+				console.log("📊 Direct smart_bookings query result:", {
+					count: directBookings?.length || 0,
+					error: directError,
+					firstBooking: directBookings?.[0] || null,
+				});
+
+				if (directError) {
+					console.error("📊 Database query error:", directError);
+					Alert.alert(
+						"Error",
+						"Failed to load booking data. Please try again."
+					);
+					setIsLoading(false);
+					setRefreshing(false);
+					return;
+				}
+
+				// Use real data from database
+				const allBookings = directBookings || [];
+
+				// Fetch all data in parallel for better performance
+				const [hallsData, hallStats] = await Promise.all([
+					hallManagementService.getAllHalls(),
+					hallManagementService.getHallStats(),
+				]);
+
+				console.log("📊 Data fetched:", {
+					halls: hallsData?.length || 0,
+					bookings: allBookings?.length || 0,
+					hallStats: hallStats ? "✓" : "✗",
+				});
+
+				// Calculate comprehensive statistics
+				const bookingStats = calculateBookingStats(allBookings || []);
+				console.log("📊 Booking Statistics:", {
+					totalBookings: (allBookings || []).length,
+					bookingStats,
+					firstBooking:
+						allBookings && allBookings[0]
+							? {
+									id: allBookings[0].id,
+									booking_date: allBookings[0].booking_date,
+									status: allBookings[0].status,
+									hall_name: allBookings[0].hall_name,
+							  }
+							: "No bookings",
+				});
+
+				// Calculate hall statistics
+				const activeHalls = (hallsData || []).filter(
+					(hall: any) => hall.is_active && !hall.is_maintenance
+				).length;
+				const maintenanceHalls = (hallsData || []).filter(
+					(hall: any) => hall.is_maintenance
+				).length;
+
+				// Calculate utilization rate (more accurate)
+				const approvedBookings = (allBookings || []).filter(
+					(b: any) => b.status === "approved"
+				);
+				const totalHallHours = (hallsData || []).length * 12; // Assuming 12 working hours per day
+				const bookedHours = approvedBookings.reduce(
+					(sum: number, booking: any) => {
+						const duration =
+							parseTime(booking.end_time) - parseTime(booking.start_time);
+						return sum + duration / 60; // Convert to hours
+					},
+					0
+				);
+				const utilizationRate =
+					totalHallHours > 0
+						? Math.round((bookedHours / totalHallHours) * 100)
+						: 0;
+
+				// Determine booking trend
+				const recentBookings = (allBookings || []).filter((booking: any) => {
+					const bookingDate = new Date(booking.created_at);
+					const threeDaysAgo = new Date();
+					threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+					return bookingDate >= threeDaysAgo;
+				});
+
+				const weekOldBookings = (allBookings || []).filter((booking: any) => {
+					const bookingDate = new Date(booking.created_at);
+					const sevenDaysAgo = new Date();
+					sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+					const fourDaysAgo = new Date();
+					fourDaysAgo.setDate(fourDaysAgo.getDate() - 4);
+					return bookingDate >= sevenDaysAgo && bookingDate < fourDaysAgo;
+				});
+
+				let trend: "up" | "down" | "stable" = "stable";
+				if (recentBookings.length > weekOldBookings.length * 1.1) trend = "up";
+				else if (recentBookings.length < weekOldBookings.length * 0.9)
+					trend = "down";
+
+				// Update stats with comprehensive data
+				const newStats: DashboardStats = {
+					total_halls: (hallsData || []).length,
+					active_halls: activeHalls,
+					maintenance_halls: maintenanceHalls,
+					hall_utilization: utilizationRate,
+					conflicts_resolved: 0, // TODO: Implement conflict detection
+					recent_bookings_trend: trend,
+					total_bookings: bookingStats.total_bookings || 0,
+					active_bookings: bookingStats.active_bookings || 0,
+					pending_bookings: bookingStats.pending_bookings || 0,
+					approved_bookings: bookingStats.approved_bookings || 0,
+					completed_bookings: bookingStats.completed_bookings || 0,
+					cancelled_bookings: bookingStats.cancelled_bookings || 0,
+					rejected_bookings: bookingStats.rejected_bookings || 0,
+					todays_bookings: bookingStats.todays_bookings || 0,
+					tomorrows_bookings: bookingStats.tomorrows_bookings || 0,
+					average_booking_duration: bookingStats.average_booking_duration || 0,
+					peak_hour: bookingStats.peak_hour || "09:00",
+					most_booked_hall: bookingStats.most_booked_hall || "No bookings",
+
+					// Enhanced analytics
+					weekly_bookings: (allBookings || []).length,
+					monthly_bookings: (allBookings || []).length,
+					booking_success_rate:
+						approvedBookings.length > 0
+							? Math.round(
+									(approvedBookings.length / (allBookings || []).length) * 100
+							  )
+							: 0,
+					average_approval_time: 2, // TODO: Calculate from actual data
+					system_uptime: 99.9,
+					equipment_usage: 0, // TODO: Implement equipment tracking
+					maintenance_scheduled: 0,
+					total_users: 0, // TODO: Get from users table
+					active_users: 0,
+					total_conflicts: 0,
+					pending_conflicts: 0,
+					least_booked_hall: "No bookings",
+					peak_booking_day: "Monday",
+
+					// Enhanced properties from AdminDashboardStats
+					totalBookings: (allBookings || []).length,
+					activeBookings: bookingStats.active_bookings || 0,
+					pendingBookings: bookingStats.pending_bookings || 0,
+					approvedBookings: bookingStats.approved_bookings || 0,
+					completedBookings: bookingStats.completed_bookings || 0,
+					cancelledBookings: bookingStats.cancelled_bookings || 0,
+					rejectedBookings: bookingStats.rejected_bookings || 0,
+					todaysBookings: bookingStats.todays_bookings || 0,
+					tomorrowsBookings: bookingStats.tomorrows_bookings || 0,
+					weeklyBookings: (allBookings || []).length,
+					monthlyBookings: (allBookings || []).length,
+					totalHalls: (hallsData || []).length,
+					activeHalls: activeHalls,
+					maintenanceHalls: maintenanceHalls,
+					hallUtilization: utilizationRate,
+					mostBookedHall: bookingStats.most_booked_hall || "No bookings",
+					leastBookedHall: "No bookings",
+					averageBookingDuration: bookingStats.average_booking_duration || 0,
+					peakBookingHour: bookingStats.peak_hour || "09:00",
+					peakBookingDay: "Monday",
+					bookingTrend: trend,
 					totalConflicts: 0,
 					resolvedConflicts: 0,
 					pendingConflicts: 0,
-					equipmentUsage: 80,
+					equipmentUsage: 0,
 					maintenanceScheduled: 0,
-					totalUsers: 5,
-					activeUsers: 4,
-					topBookingUsers: [
-						{ name: "User 1", count: 2 },
-						{ name: "User 2", count: 1 },
-					],
-					bookingSuccessRate: 80,
+					totalUsers: 0,
+					activeUsers: 0,
+					topBookingUsers: [],
+					bookingSuccessRate:
+						approvedBookings.length > 0
+							? Math.round(
+									(approvedBookings.length / (allBookings || []).length) * 100
+							  )
+							: 0,
 					averageApprovalTime: 2,
 					systemUptime: 99.9,
 				};
 
-				// Override the enhanced stats with debug data
-				const newStats: DashboardStats = {
-					// Legacy compatibility
-					total_halls: debugStats.totalHalls,
-					active_halls: debugStats.activeHalls,
-					maintenance_halls: debugStats.maintenanceHalls,
-					total_bookings: debugStats.totalBookings,
-					active_bookings: debugStats.activeBookings,
-					pending_bookings: debugStats.pendingBookings,
-					approved_bookings: debugStats.approvedBookings,
-					completed_bookings: debugStats.completedBookings,
-					cancelled_bookings: debugStats.cancelledBookings,
-					rejected_bookings: debugStats.rejectedBookings,
-					todays_bookings: debugStats.todaysBookings,
-					tomorrows_bookings: debugStats.tomorrowsBookings,
-					hall_utilization: debugStats.hallUtilization,
-					conflicts_resolved: debugStats.resolvedConflicts,
-					average_booking_duration: debugStats.averageBookingDuration,
-					peak_hour: debugStats.peakBookingHour,
-					most_booked_hall: debugStats.mostBookedHall,
-					recent_bookings_trend: debugStats.bookingTrend,
-
-					// Enhanced analytics
-					weekly_bookings: debugStats.weeklyBookings,
-					monthly_bookings: debugStats.monthlyBookings,
-					booking_success_rate: debugStats.bookingSuccessRate,
-					average_approval_time: debugStats.averageApprovalTime,
-					system_uptime: debugStats.systemUptime,
-					equipment_usage: debugStats.equipmentUsage,
-					maintenance_scheduled: debugStats.maintenanceScheduled,
-					total_users: debugStats.totalUsers,
-					active_users: debugStats.activeUsers,
-					total_conflicts: debugStats.totalConflicts,
-					pending_conflicts: debugStats.pendingConflicts,
-					least_booked_hall: debugStats.leastBookedHall,
-					peak_booking_day: debugStats.peakBookingDay,
-
-					// Enhanced properties from AdminDashboardStats
-					...debugStats,
-				};
-
-				console.log("📊 Debug stats applied:", newStats);
+				console.log("📊 Final stats:", newStats);
 				setStats(newStats);
 
-				// Create debug activities
-				const debugActivities = debugBookings
-					.slice(0, 4)
-					.map((booking, index) => ({
-						id: `debug-${booking.id}`,
-						type: "booking" as const,
-						action: "created" as const,
-						title: `${booking.purpose} Request`,
-						description: `${booking.user_email.split("@")[0]} requested ${
-							booking.hall_name
-						} for ${booking.purpose}`,
-						timestamp: "Just now",
-						user: booking.user_email.split("@")[0],
-						user_email: booking.user_email,
-						hall_name: booking.hall_name,
-						booking_id: booking.id,
-						status: booking.status as
-							| "pending"
-							| "approved"
-							| "rejected"
-							| "completed"
-							| "cancelled",
-						priority: "medium" as const,
-						metadata: {
-							booking_date: booking.booking_date,
-							start_time: booking.start_time,
-							end_time: booking.end_time,
-							created_at: booking.created_at,
-						},
-					}));
+				// Get recent activities
+				const activities = await getRecentActivities();
+				setRecentActivity(activities);
 
-				setRecentActivity(debugActivities);
 				setLastUpdated(new Date());
 				setRealTimeUpdates((prev) => prev + 1);
+
+				// Animate update indicator
+				Animated.sequence([
+					Animated.timing(updateIndicatorAnim, {
+						toValue: 1,
+						duration: 300,
+						useNativeDriver: true,
+					}),
+					Animated.timing(updateIndicatorAnim, {
+						toValue: 0,
+						duration: 1000,
+						useNativeDriver: true,
+					}),
+				]).start();
 
 				if (showLoader) {
 					setIsLoading(false);
 					setRefreshing(false);
 				}
-
-				console.log(
-					"📊 Debug data load complete - dashboard should now show booking data"
+			} catch (error) {
+				console.error("Error loading enhanced dashboard data:", error);
+				Alert.alert(
+					"Error",
+					"Failed to load dashboard data. Please try again."
 				);
-				return; // Exit early with debug data
-			}
-
-			// Test database connection first
-			const connectionTest =
-				await enhancedAdminReportsService.testDatabaseConnection();
-			console.log("📊 Database connection test result:", connectionTest);
-
-			// Use the enhanced admin reports service for comprehensive statistics
-			const enhancedStats =
-				await enhancedAdminReportsService.getDashboardStats();
-
-			console.log("📊 Enhanced stats received:", enhancedStats);
-
-			// Debug: Log the specific values we're interested in
-			console.log("📊 Debug - Booking counts:", {
-				totalBookings: enhancedStats.totalBookings,
-				activeBookings: enhancedStats.activeBookings,
-				pendingBookings: enhancedStats.pendingBookings,
-				approvedBookings: enhancedStats.approvedBookings,
-				completedBookings: enhancedStats.completedBookings,
-				todaysBookings: enhancedStats.todaysBookings,
-			});
-
-			// Also get current bookings for completed booking check
-			const rawBookings = await bookingOversightService.getBookings({
-				status: "all",
-			});
-			console.log(
-				"📊 Raw bookings from oversight service:",
-				rawBookings?.length || 0
-			);
-
-			const allBookings = await checkAndUpdateCompletedBookings(
-				rawBookings || []
-			);
-
-			// Map enhanced stats to dashboard format
-			const newStats: DashboardStats = {
-				// Legacy compatibility
-				total_halls: enhancedStats.totalHalls,
-				active_halls: enhancedStats.activeHalls,
-				maintenance_halls: enhancedStats.maintenanceHalls,
-				total_bookings: enhancedStats.totalBookings,
-				active_bookings: enhancedStats.activeBookings,
-				pending_bookings: enhancedStats.pendingBookings,
-				approved_bookings: enhancedStats.approvedBookings,
-				completed_bookings: enhancedStats.completedBookings,
-				cancelled_bookings: enhancedStats.cancelledBookings,
-				rejected_bookings: enhancedStats.rejectedBookings,
-				todays_bookings: enhancedStats.todaysBookings,
-				tomorrows_bookings: enhancedStats.tomorrowsBookings,
-				hall_utilization: enhancedStats.hallUtilization,
-				conflicts_resolved: enhancedStats.resolvedConflicts,
-				average_booking_duration: enhancedStats.averageBookingDuration,
-				peak_hour: enhancedStats.peakBookingHour,
-				most_booked_hall: enhancedStats.mostBookedHall,
-				recent_bookings_trend: enhancedStats.bookingTrend,
-
-				// Enhanced analytics
-				weekly_bookings: enhancedStats.weeklyBookings,
-				monthly_bookings: enhancedStats.monthlyBookings,
-				booking_success_rate: enhancedStats.bookingSuccessRate,
-				average_approval_time: enhancedStats.averageApprovalTime,
-				system_uptime: enhancedStats.systemUptime,
-				equipment_usage: enhancedStats.equipmentUsage,
-				maintenance_scheduled: enhancedStats.maintenanceScheduled,
-				total_users: enhancedStats.totalUsers,
-				active_users: enhancedStats.activeUsers,
-				total_conflicts: enhancedStats.totalConflicts,
-				pending_conflicts: enhancedStats.pendingConflicts,
-				least_booked_hall: enhancedStats.leastBookedHall,
-				peak_booking_day: enhancedStats.peakBookingDay,
-
-				// Enhanced properties from AdminDashboardStats
-				totalBookings: enhancedStats.totalBookings,
-				activeBookings: enhancedStats.activeBookings,
-				pendingBookings: enhancedStats.pendingBookings,
-				approvedBookings: enhancedStats.approvedBookings,
-				completedBookings: enhancedStats.completedBookings,
-				cancelledBookings: enhancedStats.cancelledBookings,
-				rejectedBookings: enhancedStats.rejectedBookings,
-				todaysBookings: enhancedStats.todaysBookings,
-				tomorrowsBookings: enhancedStats.tomorrowsBookings,
-				weeklyBookings: enhancedStats.weeklyBookings,
-				monthlyBookings: enhancedStats.monthlyBookings,
-				totalHalls: enhancedStats.totalHalls,
-				activeHalls: enhancedStats.activeHalls,
-				maintenanceHalls: enhancedStats.maintenanceHalls,
-				hallUtilization: enhancedStats.hallUtilization,
-				mostBookedHall: enhancedStats.mostBookedHall,
-				leastBookedHall: enhancedStats.leastBookedHall,
-				averageBookingDuration: enhancedStats.averageBookingDuration,
-				peakBookingHour: enhancedStats.peakBookingHour,
-				peakBookingDay: enhancedStats.peakBookingDay,
-				bookingTrend: enhancedStats.bookingTrend,
-				totalConflicts: enhancedStats.totalConflicts,
-				resolvedConflicts: enhancedStats.resolvedConflicts,
-				pendingConflicts: enhancedStats.pendingConflicts,
-				equipmentUsage: enhancedStats.equipmentUsage,
-				maintenanceScheduled: enhancedStats.maintenanceScheduled,
-				totalUsers: enhancedStats.totalUsers,
-				activeUsers: enhancedStats.activeUsers,
-				topBookingUsers: enhancedStats.topBookingUsers,
-				bookingSuccessRate: enhancedStats.bookingSuccessRate,
-				averageApprovalTime: enhancedStats.averageApprovalTime,
-				systemUptime: enhancedStats.systemUptime,
-			};
-
-			console.log("📊 Final enhanced stats:", newStats);
-			setStats(newStats);
-
-			// Get recent activities
-			const activities = await getRecentActivities();
-			setRecentActivity(activities);
-
-			setLastUpdated(new Date());
-			setRealTimeUpdates((prev) => prev + 1);
-
-			// Animate update indicator
-			Animated.sequence([
-				Animated.timing(updateIndicatorAnim, {
-					toValue: 1,
-					duration: 300,
-					useNativeDriver: true,
-				}),
-				Animated.timing(updateIndicatorAnim, {
-					toValue: 0,
-					duration: 1000,
-					useNativeDriver: true,
-				}),
-			]).start();
-
-			if (showLoader) {
 				setIsLoading(false);
 				setRefreshing(false);
 			}
-		} catch (error) {
-			console.error("Error loading enhanced dashboard data:", error);
-			Alert.alert("Error", "Failed to load dashboard data. Please try again.");
+		},
+		[currentUser]
+	);
+
+	// Check authentication state on component mount
+	useEffect(() => {
+		const checkAuthState = async () => {
+			try {
+				console.log("🔐 Checking authentication state...");
+
+				// First, try to get current session
+				const {
+					data: { session },
+					error: sessionError,
+				} = await supabase.auth.getSession();
+
+				if (sessionError) {
+					console.error("🔐 Session error:", sessionError);
+				}
+
+				if (session?.user) {
+					console.log("🔐 Valid session found:", {
+						userId: session.user.id,
+						email: session.user.email,
+					});
+					setCurrentUser(session.user);
+					setAuthChecked(true);
+					return;
+				}
+
+				// If no session, try getUser()
+				console.log("🔐 No session found, trying getUser...");
+				const {
+					data: { user },
+					error: userError,
+				} = await supabase.auth.getUser();
+
+				if (user && !userError) {
+					console.log("🔐 User found via getUser:", {
+						userId: user.id,
+						email: user.email,
+					});
+					setCurrentUser(user);
+					setAuthChecked(true);
+					return;
+				}
+
+				// If still no user, try to use the auth store as fallback
+				console.log("🔐 No user from Supabase, checking auth store...");
+				if (user?.id) {
+					console.log("🔐 User found in auth store:", {
+						userId: user.id,
+						email: user.email,
+					});
+					// Try to refresh the Supabase session with the auth store user
+					try {
+						const { data, error } = await supabase.auth.setSession({
+							access_token: "temp", // This will be replaced by proper token
+							refresh_token: "temp",
+						});
+						if (!error && data.user) {
+							setCurrentUser(data.user);
+							setAuthChecked(true);
+							return;
+						}
+					} catch (refreshError) {
+						console.log("🔐 Could not refresh session:", refreshError);
+					}
+				}
+
+				console.log("🔐 No authenticated user found anywhere");
+				setCurrentUser(null);
+				setAuthChecked(true);
+				// Show login modal instead of blocking screen
+				setShowLoginModal(true);
+			} catch (error) {
+				console.error("🔐 Auth check error:", error);
+				setCurrentUser(null);
+				setAuthChecked(true);
+			}
+		};
+
+		checkAuthState();
+
+		// Listen for auth state changes
+		const {
+			data: { subscription },
+		} = supabase.auth.onAuthStateChange((event, session) => {
+			console.log("🔐 Auth state changed:", event, session?.user?.id);
+			if (session?.user) {
+				setCurrentUser(session.user);
+				setShowLoginModal(false); // Close modal if user is authenticated
+			} else {
+				setCurrentUser(null);
+				if (authChecked) {
+					setShowLoginModal(true); // Show modal if auth checked and no user
+				}
+			}
+			setAuthChecked(true);
+		});
+
+		return () => {
+			subscription.unsubscribe();
+		};
+	}, [user]); // Add user from auth store as dependency
+
+	// Load data when authentication is confirmed and user is available
+	useEffect(() => {
+		if (authChecked && currentUser) {
+			console.log("🔐 Auth confirmed, loading dashboard data");
+			loadDashboardData();
+		} else if (authChecked && !currentUser) {
+			console.log("🔐 No user authenticated, stopping loading");
 			setIsLoading(false);
-			setRefreshing(false);
 		}
-	}, []);
+	}, [authChecked, currentUser, loadDashboardData]);
 
 	// Setup real-time subscriptions
 	const setupRealTimeSubscriptions = useCallback(() => {
@@ -1472,8 +1591,22 @@ export default function AdminDashboardScreen({
 
 	// Setup periodic completed booking checks
 	const setupCompletedBookingChecks = useCallback(() => {
-		if (!completedBookingCheckInterval.current) {
+		// Only setup if user is authenticated and interval doesn't exist
+		if (!completedBookingCheckInterval.current && currentUser) {
 			completedBookingCheckInterval.current = setInterval(async () => {
+				// Double-check authentication before proceeding
+				const {
+					data: { user },
+				} = await supabase.auth.getUser();
+				if (!user) {
+					console.log("🔄 No user authenticated, stopping booking checks");
+					if (completedBookingCheckInterval.current) {
+						clearInterval(completedBookingCheckInterval.current);
+						completedBookingCheckInterval.current = null;
+					}
+					return;
+				}
+
 				console.log("🔄 Periodic completed booking check...");
 				try {
 					// Get current bookings and check for completed ones
@@ -1497,19 +1630,33 @@ export default function AdminDashboardScreen({
 				} catch (error) {
 					console.error("Error in periodic completed booking check:", error);
 				}
-			}, 2 * 60 * 1000); // Check every 2 minutes
+			}, 10 * 60 * 1000); // Check every 10 minutes instead of 2 (reduced frequency)
 		}
-	}, [loadDashboardData]);
+	}, [loadDashboardData, currentUser]);
 
 	// Setup auto-refresh
 	const setupAutoRefresh = useCallback(() => {
-		if (autoRefreshEnabled && !autoRefreshInterval.current) {
-			autoRefreshInterval.current = setInterval(() => {
+		// Only setup if user is authenticated, auto-refresh is enabled, and interval doesn't exist
+		if (autoRefreshEnabled && !autoRefreshInterval.current && currentUser) {
+			autoRefreshInterval.current = setInterval(async () => {
+				// Double-check authentication before proceeding
+				const {
+					data: { user },
+				} = await supabase.auth.getUser();
+				if (!user) {
+					console.log("🔄 No user authenticated, stopping auto-refresh");
+					if (autoRefreshInterval.current) {
+						clearInterval(autoRefreshInterval.current);
+						autoRefreshInterval.current = null;
+					}
+					return;
+				}
+
 				console.log("🔄 Auto-refreshing dashboard data...");
 				loadDashboardData(false);
 			}, 30000); // Refresh every 30 seconds
 		}
-	}, [autoRefreshEnabled, loadDashboardData]);
+	}, [autoRefreshEnabled, loadDashboardData, currentUser]);
 
 	// Effect for initial setup and animations
 	useEffect(() => {
@@ -1554,25 +1701,27 @@ export default function AdminDashboardScreen({
 		};
 	}, [setupRealTimeSubscriptions]);
 
-	// Effect for periodic completed booking checks
+	// Effect for auto-refresh and completed booking checks
 	useEffect(() => {
-		setupCompletedBookingChecks();
-
-		return () => {
+		// Only setup intervals if user is authenticated
+		if (autoRefreshEnabled && currentUser) {
+			setupAutoRefresh();
+			setupCompletedBookingChecks();
+		} else {
+			// Clear intervals if auto-refresh is disabled OR user is not authenticated
+			if (autoRefreshInterval.current) {
+				clearInterval(autoRefreshInterval.current);
+				autoRefreshInterval.current = null;
+				console.log("🔄 Auto-refresh interval cleared");
+			}
 			if (completedBookingCheckInterval.current) {
 				clearInterval(completedBookingCheckInterval.current);
 				completedBookingCheckInterval.current = null;
 				console.log("🔄 Periodic completed booking checks cleaned up");
 			}
-		};
-	}, [setupCompletedBookingChecks]);
+		}
 
-	// Effect for auto-refresh and completed booking checks
-	useEffect(() => {
-		if (autoRefreshEnabled) {
-			setupAutoRefresh();
-			setupCompletedBookingChecks();
-		} else {
+		return () => {
 			if (autoRefreshInterval.current) {
 				clearInterval(autoRefreshInterval.current);
 				autoRefreshInterval.current = null;
@@ -1581,24 +1730,83 @@ export default function AdminDashboardScreen({
 				clearInterval(completedBookingCheckInterval.current);
 				completedBookingCheckInterval.current = null;
 			}
-		}
+		};
+	}, [
+		autoRefreshEnabled,
+		setupAutoRefresh,
+		setupCompletedBookingChecks,
+		currentUser,
+	]);
 
+	// Comprehensive cleanup effect for component unmount
+	useEffect(() => {
 		return () => {
+			// Clear all intervals
 			if (autoRefreshInterval.current) {
 				clearInterval(autoRefreshInterval.current);
+				autoRefreshInterval.current = null;
 			}
 			if (completedBookingCheckInterval.current) {
 				clearInterval(completedBookingCheckInterval.current);
+				completedBookingCheckInterval.current = null;
+			}
+
+			// Clear subscriptions
+			if (subscriptionRef.current) {
+				subscriptionRef.current.unsubscribe();
+				subscriptionRef.current = null;
+			}
+
+			console.log("🔄 AdminDashboardScreen: All cleanup completed");
+		};
+	}, []);
+
+	// Check and update completed bookings status - Fixed to prevent infinite loop
+	useEffect(() => {
+		const checkAndUpdate = async () => {
+			try {
+				// Only proceed if user is authenticated and component is not loading
+				if (!isLoading && currentUser && recentActivity.length > 0) {
+					console.log("🔄 Checking and updating completed bookings status...");
+					const bookingActivities = recentActivity.filter(
+						(activity) => activity.type === "booking"
+					);
+
+					// Only check if we have booking activities
+					if (bookingActivities.length > 0) {
+						const updatedBookings = await checkAndUpdateCompletedBookings(
+							bookingActivities
+						);
+						setRecentActivity((prevActivities) =>
+							prevActivities.map((activity) =>
+								activity.type === "booking"
+									? {
+											...activity,
+											status:
+												updatedBookings.find(
+													(b) => b.id === activity.booking_id
+												)?.status || activity.status,
+									  }
+									: activity
+							)
+						);
+					}
+				} else if (!currentUser) {
+					console.log(
+						"🔄 No authenticated user, skipping booking status update"
+					);
+				}
+			} catch (error) {
+				console.error("Error checking/updating completed bookings:", error);
 			}
 		};
-	}, [autoRefreshEnabled, setupAutoRefresh, setupCompletedBookingChecks]);
 
-	// Load data when screen is focused
-	useFocusEffect(
-		useCallback(() => {
-			loadDashboardData();
-		}, [loadDashboardData])
-	);
+		// Only run this check once when the component loads and user is authenticated
+		// Remove recentActivity from dependencies to prevent infinite loop
+		if (currentUser && !isLoading) {
+			checkAndUpdate();
+		}
+	}, [isLoading, currentUser]); // Removed recentActivity from dependencies
 
 	// Handle pull-to-refresh
 	const handleRefresh = useCallback(() => {
@@ -1763,45 +1971,102 @@ export default function AdminDashboardScreen({
 		},
 	];
 
-	// Check and update completed bookings status
-	useEffect(() => {
-		const checkAndUpdate = async () => {
-			try {
-				// Skip if not in focus
-				if (!isLoading) {
-					console.log("🔄 Checking and updating completed bookings status...");
-					const updatedBookings = await checkAndUpdateCompletedBookings(
-						recentActivity.filter((activity) => activity.type === "booking")
-					);
-					setRecentActivity((prevActivities) =>
-						prevActivities.map((activity) =>
-							activity.type === "booking"
-								? {
-										...activity,
-										status:
-											updatedBookings.find((b) => b.id === activity.booking_id)
-												?.status || activity.status,
-								  }
-								: activity
-						)
-					);
-				}
-			} catch (error) {
-				console.error("Error checking/updating completed bookings:", error);
-			}
-		};
+	// Simple Admin Login Modal - Recreated for keyboard stability
+	const renderAdminLoginModal = () => {
+		return (
+			<Modal
+				visible={showLoginModal}
+				transparent={true}
+				animationType="slide"
+				onRequestClose={handleCloseLoginModal}
+			>
+				<View style={styles.simpleModalOverlay}>
+					<View style={styles.simpleModalContainer}>
+						<View
+							style={[
+								styles.simpleModalContent,
+								isDark && styles.simpleModalContentDark,
+							]}
+						>
+							{/* Simple Header */}
+							<View style={styles.simpleHeader}>
+								<Text
+									style={[styles.simpleTitle, isDark && styles.simpleTitleDark]}
+								>
+									Admin Login
+								</Text>
+								<TouchableOpacity
+									style={styles.simpleCloseButton}
+									onPress={handleCloseLoginModal}
+								>
+									<Text style={styles.simpleCloseText}>✕</Text>
+								</TouchableOpacity>
+							</View>
 
-		checkAndUpdate();
-	}, [isLoading, recentActivity]);
+							{/* Simple Form */}
+							<View style={styles.simpleForm}>
+								<TextInput
+									style={[styles.simpleInput, isDark && styles.simpleInputDark]}
+									placeholder="Email"
+									placeholderTextColor="#999"
+									value={loginEmail}
+									onChangeText={setLoginEmail}
+									autoCapitalize="none"
+									keyboardType="email-address"
+								/>
 
-	if (isLoading) {
+								<TextInput
+									style={[styles.simpleInput, isDark && styles.simpleInputDark]}
+									placeholder="Password"
+									placeholderTextColor="#999"
+									value={loginPassword}
+									onChangeText={setLoginPassword}
+									secureTextEntry
+								/>
+
+								{loginError ? (
+									<Text style={styles.simpleError}>{loginError}</Text>
+								) : null}
+
+								<TouchableOpacity
+									style={[
+										styles.simpleButton,
+										isLoggingIn && styles.simpleButtonDisabled,
+									]}
+									onPress={handleAdminLogin}
+									disabled={isLoggingIn}
+								>
+									{isLoggingIn ? (
+										<ActivityIndicator color="white" />
+									) : (
+										<Text style={styles.simpleButtonText}>Login</Text>
+									)}
+								</TouchableOpacity>
+
+								<TouchableOpacity
+									style={styles.simpleCancelButton}
+									onPress={handleCloseLoginModal}
+								>
+									<Text style={styles.simpleCancelText}>Cancel</Text>
+								</TouchableOpacity>
+							</View>
+						</View>
+					</View>
+				</View>
+			</Modal>
+		);
+	};
+
+	if (isLoading || !authChecked) {
 		return (
 			<SafeAreaView style={[styles.container, isDark && styles.containerDark]}>
 				<StatusBar style={isDark ? "light" : "dark"} />
 				<View style={styles.loadingContainer}>
 					<ActivityIndicator size="large" color={Colors.primary[500]} />
 					<Text style={[styles.loadingText, isDark && styles.loadingTextDark]}>
-						Loading dashboard...
+						{!authChecked
+							? "Checking authentication..."
+							: "Loading dashboard..."}
 					</Text>
 				</View>
 			</SafeAreaView>
@@ -1812,436 +2077,466 @@ export default function AdminDashboardScreen({
 		<SafeAreaView style={[styles.container, isDark && styles.containerDark]}>
 			<StatusBar style={isDark ? "light" : "dark"} />
 
-			{/* Header */}
-			<View style={styles.header}>
-				<LinearGradient
-					colors={
-						isDark
-							? [
-									Colors.dark.background.secondary,
-									Colors.dark.background.tertiary,
-							  ]
-							: [Colors.primary[600], Colors.primary[500]]
-					}
-					style={styles.headerGradient}
-					start={{ x: 0, y: 0 }}
-					end={{ x: 1, y: 0 }}
-				>
-					<View style={styles.headerContent}>
-						<View style={styles.headerTop}>
-							<View style={styles.headerTitleContainer}>
-								<Ionicons
-									name="business"
-									size={24}
-									color="white"
-									style={styles.headerIcon}
-								/>
-								<Text style={styles.headerTitle}>Admin Dashboard</Text>
+			{/* Admin Login Modal */}
+			{renderAdminLoginModal()}
+
+			{/* Only render dashboard content if user is authenticated */}
+			{!showLoginModal && currentUser && (
+				<>
+					{/* Header */}
+					<View style={styles.header}>
+						<LinearGradient
+							colors={
+								isDark
+									? [
+											Colors.dark.background.secondary,
+											Colors.dark.background.tertiary,
+									  ]
+									: [Colors.primary[600], Colors.primary[500]]
+							}
+							style={styles.headerGradient}
+							start={{ x: 0, y: 0 }}
+							end={{ x: 1, y: 0 }}
+						>
+							<View style={styles.headerContent}>
+								<View style={styles.headerTop}>
+									<View style={styles.headerTitleContainer}>
+										<Ionicons
+											name="business"
+											size={24}
+											color="white"
+											style={styles.headerIcon}
+										/>
+										<Text style={styles.headerTitle}>Admin Dashboard</Text>
+									</View>
+									<TouchableOpacity
+										style={styles.profileButton}
+										onPress={() => navigation.navigate("MainTabs")}
+									>
+										<View style={styles.profileAvatar}>
+											<Text style={styles.profileAvatarText}>
+												{user?.name?.charAt(0).toUpperCase() || "A"}
+											</Text>
+										</View>
+									</TouchableOpacity>
+								</View>
+								<Text style={styles.headerSubtitle}>
+									Hall & Booking Management
+								</Text>
 							</View>
-							<TouchableOpacity
-								style={styles.profileButton}
-								onPress={() => navigation.navigate("MainTabs")}
-							>
-								<View style={styles.profileAvatar}>
-									<Text style={styles.profileAvatarText}>
-										{user?.name?.charAt(0).toUpperCase() || "A"}
+						</LinearGradient>
+					</View>
+
+					<ScrollView
+						style={styles.scrollContainer}
+						contentContainerStyle={styles.scrollContent}
+						showsVerticalScrollIndicator={false}
+						refreshControl={
+							<RefreshControl
+								refreshing={refreshing}
+								onRefresh={handleRefresh}
+								colors={[Colors.primary[500]]}
+								tintColor={Colors.primary[500]}
+							/>
+						}
+					>
+						{/* Real-time Status Header */}
+						<Animated.View style={[styles.statusHeader, { opacity: fadeAnim }]}>
+							<View style={styles.statusInfo}>
+								<View style={styles.realTimeIndicator}>
+									<Animated.View
+										style={[
+											styles.liveDot,
+											{ transform: [{ scale: pulseAnim }] },
+										]}
+									/>
+									<Text
+										style={[
+											styles.realTimeText,
+											isDark && styles.realTimeTextDark,
+										]}
+									>
+										Live Updates {autoRefreshEnabled ? "ON" : "OFF"}
 									</Text>
 								</View>
-							</TouchableOpacity>
-						</View>
-						<Text style={styles.headerSubtitle}>Hall & Booking Management</Text>
-					</View>
-				</LinearGradient>
-			</View>
-
-			<ScrollView
-				style={styles.scrollContainer}
-				contentContainerStyle={styles.scrollContent}
-				showsVerticalScrollIndicator={false}
-				refreshControl={
-					<RefreshControl
-						refreshing={refreshing}
-						onRefresh={handleRefresh}
-						colors={[Colors.primary[500]]}
-						tintColor={Colors.primary[500]}
-					/>
-				}
-			>
-				{/* Real-time Status Header */}
-				<Animated.View style={[styles.statusHeader, { opacity: fadeAnim }]}>
-					<View style={styles.statusInfo}>
-						<View style={styles.realTimeIndicator}>
-							<Animated.View
-								style={[styles.liveDot, { transform: [{ scale: pulseAnim }] }]}
-							/>
-							<Text
-								style={[styles.realTimeText, isDark && styles.realTimeTextDark]}
-							>
-								Live Updates {autoRefreshEnabled ? "ON" : "OFF"}
-							</Text>
-						</View>
-						<Text
-							style={[
-								styles.lastUpdatedText,
-								isDark && styles.lastUpdatedTextDark,
-							]}
-						>
-							Last updated: {lastUpdated.toLocaleTimeString()}
-						</Text>
-					</View>
-					<View style={styles.statusActions}>
-						<TouchableOpacity
-							style={[
-								styles.autoRefreshToggle,
-								autoRefreshEnabled && styles.autoRefreshActive,
-							]}
-							onPress={toggleAutoRefresh}
-						>
-							<Ionicons
-								name={autoRefreshEnabled ? "sync" : "sync-outline"}
-								size={16}
-								color={autoRefreshEnabled ? "white" : Colors.primary[500]}
-							/>
-						</TouchableOpacity>
-						<TouchableOpacity
-							style={styles.manualRefreshButton}
-							onPress={handleManualRefresh}
-						>
-							<Animated.View
-								style={{ transform: [{ scale: updateIndicatorAnim }] }}
-							>
-								<Ionicons
-									name="refresh"
-									size={16}
-									color={Colors.primary[500]}
-								/>
-							</Animated.View>
-						</TouchableOpacity>
-					</View>
-				</Animated.View>
-
-				{/* Enhanced Statistics Section */}
-				<Animated.View style={[styles.section, { opacity: fadeAnim }]}>
-					<Text
-						style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}
-					>
-						📊 Real-time Overview
-					</Text>
-					<View style={styles.statsGrid}>
-						<StatCard
-							title="Total Halls"
-							value={stats.total_halls}
-							icon="business-outline"
-							color={Colors.primary[500]}
-							subtitle={`${stats.active_halls} active, ${stats.maintenance_halls} maintenance`}
-							isLive={true}
-						/>
-						<StatCard
-							title="Active Bookings"
-							value={stats.active_bookings}
-							icon="calendar-outline"
-							color={Colors.success.main}
-							trend={stats.recent_bookings_trend}
-							isLive={true}
-						/>
-						<StatCard
-							title="Pending Approvals"
-							value={stats.pending_bookings}
-							icon="time-outline"
-							color={Colors.warning.main}
-							badge={stats.pending_bookings}
-							isLive={stats.pending_bookings > 0}
-						/>
-						<StatCard
-							title="Today's Bookings"
-							value={stats.todays_bookings}
-							icon="today-outline"
-							color={Colors.gray[600]}
-							subtitle={`${stats.tomorrows_bookings} tomorrow`}
-						/>
-						<StatCard
-							title="Completed"
-							value={stats.completed_bookings}
-							icon="checkmark-done-circle-outline"
-							color="#6366f1"
-							subtitle="All-time total"
-						/>
-						<StatCard
-							title="Hall Utilization"
-							value={`${stats.hall_utilization}%`}
-							icon="stats-chart-outline"
-							color={Colors.primary[400]}
-							subtitle={`Peak: ${stats.peak_hour}`}
-						/>
-					</View>
-
-					{/* Enhanced Analytics Row */}
-					<View style={styles.additionalStatsRow}>
-						<View style={styles.miniStatCard}>
-							<Text
-								style={[styles.miniStatValue, { color: Colors.error.main }]}
-							>
-								{stats.cancelled_bookings + stats.rejected_bookings}
-							</Text>
-							<Text
-								style={[
-									styles.miniStatLabel,
-									isDark && styles.miniStatLabelDark,
-								]}
-							>
-								Cancelled/Rejected
-							</Text>
-						</View>
-						<View style={styles.miniStatCard}>
-							<Text
-								style={[styles.miniStatValue, { color: Colors.primary[500] }]}
-							>
-								{stats.average_booking_duration}min
-							</Text>
-							<Text
-								style={[
-									styles.miniStatLabel,
-									isDark && styles.miniStatLabelDark,
-								]}
-							>
-								Avg Duration
-							</Text>
-						</View>
-						<View style={styles.miniStatCard}>
-							<Text
-								style={[styles.miniStatValue, { color: Colors.success.main }]}
-							>
-								{stats.most_booked_hall === "No bookings"
-									? "N/A"
-									: stats.most_booked_hall.length > 12
-									? stats.most_booked_hall.substring(0, 12) + "..."
-									: stats.most_booked_hall}
-							</Text>
-							<Text
-								style={[
-									styles.miniStatLabel,
-									isDark && styles.miniStatLabelDark,
-								]}
-							>
-								Popular Hall
-							</Text>
-						</View>
-					</View>
-
-					{/* New Advanced Analytics Section */}
-					<View style={styles.advancedAnalyticsSection}>
-						<Text
-							style={[
-								styles.subsectionTitle,
-								isDark && styles.subsectionTitleDark,
-							]}
-						>
-							📈 Advanced Analytics
-						</Text>
-						<View style={styles.advancedStatsGrid}>
-							<StatCard
-								title="Weekly Bookings"
-								value={stats.weekly_bookings || 0}
-								icon="calendar-number-outline"
-								color="#10B981"
-								subtitle={`${stats.monthly_bookings || 0} this month`}
-								trend={stats.recent_bookings_trend}
-							/>
-							<StatCard
-								title="Success Rate"
-								value={`${stats.booking_success_rate || 0}%`}
-								icon="checkmark-circle-outline"
-								color="#8B5CF6"
-								subtitle={`${stats.average_approval_time || 0}h avg approval`}
-							/>
-							<StatCard
-								title="System Health"
-								value={`${stats.system_uptime || 99.9}%`}
-								icon="shield-checkmark-outline"
-								color="#06B6D4"
-								subtitle="Uptime"
-								isLive={true}
-							/>
-							<StatCard
-								title="Active Users"
-								value={stats.active_users || 0}
-								icon="people-outline"
-								color="#F59E0B"
-								subtitle={`${stats.total_users || 0} total users`}
-							/>
-							<StatCard
-								title="Conflicts"
-								value={stats.total_conflicts || 0}
-								icon="warning-outline"
-								color={Colors.error.main}
-								subtitle={`${stats.pending_conflicts || 0} pending`}
-								badge={
-									stats.pending_conflicts > 0
-										? stats.pending_conflicts
-										: undefined
-								}
-							/>
-							<StatCard
-								title="Equipment Usage"
-								value={`${stats.equipment_usage || 0}%`}
-								icon="hardware-chip-outline"
-								color="#EC4899"
-								subtitle={`${stats.maintenance_scheduled || 0} maintenance`}
-							/>
-						</View>
-
-						{/* Peak Usage Insights */}
-						<View style={styles.insightsRow}>
-							<View style={styles.insightCard}>
-								<Ionicons
-									name="trending-up"
-									size={20}
-									color={Colors.primary[500]}
-									style={styles.insightIcon}
-								/>
 								<Text
 									style={[
-										styles.insightTitle,
-										isDark && styles.insightTitleDark,
+										styles.lastUpdatedText,
+										isDark && styles.lastUpdatedTextDark,
 									]}
 								>
-									Peak Day
-								</Text>
-								<Text
-									style={[
-										styles.insightValue,
-										isDark && styles.insightValueDark,
-									]}
-								>
-									{stats.peak_booking_day || "Monday"}
+									Last updated: {lastUpdated.toLocaleTimeString()}
 								</Text>
 							</View>
-							<View style={styles.insightCard}>
-								<Ionicons
-									name="time"
-									size={20}
+							<View style={styles.statusActions}>
+								<TouchableOpacity
+									style={[
+										styles.autoRefreshToggle,
+										autoRefreshEnabled && styles.autoRefreshActive,
+									]}
+									onPress={toggleAutoRefresh}
+								>
+									<Ionicons
+										name={autoRefreshEnabled ? "sync" : "sync-outline"}
+										size={16}
+										color={autoRefreshEnabled ? "white" : Colors.primary[500]}
+									/>
+								</TouchableOpacity>
+								<TouchableOpacity
+									style={styles.manualRefreshButton}
+									onPress={handleManualRefresh}
+								>
+									<Animated.View
+										style={{ transform: [{ scale: updateIndicatorAnim }] }}
+									>
+										<Ionicons
+											name="refresh"
+											size={16}
+											color={Colors.primary[500]}
+										/>
+									</Animated.View>
+								</TouchableOpacity>
+							</View>
+						</Animated.View>
+
+						{/* Enhanced Statistics Section */}
+						<Animated.View style={[styles.section, { opacity: fadeAnim }]}>
+							<Text
+								style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}
+							>
+								📊 Real-time Overview
+							</Text>
+							<View style={styles.statsGrid}>
+								<StatCard
+									title="Total Halls"
+									value={stats.total_halls}
+									icon="business-outline"
+									color={Colors.primary[500]}
+									subtitle={`${stats.active_halls} active, ${stats.maintenance_halls} maintenance`}
+									isLive={true}
+								/>
+								<StatCard
+									title="Active Bookings"
+									value={stats.active_bookings}
+									icon="calendar-outline"
 									color={Colors.success.main}
-									style={styles.insightIcon}
+									trend={stats.recent_bookings_trend}
+									isLive={true}
 								/>
-								<Text
-									style={[
-										styles.insightTitle,
-										isDark && styles.insightTitleDark,
-									]}
-								>
-									Peak Hour
-								</Text>
-								<Text
-									style={[
-										styles.insightValue,
-										isDark && styles.insightValueDark,
-									]}
-								>
-									{stats.peak_hour || "09:00"}
-								</Text>
-							</View>
-							<View style={styles.insightCard}>
-								<Ionicons
-									name="business"
-									size={20}
+								<StatCard
+									title="Pending Approvals"
+									value={stats.pending_bookings}
+									icon="time-outline"
 									color={Colors.warning.main}
-									style={styles.insightIcon}
+									badge={stats.pending_bookings}
+									isLive={stats.pending_bookings > 0}
 								/>
+								<StatCard
+									title="Today's Bookings"
+									value={stats.todays_bookings}
+									icon="today-outline"
+									color={Colors.gray[600]}
+									subtitle={`${stats.tomorrows_bookings} tomorrow`}
+								/>
+								<StatCard
+									title="Completed"
+									value={stats.completed_bookings}
+									icon="checkmark-done-circle-outline"
+									color="#6366f1"
+									subtitle="All-time total"
+								/>
+								<StatCard
+									title="Hall Utilization"
+									value={`${stats.hall_utilization}%`}
+									icon="stats-chart-outline"
+									color={Colors.primary[400]}
+									subtitle={`Peak: ${stats.peak_hour}`}
+								/>
+							</View>
+
+							{/* Enhanced Analytics Row */}
+							<View style={styles.additionalStatsRow}>
+								<View style={styles.miniStatCard}>
+									<Text
+										style={[styles.miniStatValue, { color: Colors.error.main }]}
+									>
+										{stats.cancelled_bookings + stats.rejected_bookings}
+									</Text>
+									<Text
+										style={[
+											styles.miniStatLabel,
+											isDark && styles.miniStatLabelDark,
+										]}
+									>
+										Cancelled/Rejected
+									</Text>
+								</View>
+								<View style={styles.miniStatCard}>
+									<Text
+										style={[
+											styles.miniStatValue,
+											{ color: Colors.primary[500] },
+										]}
+									>
+										{stats.average_booking_duration}min
+									</Text>
+									<Text
+										style={[
+											styles.miniStatLabel,
+											isDark && styles.miniStatLabelDark,
+										]}
+									>
+										Avg Duration
+									</Text>
+								</View>
+								<View style={styles.miniStatCard}>
+									<Text
+										style={[
+											styles.miniStatValue,
+											{ color: Colors.success.main },
+										]}
+									>
+										{stats.most_booked_hall === "No bookings"
+											? "N/A"
+											: stats.most_booked_hall.length > 12
+											? stats.most_booked_hall.substring(0, 12) + "..."
+											: stats.most_booked_hall}
+									</Text>
+									<Text
+										style={[
+											styles.miniStatLabel,
+											isDark && styles.miniStatLabelDark,
+										]}
+									>
+										Popular Hall
+									</Text>
+								</View>
+							</View>
+
+							{/* New Advanced Analytics Section */}
+							<View style={styles.advancedAnalyticsSection}>
 								<Text
 									style={[
-										styles.insightTitle,
-										isDark && styles.insightTitleDark,
+										styles.subsectionTitle,
+										isDark && styles.subsectionTitleDark,
 									]}
 								>
-									Least Used
+									📈 Advanced Analytics
+								</Text>
+								<View style={styles.advancedStatsGrid}>
+									<StatCard
+										title="Weekly Bookings"
+										value={stats.weekly_bookings || 0}
+										icon="calendar-number-outline"
+										color="#10B981"
+										subtitle={`${stats.monthly_bookings || 0} this month`}
+										trend={stats.recent_bookings_trend}
+									/>
+									<StatCard
+										title="Success Rate"
+										value={`${stats.booking_success_rate || 0}%`}
+										icon="checkmark-circle-outline"
+										color="#8B5CF6"
+										subtitle={`${
+											stats.average_approval_time || 0
+										}h avg approval`}
+									/>
+									<StatCard
+										title="System Health"
+										value={`${stats.system_uptime || 99.9}%`}
+										icon="shield-checkmark-outline"
+										color="#06B6D4"
+										subtitle="Uptime"
+										isLive={true}
+									/>
+									<StatCard
+										title="Active Users"
+										value={stats.active_users || 0}
+										icon="people-outline"
+										color="#F59E0B"
+										subtitle={`${stats.total_users || 0} total users`}
+									/>
+									<StatCard
+										title="Conflicts"
+										value={stats.total_conflicts || 0}
+										icon="warning-outline"
+										color={Colors.error.main}
+										subtitle={`${stats.pending_conflicts || 0} pending`}
+										badge={
+											stats.pending_conflicts > 0
+												? stats.pending_conflicts
+												: undefined
+										}
+									/>
+									<StatCard
+										title="Equipment Usage"
+										value={`${stats.equipment_usage || 0}%`}
+										icon="hardware-chip-outline"
+										color="#EC4899"
+										subtitle={`${stats.maintenance_scheduled || 0} maintenance`}
+									/>
+								</View>
+
+								{/* Peak Usage Insights */}
+								<View style={styles.insightsRow}>
+									<View style={styles.insightCard}>
+										<Ionicons
+											name="trending-up"
+											size={20}
+											color={Colors.primary[500]}
+											style={styles.insightIcon}
+										/>
+										<Text
+											style={[
+												styles.insightTitle,
+												isDark && styles.insightTitleDark,
+											]}
+										>
+											Peak Day
+										</Text>
+										<Text
+											style={[
+												styles.insightValue,
+												isDark && styles.insightValueDark,
+											]}
+										>
+											{stats.peak_booking_day || "Monday"}
+										</Text>
+									</View>
+									<View style={styles.insightCard}>
+										<Ionicons
+											name="time"
+											size={20}
+											color={Colors.success.main}
+											style={styles.insightIcon}
+										/>
+										<Text
+											style={[
+												styles.insightTitle,
+												isDark && styles.insightTitleDark,
+											]}
+										>
+											Peak Hour
+										</Text>
+										<Text
+											style={[
+												styles.insightValue,
+												isDark && styles.insightValueDark,
+											]}
+										>
+											{stats.peak_hour || "09:00"}
+										</Text>
+									</View>
+									<View style={styles.insightCard}>
+										<Ionicons
+											name="business"
+											size={20}
+											color={Colors.warning.main}
+											style={styles.insightIcon}
+										/>
+										<Text
+											style={[
+												styles.insightTitle,
+												isDark && styles.insightTitleDark,
+											]}
+										>
+											Least Used
+										</Text>
+										<Text
+											style={[
+												styles.insightValue,
+												isDark && styles.insightValueDark,
+											]}
+										>
+											{stats.least_booked_hall === "No bookings" ||
+											!stats.least_booked_hall
+												? "N/A"
+												: stats.least_booked_hall.length > 10
+												? stats.least_booked_hall.substring(0, 10) + "..."
+												: stats.least_booked_hall}
+										</Text>
+									</View>
+								</View>
+							</View>
+						</Animated.View>
+
+						{/* Enhanced Quick Actions */}
+						<Animated.View style={[styles.section, { opacity: fadeAnim }]}>
+							<Text
+								style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}
+							>
+								⚡ Quick Actions
+							</Text>
+							<View style={styles.quickActionsGrid}>
+								{quickActions.map((action, index) => (
+									<QuickActionButton
+										key={action.id}
+										action={action}
+										index={index}
+									/>
+								))}
+							</View>
+						</Animated.View>
+
+						{/* Enhanced Recent Activity */}
+						<Animated.View style={[styles.section, { opacity: fadeAnim }]}>
+							<View style={styles.sectionHeader}>
+								<Text
+									style={[
+										styles.sectionTitle,
+										isDark && styles.sectionTitleDark,
+									]}
+								>
+									🔄 Recent Activity
 								</Text>
 								<Text
 									style={[
-										styles.insightValue,
-										isDark && styles.insightValueDark,
+										styles.activityCount,
+										isDark && styles.activityCountDark,
 									]}
 								>
-									{stats.least_booked_hall === "No bookings" ||
-									!stats.least_booked_hall
-										? "N/A"
-										: stats.least_booked_hall.length > 10
-										? stats.least_booked_hall.substring(0, 10) + "..."
-										: stats.least_booked_hall}
+									{recentActivity.length} activities
 								</Text>
 							</View>
-						</View>
-					</View>
-				</Animated.View>
-
-				{/* Enhanced Quick Actions */}
-				<Animated.View style={[styles.section, { opacity: fadeAnim }]}>
-					<Text
-						style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}
-					>
-						⚡ Quick Actions
-					</Text>
-					<View style={styles.quickActionsGrid}>
-						{quickActions.map((action, index) => (
-							<QuickActionButton
-								key={action.id}
-								action={action}
-								index={index}
-							/>
-						))}
-					</View>
-				</Animated.View>
-
-				{/* Enhanced Recent Activity */}
-				<Animated.View style={[styles.section, { opacity: fadeAnim }]}>
-					<View style={styles.sectionHeader}>
-						<Text
-							style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}
-						>
-							🔄 Recent Activity
-						</Text>
-						<Text
-							style={[styles.activityCount, isDark && styles.activityCountDark]}
-						>
-							{recentActivity.length} activities
-						</Text>
-					</View>
-					<View style={styles.activityList}>
-						{recentActivity.length > 0 ? (
-							recentActivity.map((activity, index) => (
-								<ActivityItem
-									key={activity.id}
-									activity={activity}
-									index={index}
-								/>
-							))
-						) : (
-							<View style={styles.emptyState}>
-								<Ionicons
-									name="information-circle-outline"
-									size={48}
-									color={Colors.gray[400]}
-								/>
-								<Text
-									style={[
-										styles.emptyStateText,
-										isDark && styles.emptyStateTextDark,
-									]}
-								>
-									No recent activity
-								</Text>
-								<Text
-									style={[
-										styles.emptyStateSubtext,
-										isDark && styles.emptyStateSubtextDark,
-									]}
-								>
-									Activities will appear here as they happen
-								</Text>
+							<View style={styles.activityList}>
+								{recentActivity.length > 0 ? (
+									recentActivity.map((activity, index) => (
+										<ActivityItem
+											key={activity.id}
+											activity={activity}
+											index={index}
+										/>
+									))
+								) : (
+									<View style={styles.emptyState}>
+										<Ionicons
+											name="information-circle-outline"
+											size={48}
+											color={Colors.gray[400]}
+										/>
+										<Text
+											style={[
+												styles.emptyStateText,
+												isDark && styles.emptyStateTextDark,
+											]}
+										>
+											No recent activity
+										</Text>
+										<Text
+											style={[
+												styles.emptyStateSubtext,
+												isDark && styles.emptyStateSubtextDark,
+											]}
+										>
+											Activities will appear here as they happen
+										</Text>
+									</View>
+								)}
 							</View>
-						)}
-					</View>
-				</Animated.View>
-			</ScrollView>
+						</Animated.View>
+					</ScrollView>
+				</>
+			)}
 		</SafeAreaView>
 	);
 }
@@ -2266,6 +2561,49 @@ const styles = StyleSheet.create({
 	},
 	loadingTextDark: {
 		color: Colors.dark.text.secondary,
+	},
+	errorText: {
+		fontSize: Typography.fontSize.sm,
+		color: Colors.text.secondary,
+		textAlign: "center",
+		marginTop: Spacing[2],
+		marginBottom: Spacing[4],
+	},
+	errorTextDark: {
+		color: Colors.dark.text.secondary,
+	},
+	retryButton: {
+		backgroundColor: Colors.primary[500],
+		paddingHorizontal: Spacing[4],
+		paddingVertical: Spacing[3],
+		borderRadius: BorderRadius.md,
+		flexDirection: "row",
+		alignItems: "center",
+		justifyContent: "center",
+		minHeight: 48,
+	},
+	retryButtonText: {
+		color: "white",
+		fontSize: Typography.fontSize.sm,
+		fontWeight: Typography.fontWeight.medium,
+	},
+	authButtonContainer: {
+		flexDirection: "column",
+		gap: Spacing[3],
+		marginTop: Spacing[6],
+		width: "100%",
+		paddingHorizontal: Spacing[6],
+	},
+	buttonIcon: {
+		marginRight: Spacing[2],
+	},
+	secondaryButton: {
+		backgroundColor: "transparent",
+		borderWidth: 1,
+		borderColor: Colors.primary[500],
+	},
+	secondaryButtonText: {
+		color: Colors.primary[500],
 	},
 	header: {
 		width: "100%",
@@ -2770,5 +3108,260 @@ const styles = StyleSheet.create({
 	},
 	insightValueDark: {
 		color: Colors.dark.text.primary,
+	},
+
+	// Modal Styles
+	modalOverlay: {
+		flex: 1,
+		justifyContent: "center",
+		alignItems: "center",
+		backgroundColor: "rgba(0, 0, 0, 0.5)",
+	},
+	keyboardAvoidingView: {
+		flex: 1,
+		justifyContent: "center",
+		alignItems: "center",
+	},
+	modalContainer: {
+		width: "90%",
+		maxWidth: 400,
+		maxHeight: "80%",
+	},
+	modalContent: {
+		backgroundColor: "white",
+		borderRadius: BorderRadius.lg,
+		padding: Spacing[6],
+		...Shadows.md,
+	},
+	modalContentDark: {
+		backgroundColor: Colors.dark.background.secondary,
+	},
+	modalHeader: {
+		flexDirection: "row",
+		justifyContent: "space-between",
+		alignItems: "center",
+		marginBottom: Spacing[4],
+	},
+	modalTitleContainer: {
+		flexDirection: "row",
+		alignItems: "center",
+		gap: Spacing[3],
+	},
+	modalTitle: {
+		fontSize: Typography.fontSize.xl,
+		fontWeight: Typography.fontWeight.bold,
+		color: Colors.text.primary,
+	},
+	modalTitleDark: {
+		color: Colors.dark.text.primary,
+	},
+	modalCloseButton: {
+		padding: Spacing[2],
+		borderRadius: BorderRadius.full,
+		backgroundColor: Colors.gray[100],
+	},
+	modalSubtitle: {
+		fontSize: Typography.fontSize.sm,
+		color: Colors.text.secondary,
+		marginBottom: Spacing[6],
+		textAlign: "center",
+	},
+	modalSubtitleDark: {
+		color: Colors.dark.text.secondary,
+	},
+	loginForm: {
+		gap: Spacing[4],
+		marginBottom: Spacing[6],
+	},
+	inputContainer: {
+		flexDirection: "row",
+		alignItems: "center",
+		borderWidth: 1,
+		borderColor: Colors.gray[300],
+		borderRadius: BorderRadius.md,
+		backgroundColor: Colors.gray[50],
+		paddingHorizontal: Spacing[3],
+	},
+	inputIcon: {
+		marginRight: Spacing[3],
+	},
+	textInput: {
+		flex: 1,
+		height: 48,
+		fontSize: Typography.fontSize.base,
+		color: Colors.text.primary,
+	},
+	textInputDark: {
+		color: Colors.dark.text.primary,
+		backgroundColor: Colors.dark.background.tertiary,
+		borderColor: Colors.dark.border.main,
+	},
+	errorContainer: {
+		flexDirection: "row",
+		alignItems: "center",
+		backgroundColor: Colors.error.light,
+		padding: Spacing[3],
+		borderRadius: BorderRadius.md,
+		marginTop: Spacing[2],
+	},
+	errorIcon: {
+		marginRight: Spacing[2],
+	},
+	modalActions: {
+		gap: Spacing[3],
+	},
+	loginButton: {
+		backgroundColor: Colors.primary[500],
+		flexDirection: "row",
+		alignItems: "center",
+		justifyContent: "center",
+		paddingVertical: Spacing[3],
+		paddingHorizontal: Spacing[4],
+		borderRadius: BorderRadius.md,
+		minHeight: 48,
+	},
+	loginButtonDisabled: {
+		opacity: 0.7,
+	},
+	loginButtonText: {
+		color: "white",
+		fontSize: Typography.fontSize.base,
+		fontWeight: Typography.fontWeight.semibold,
+	},
+	cancelButton: {
+		backgroundColor: "transparent",
+		borderWidth: 1,
+		borderColor: Colors.gray[300],
+		flexDirection: "row",
+		alignItems: "center",
+		justifyContent: "center",
+		paddingVertical: Spacing[3],
+		paddingHorizontal: Spacing[4],
+		borderRadius: BorderRadius.md,
+		minHeight: 48,
+	},
+	cancelButtonDark: {
+		borderColor: Colors.dark.border.main,
+	},
+	cancelButtonText: {
+		color: Colors.gray[700],
+		fontSize: Typography.fontSize.base,
+		fontWeight: Typography.fontWeight.medium,
+	},
+	cancelButtonTextDark: {
+		color: Colors.dark.text.primary,
+	},
+	securityNotice: {
+		flexDirection: "row",
+		alignItems: "center",
+		justifyContent: "center",
+		backgroundColor: Colors.gray[50],
+		padding: Spacing[3],
+		borderRadius: BorderRadius.md,
+		gap: Spacing[2],
+	},
+	securityIcon: {
+		marginRight: Spacing[1],
+	},
+	securityText: {
+		fontSize: Typography.fontSize.xs,
+		color: Colors.text.secondary,
+		textAlign: "center",
+	},
+	securityTextDark: {
+		color: Colors.dark.text.secondary,
+	},
+
+	// Simple Modal Styles for Keyboard Stability
+	simpleModalOverlay: {
+		flex: 1,
+		backgroundColor: "rgba(0, 0, 0, 0.5)",
+		justifyContent: "center",
+		alignItems: "center",
+		padding: 20,
+	},
+	simpleModalContainer: {
+		width: "100%",
+		maxWidth: 400,
+	},
+	simpleModalContent: {
+		backgroundColor: "white",
+		borderRadius: 12,
+		padding: 24,
+	},
+	simpleModalContentDark: {
+		backgroundColor: Colors.dark.background.secondary,
+	},
+	simpleHeader: {
+		flexDirection: "row",
+		justifyContent: "space-between",
+		alignItems: "center",
+		marginBottom: 20,
+	},
+	simpleTitle: {
+		fontSize: 20,
+		fontWeight: "600",
+		color: Colors.text.primary,
+	},
+	simpleTitleDark: {
+		color: Colors.dark.text.primary,
+	},
+	simpleCloseButton: {
+		padding: 4,
+	},
+	simpleCloseText: {
+		fontSize: 18,
+		color: Colors.text.secondary,
+	},
+	simpleForm: {
+		gap: 16,
+	},
+	simpleInput: {
+		height: 48,
+		borderWidth: 1,
+		borderColor: Colors.gray[300],
+		borderRadius: 8,
+		paddingHorizontal: 16,
+		fontSize: 16,
+		color: Colors.text.primary,
+		backgroundColor: "white",
+	},
+	simpleInputDark: {
+		borderColor: Colors.gray[600],
+		backgroundColor: Colors.dark.background.primary,
+		color: Colors.dark.text.primary,
+	},
+	simpleError: {
+		color: Colors.error.main,
+		fontSize: 14,
+		textAlign: "center",
+	},
+	simpleButton: {
+		backgroundColor: Colors.primary[500],
+		height: 48,
+		borderRadius: 8,
+		justifyContent: "center",
+		alignItems: "center",
+		marginTop: 8,
+	},
+	simpleButtonDisabled: {
+		backgroundColor: Colors.gray[400],
+	},
+	simpleButtonText: {
+		color: "white",
+		fontSize: 16,
+		fontWeight: "600",
+	},
+	simpleCancelButton: {
+		height: 48,
+		borderRadius: 8,
+		justifyContent: "center",
+		alignItems: "center",
+		borderWidth: 1,
+		borderColor: Colors.gray[300],
+	},
+	simpleCancelText: {
+		color: Colors.text.secondary,
+		fontSize: 16,
 	},
 });
