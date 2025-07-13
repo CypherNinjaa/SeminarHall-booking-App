@@ -661,6 +661,19 @@ export default function SuperAdminScreen({
 }) {
 	const { user } = useAuthStore();
 	const { isDark } = useTheme();
+
+	// Authentication states
+	const [authChecked, setAuthChecked] = useState(false);
+	const [currentUser, setCurrentUser] = useState<any>(null);
+
+	// Login modal states
+	const [showLoginModal, setShowLoginModal] = useState(false);
+	const [loginEmail, setLoginEmail] = useState("");
+	const [loginPassword, setLoginPassword] = useState("");
+	const [loginError, setLoginError] = useState("");
+	const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+	// Existing states
 	const [users, setUsers] = useState<User[]>([]);
 	const [selectedUser, setSelectedUser] = useState<User | null>(null);
 	const [isModalVisible, setIsModalVisible] = useState(false);
@@ -683,11 +696,169 @@ export default function SuperAdminScreen({
 		totalCount: 0,
 	});
 
+	// Authentication check effect
+	useEffect(() => {
+		const checkAuthState = async () => {
+			try {
+				console.log("🔐 SuperAdmin: Checking authentication state...");
+
+				// First, try to get current session
+				const {
+					data: { session },
+					error: sessionError,
+				} = await supabase.auth.getSession();
+
+				if (sessionError) {
+					console.error("🔐 SuperAdmin: Session error:", sessionError);
+				}
+
+				if (session?.user) {
+					console.log("🔐 SuperAdmin: Valid session found:", {
+						userId: session.user.id,
+						email: session.user.email,
+					});
+					setCurrentUser(session.user);
+					setAuthChecked(true);
+					return;
+				}
+
+				// If no session, try getUser()
+				console.log("🔐 SuperAdmin: No session found, trying getUser...");
+				const {
+					data: { user: authUser },
+					error: userError,
+				} = await supabase.auth.getUser();
+
+				if (authUser && !userError) {
+					console.log("🔐 SuperAdmin: User found via getUser:", {
+						userId: authUser.id,
+						email: authUser.email,
+					});
+					setCurrentUser(authUser);
+					setAuthChecked(true);
+					return;
+				}
+
+				// If still no user, check auth store as fallback
+				console.log(
+					"🔐 SuperAdmin: No user from Supabase, checking auth store..."
+				);
+				if (user?.id) {
+					console.log("🔐 SuperAdmin: User found in auth store:", {
+						userId: user.id,
+						email: user.email,
+					});
+					setCurrentUser(user);
+					setAuthChecked(true);
+					return;
+				}
+
+				console.log("🔐 SuperAdmin: No authenticated user found anywhere");
+				setCurrentUser(null);
+				setAuthChecked(true);
+				// Show login modal instead of blocking screen
+				setShowLoginModal(true);
+			} catch (error) {
+				console.error("🔐 SuperAdmin: Auth check error:", error);
+				setCurrentUser(null);
+				setAuthChecked(true);
+				setShowLoginModal(true);
+			}
+		};
+
+		checkAuthState();
+
+		// Listen for auth state changes
+		const {
+			data: { subscription },
+		} = supabase.auth.onAuthStateChange((event, session) => {
+			console.log(
+				"🔐 SuperAdmin: Auth state changed:",
+				event,
+				session?.user?.id
+			);
+			if (session?.user) {
+				setCurrentUser(session.user);
+				setShowLoginModal(false); // Close modal if user is authenticated
+			} else {
+				setCurrentUser(null);
+				if (authChecked) {
+					setShowLoginModal(true); // Show modal if auth checked and no user
+				}
+			}
+			setAuthChecked(true);
+		});
+
+		return () => {
+			subscription.unsubscribe();
+		};
+	}, [user]); // Add user from auth store as dependency
+
+	// Handle admin login
+	const handleSuperAdminLogin = useCallback(async () => {
+		if (!loginEmail || !loginPassword) {
+			setLoginError("Please enter both email and password");
+			return;
+		}
+
+		try {
+			setIsLoggingIn(true);
+			setLoginError("");
+
+			console.log("🔐 SuperAdmin: Attempting login...");
+
+			const { data, error } = await supabase.auth.signInWithPassword({
+				email: loginEmail,
+				password: loginPassword,
+			});
+
+			if (error) {
+				console.error("🔐 SuperAdmin: Login error:", error);
+				setLoginError(error.message || "Login failed");
+				return;
+			}
+
+			if (data?.user) {
+				console.log("🔐 SuperAdmin: Login successful:", data.user.id);
+				setCurrentUser(data.user);
+				setShowLoginModal(false);
+				setLoginEmail("");
+				setLoginPassword("");
+				setLoginError("");
+			}
+		} catch (error: any) {
+			console.error("🔐 SuperAdmin: Login exception:", error);
+			setLoginError("Login failed. Please try again.");
+		} finally {
+			setIsLoggingIn(false);
+		}
+	}, [loginEmail, loginPassword]);
+
+	// Handle login modal close
+	const handleCloseLoginModal = useCallback(() => {
+		setShowLoginModal(false);
+		// Reset to main tabs instead of staying on super admin screen
+		navigation.reset({
+			index: 0,
+			routes: [{ name: "MainTabs" }],
+		});
+	}, [navigation]);
+
 	// Load users
 	const loadUsers = useCallback(
 		async (page = 1, query = searchQuery) => {
+			// Only proceed if we have a valid authenticated user
+			if (!currentUser?.id) {
+				console.log(
+					"🔐 SuperAdmin: No authenticated user found, skipping user load"
+				);
+				setIsLoading(false);
+				return;
+			}
+
 			try {
 				setIsLoading(true);
+				console.log("🔐 SuperAdmin: Loading users...");
 				const response = await userManagementService.getAllUsers(
 					page,
 					pagination.pageSize,
@@ -711,12 +882,21 @@ export default function SuperAdminScreen({
 				setRefreshing(false);
 			}
 		},
-		[searchQuery, pagination.pageSize]
+		[searchQuery, pagination.pageSize, currentUser]
 	);
 
 	// Load analytics with error handling and fallback values
 	const loadAnalytics = useCallback(async () => {
+		// Only proceed if we have a valid authenticated user
+		if (!currentUser?.id) {
+			console.log(
+				"🔐 SuperAdmin: No authenticated user found, skipping analytics load"
+			);
+			return;
+		}
+
 		try {
+			console.log("🔐 SuperAdmin: Loading analytics...");
 			const data = await userManagementService.getUserAnalytics();
 
 			// Provide fallback values if the API returns invalid data
@@ -744,15 +924,33 @@ export default function SuperAdminScreen({
 				new_users_last_30_days: 0,
 			});
 		}
-	}, []);
+	}, [currentUser]);
 
-	// Load data when screen is focused
+	// Load data when screen is focused AND user is authenticated
 	useFocusEffect(
 		useCallback(() => {
+			if (authChecked && currentUser) {
+				console.log("🔐 SuperAdmin: Auth confirmed, loading data");
+				loadUsers();
+				loadAnalytics();
+			} else if (authChecked && !currentUser) {
+				console.log("🔐 SuperAdmin: No user authenticated, stopping loading");
+				setIsLoading(false);
+			}
+		}, [loadUsers, loadAnalytics, authChecked, currentUser])
+	);
+
+	// Load data when authentication is confirmed and user is available
+	useEffect(() => {
+		if (authChecked && currentUser) {
+			console.log("🔐 SuperAdmin: Auth confirmed, loading initial data");
 			loadUsers();
 			loadAnalytics();
-		}, [loadUsers, loadAnalytics])
-	);
+		} else if (authChecked && !currentUser) {
+			console.log("🔐 SuperAdmin: No user authenticated, stopping loading");
+			setIsLoading(false);
+		}
+	}, [authChecked, currentUser, loadUsers, loadAnalytics]);
 
 	// Handle pull-to-refresh
 	const handleRefresh = () => {
@@ -784,42 +982,73 @@ export default function SuperAdminScreen({
 
 	// Handle toggle active status
 	const handleToggleActive = (user: User) => {
+		const isDeactivating = user.is_active;
+		const actionText = isDeactivating ? "deactivate" : "activate";
+		const warningText = isDeactivating
+			? `\n\n⚠️ When deactivated:\n• User will be signed out immediately\n• User cannot login until reactivated\n• User will see "Contact admin" message`
+			: "";
+
 		Alert.alert(
-			user.is_active ? "Deactivate User" : "Activate User",
-			`Are you sure you want to ${user.is_active ? "deactivate" : "activate"} ${
-				user.name
-			}?`,
+			isDeactivating ? "Deactivate User" : "Activate User",
+			`Are you sure you want to ${actionText} ${user.name}?${warningText}`,
 			[
 				{ text: "Cancel" },
 				{
 					text: "Confirm",
+					style: isDeactivating ? "destructive" : "default",
 					onPress: async () => {
 						try {
+							console.log(
+								`🔄 ${isDeactivating ? "Deactivating" : "Activating"} user: ${
+									user.name
+								}`
+							);
+
 							await userManagementService.toggleUserActiveStatus(
 								user.id,
 								!user.is_active
 							);
 
-							// Update local state
-							setUsers(
-								users.map((u) =>
-									u.id === user.id ? { ...u, is_active: !u.is_active } : u
-								)
+							console.log(
+								"✅ User status updated successfully, refreshing data..."
 							);
+
+							// Force refresh all data to ensure consistency
+							await Promise.all([loadUsers(), loadAnalytics()]);
 
 							Haptics.notificationAsync(
 								Haptics.NotificationFeedbackType.Success
 							);
+
 							Alert.alert(
 								"Success",
-								`User has been ${user.is_active ? "deactivated" : "activated"}`
+								`${user.name} has been ${
+									isDeactivating ? "deactivated" : "activated"
+								} successfully.${
+									isDeactivating
+										? "\n\nThey will be signed out and cannot login until reactivated."
+										: ""
+								}`
 							);
 						} catch (error) {
-							console.error("Error toggling active status:", error);
+							console.error("❌ Error toggling active status:", error);
+
+							const errorMessage =
+								error instanceof Error
+									? error.message
+									: "Unknown error occurred";
+
 							Alert.alert(
-								"Error",
-								"Failed to update user status. Please try again."
+								"Status Update Failed",
+								`Failed to ${actionText} ${user.name}.\n\nError: ${errorMessage}\n\nPlease try again or contact support.`
 							);
+
+							// Still refresh to ensure UI is in sync
+							try {
+								await loadUsers();
+							} catch (refreshError) {
+								console.error("Failed to refresh after error:", refreshError);
+							}
 						}
 					},
 				},
@@ -839,21 +1068,44 @@ export default function SuperAdminScreen({
 					style: "destructive",
 					onPress: async () => {
 						try {
+							console.log(`🗑️ Deleting user: ${user.name} (${user.id})`);
+
+							// Delete the user using the improved service
 							await userManagementService.deleteUser(user.id);
 
-							// Update local state
-							setUsers(users.filter((u) => u.id !== user.id));
+							console.log("✅ User deleted successfully, refreshing data...");
 
-							// Update analytics
-							await loadAnalytics();
+							// Force refresh all data
+							await Promise.all([loadUsers(), loadAnalytics()]);
 
 							Haptics.notificationAsync(
 								Haptics.NotificationFeedbackType.Success
 							);
-							Alert.alert("Success", "User has been deleted");
+
+							Alert.alert(
+								"Success",
+								`${user.name} has been deleted successfully`
+							);
 						} catch (error) {
-							console.error("Error deleting user:", error);
-							Alert.alert("Error", "Failed to delete user. Please try again.");
+							console.error("❌ Error deleting user:", error);
+
+							// Show detailed error message
+							const errorMessage =
+								error instanceof Error
+									? error.message
+									: "Unknown error occurred";
+
+							Alert.alert(
+								"Delete Failed",
+								`Failed to delete ${user.name}.\n\nError: ${errorMessage}\n\nPlease try again or contact support.`
+							);
+
+							// Still refresh to ensure UI is in sync
+							try {
+								await loadUsers();
+							} catch (refreshError) {
+								console.error("Failed to refresh after error:", refreshError);
+							}
 						}
 					},
 				},
@@ -1001,9 +1253,117 @@ export default function SuperAdminScreen({
 		);
 	};
 
+	// Super Admin Login Modal
+	const renderSuperAdminLoginModal = () => {
+		return (
+			<Modal
+				visible={showLoginModal}
+				transparent={true}
+				animationType="slide"
+				onRequestClose={handleCloseLoginModal}
+			>
+				<View style={styles.simpleModalOverlay}>
+					<View style={styles.simpleModalContainer}>
+						<View
+							style={[
+								styles.simpleModalContent,
+								isDark && styles.simpleModalContentDark,
+							]}
+						>
+							{/* Simple Header */}
+							<View style={styles.simpleHeader}>
+								<Text
+									style={[styles.simpleTitle, isDark && styles.simpleTitleDark]}
+								>
+									Super Admin Login
+								</Text>
+								<TouchableOpacity
+									style={styles.simpleCloseButton}
+									onPress={handleCloseLoginModal}
+								>
+									<Text style={styles.simpleCloseText}>✕</Text>
+								</TouchableOpacity>
+							</View>
+
+							{/* Simple Form */}
+							<View style={styles.simpleForm}>
+								<TextInput
+									style={[styles.simpleInput, isDark && styles.simpleInputDark]}
+									placeholder="Email"
+									placeholderTextColor="#999"
+									value={loginEmail}
+									onChangeText={setLoginEmail}
+									autoCapitalize="none"
+									keyboardType="email-address"
+								/>
+
+								<TextInput
+									style={[styles.simpleInput, isDark && styles.simpleInputDark]}
+									placeholder="Password"
+									placeholderTextColor="#999"
+									value={loginPassword}
+									onChangeText={setLoginPassword}
+									secureTextEntry
+								/>
+
+								{loginError ? (
+									<Text style={styles.simpleError}>{loginError}</Text>
+								) : null}
+
+								<TouchableOpacity
+									style={[
+										styles.simpleButton,
+										isLoggingIn && styles.simpleButtonDisabled,
+									]}
+									onPress={handleSuperAdminLogin}
+									disabled={isLoggingIn}
+								>
+									{isLoggingIn ? (
+										<ActivityIndicator color="white" />
+									) : (
+										<Text style={styles.simpleButtonText}>Login</Text>
+									)}
+								</TouchableOpacity>
+
+								<TouchableOpacity
+									style={styles.simpleCancelButton}
+									onPress={handleCloseLoginModal}
+								>
+									<Text style={styles.simpleCancelText}>Cancel</Text>
+								</TouchableOpacity>
+							</View>
+						</View>
+					</View>
+				</View>
+			</Modal>
+		);
+	};
+
+	// Show loading screen during authentication check
+	if (isLoading || !authChecked) {
+		return (
+			<SafeAreaView style={[styles.container, isDark && styles.containerDark]}>
+				<StatusBar style={isDark ? "light" : "dark"} />
+				<View style={styles.loadingContainer}>
+					<ActivityIndicator size="large" color={Colors.primary[500]} />
+					<Text style={[styles.loadingText, isDark && styles.loadingTextDark]}>
+						{!authChecked
+							? "Checking authentication..."
+							: "Loading super admin panel..."}
+					</Text>
+				</View>
+			</SafeAreaView>
+		);
+	}
+
 	return (
 		<SafeAreaView style={[styles.container, isDark && styles.containerDark]}>
 			<StatusBar style={isDark ? "light" : "dark"} />
+
+			{/* Super Admin Login Modal */}
+			{renderSuperAdminLoginModal()}
+
+			{/* Only render main content if user is authenticated */}
 
 			{/* Enhanced Header */}
 			<View style={styles.header}>
@@ -1635,5 +1995,115 @@ const styles = StyleSheet.create({
 	saveButtonText: {
 		color: "white",
 		fontWeight: Typography.fontWeight.medium,
+	},
+
+	// Loading container styles
+	loadingContainer: {
+		flex: 1,
+		justifyContent: "center",
+		alignItems: "center",
+		padding: Spacing[5],
+	},
+	loadingText: {
+		marginTop: Spacing[3],
+		fontSize: Typography.fontSize.base,
+		color: Colors.text.secondary,
+		textAlign: "center",
+	},
+	loadingTextDark: {
+		color: Colors.dark.text.secondary,
+	},
+
+	// Simple Modal Styles for Authentication
+	simpleModalOverlay: {
+		flex: 1,
+		backgroundColor: "rgba(0, 0, 0, 0.5)",
+		justifyContent: "center",
+		alignItems: "center",
+		padding: 20,
+	},
+	simpleModalContainer: {
+		width: "100%",
+		maxWidth: 400,
+	},
+	simpleModalContent: {
+		backgroundColor: "white",
+		borderRadius: 12,
+		padding: 24,
+	},
+	simpleModalContentDark: {
+		backgroundColor: Colors.dark.background.secondary,
+	},
+	simpleHeader: {
+		flexDirection: "row",
+		justifyContent: "space-between",
+		alignItems: "center",
+		marginBottom: 20,
+	},
+	simpleTitle: {
+		fontSize: 20,
+		fontWeight: "600",
+		color: Colors.text.primary,
+	},
+	simpleTitleDark: {
+		color: Colors.dark.text.primary,
+	},
+	simpleCloseButton: {
+		padding: 4,
+	},
+	simpleCloseText: {
+		fontSize: 18,
+		color: Colors.text.secondary,
+	},
+	simpleForm: {
+		gap: 16,
+	},
+	simpleInput: {
+		height: 48,
+		borderWidth: 1,
+		borderColor: Colors.gray[300],
+		borderRadius: 8,
+		paddingHorizontal: 16,
+		fontSize: 16,
+		color: Colors.text.primary,
+		backgroundColor: "white",
+	},
+	simpleInputDark: {
+		borderColor: Colors.gray[600],
+		backgroundColor: Colors.dark.background.primary,
+		color: Colors.dark.text.primary,
+	},
+	simpleError: {
+		color: Colors.error.main,
+		fontSize: 14,
+		textAlign: "center",
+	},
+	simpleButton: {
+		backgroundColor: Colors.primary[500],
+		height: 48,
+		borderRadius: 8,
+		justifyContent: "center",
+		alignItems: "center",
+		marginTop: 8,
+	},
+	simpleButtonDisabled: {
+		backgroundColor: Colors.gray[400],
+	},
+	simpleButtonText: {
+		color: "white",
+		fontSize: 16,
+		fontWeight: "600",
+	},
+	simpleCancelButton: {
+		height: 48,
+		borderRadius: 8,
+		justifyContent: "center",
+		alignItems: "center",
+		borderWidth: 1,
+		borderColor: Colors.gray[300],
+	},
+	simpleCancelText: {
+		color: Colors.text.secondary,
+		fontSize: 16,
 	},
 });

@@ -204,7 +204,7 @@ export const useAuthStore = create<AuthState>()(
 									user: null,
 									isAuthenticated: false,
 									isLoading: false,
-									error: "Your account has been deactivated.",
+									error: "Your account has been deactivated. Please contact your administrator or super admin for assistance.",
 								});
 								return;
 							}
@@ -294,7 +294,7 @@ export const useAuthStore = create<AuthState>()(
 							user: null,
 							isAuthenticated: false,
 							isLoading: false,
-							error: "Your account has been deactivated.",
+							error: "Your account has been deactivated. Please contact your administrator or super admin for assistance.",
 						});
 						return;
 					}

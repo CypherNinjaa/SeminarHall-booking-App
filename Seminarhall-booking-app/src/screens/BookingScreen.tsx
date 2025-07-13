@@ -114,6 +114,52 @@ const formatTime = (timeString: string): string => {
 	return `${displayHour}:${minute} ${ampm}`;
 };
 
+// Validation utility functions
+const isHallAvailable = (hall: any): boolean => {
+	return hall.is_active && !hall.is_maintenance;
+};
+
+const isPastTime = (dateString: string, timeString: string): boolean => {
+	if (!dateString || !timeString) return false;
+
+	// Convert DDMMYYYY to Date
+	const day = parseInt(dateString.substring(0, 2));
+	const month = parseInt(dateString.substring(2, 4)) - 1; // Month is 0-indexed
+	const year = parseInt(dateString.substring(4, 8));
+
+	// Convert HH:MM to hours and minutes
+	const [hours, minutes] = timeString.split(":").map(Number);
+
+	// Create the booking date/time
+	const bookingDateTime = new Date(year, month, day, hours, minutes);
+
+	// Compare with current time
+	return bookingDateTime < new Date();
+};
+
+const isValidTimeFormat = (timeString: string): boolean => {
+	const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
+	return timeRegex.test(timeString);
+};
+
+const formatTimeForDisplay = (timeString: string): string => {
+	// Ensure proper 24-hour format display
+	if (!timeString || timeString.length < 4) return timeString;
+
+	if (timeString.includes(":")) {
+		const [hours, minutes] = timeString.split(":");
+		return `${hours.padStart(2, "0")}:${minutes.padStart(2, "0")}`;
+	}
+
+	if (timeString.length === 4) {
+		const hours = timeString.substring(0, 2);
+		const minutes = timeString.substring(2, 4);
+		return `${hours}:${minutes}`;
+	}
+
+	return timeString;
+};
+
 const BookingScreen: React.FC<BookingScreenProps> = ({ navigation }) => {
 	const { user } = useAuthStore();
 	const { isDark } = useTheme();
@@ -654,61 +700,124 @@ const BookingScreen: React.FC<BookingScreenProps> = ({ navigation }) => {
 						</TouchableOpacity>
 					</View>
 
-					<ScrollView style={styles.modalContent}>
+					<ScrollView
+						style={styles.modalContent}
+						showsVerticalScrollIndicator={false}
+					>
+						{/* Form Progress Indicator */}
+						<View style={styles.progressIndicator}>
+							<View style={styles.progressBar}>
+								<View style={[styles.progressFill, { width: "60%" }]} />
+							</View>
+							<Text style={styles.progressText}>Basic Details</Text>
+						</View>
+
 						{/* Hall Selection */}
-						<View style={styles.formGroup}>
-							<Text style={styles.formLabel}>Hall *</Text>
+						<View style={styles.formSection}>
+							<View style={styles.sectionHeader}>
+								<Ionicons
+									name="business-outline"
+									size={20}
+									color={theme.colors.primary}
+								/>
+								<Text style={styles.sectionTitle}>Select Hall *</Text>
+							</View>
 							<ScrollView
 								horizontal
 								showsHorizontalScrollIndicator={false}
 								style={styles.hallSelector}
+								contentContainerStyle={styles.hallSelectorContent}
 							>
-								{halls.map((hall) => (
-									<TouchableOpacity
-										key={hall.id}
-										style={[
-											styles.hallOption,
-											formData.hall_id === hall.id && styles.hallOptionSelected,
-										]}
-										onPress={() => {
-											setFormData((prev) => ({ ...prev, hall_id: hall.id }));
-											if (
-												formData.booking_date &&
-												formData.start_time &&
-												formData.end_time
-											) {
-												checkAvailability();
-											}
-										}}
-									>
-										<Text
+								{halls
+									.filter((hall) => isHallAvailable(hall))
+									.map((hall) => (
+										<TouchableOpacity
+											key={hall.id}
 											style={[
-												styles.hallOptionText,
-												formData.hall_id === hall.id &&
-													styles.hallOptionTextSelected,
+												styles.hallCard,
+												formData.hall_id === hall.id && styles.hallCardSelected,
 											]}
+											onPress={() => {
+												setFormData((prev) => ({ ...prev, hall_id: hall.id }));
+												Haptics.selectionAsync();
+												if (
+													formData.booking_date &&
+													formData.start_time &&
+													formData.end_time
+												) {
+													checkAvailability();
+												}
+											}}
 										>
-											{hall.name}
-										</Text>
-										<Text
-											style={[
-												styles.hallOptionCapacity,
-												formData.hall_id === hall.id &&
-													styles.hallOptionCapacitySelected,
-											]}
-										>
-											{hall.capacity} people
-										</Text>
-									</TouchableOpacity>
-								))}
+											<LinearGradient
+												colors={
+													formData.hall_id === hall.id
+														? [
+																theme.colors.primary + "15",
+																theme.colors.primary + "10",
+														  ]
+														: ["transparent", "transparent"]
+												}
+												style={styles.hallCardGradient}
+											>
+												<View style={styles.hallCardContent}>
+													<Text
+														style={[
+															styles.hallCardName,
+															formData.hall_id === hall.id &&
+																styles.hallCardNameSelected,
+														]}
+													>
+														{hall.name}
+													</Text>
+													<View style={styles.hallCardCapacity}>
+														<Ionicons
+															name="people-outline"
+															size={14}
+															color={
+																formData.hall_id === hall.id
+																	? theme.colors.primary
+																	: theme.colors.text.secondary
+															}
+														/>
+														<Text
+															style={[
+																styles.hallCardCapacityText,
+																formData.hall_id === hall.id &&
+																	styles.hallCardCapacitySelected,
+															]}
+														>
+															{hall.capacity} people
+														</Text>
+													</View>
+													{formData.hall_id === hall.id && (
+														<View style={styles.selectedIndicator}>
+															<Ionicons
+																name="checkmark-circle"
+																size={16}
+																color={theme.colors.primary}
+															/>
+														</View>
+													)}
+												</View>
+											</LinearGradient>
+										</TouchableOpacity>
+									))}
 							</ScrollView>
 						</View>
 
 						{/* Date Selection */}
-						<View style={styles.formGroup}>
-							<Text style={styles.formLabel}>Date *</Text>
+						<View style={styles.formSection}>
+							<View style={styles.sectionHeader}>
+								<Ionicons
+									name="calendar-outline"
+									size={20}
+									color={theme.colors.primary}
+								/>
+								<Text style={styles.sectionTitle}>Date *</Text>
+							</View>
 							<TouchableOpacity
-								style={styles.dateInput}
+								style={styles.enhancedInput}
 								onPress={() => {
 									setTempDate(
 										formData.booking_date
@@ -716,74 +825,141 @@ const BookingScreen: React.FC<BookingScreenProps> = ({ navigation }) => {
 											: new Date()
 									);
 									setShowDatePicker(true);
+									Haptics.selectionAsync();
 								}}
 							>
-								<Text
-									style={[
-										styles.dateInputText,
-										!formData.booking_date && styles.placeholderText,
-									]}
-								>
-									{formData.booking_date
-										? formatDate(formData.booking_date)
-										: "Select date"}
-								</Text>
-								<Ionicons
-									name="calendar"
-									size={20}
-									color={theme.colors.text.secondary}
-								/>
+								<View style={styles.inputWithIcon}>
+									<View style={styles.inputIconContainer}>
+										<Ionicons
+											name="calendar"
+											size={20}
+											color={theme.colors.primary}
+										/>
+									</View>
+									<Text
+										style={[
+											styles.enhancedInputText,
+											!formData.booking_date && styles.placeholderText,
+										]}
+									>
+										{formData.booking_date
+											? formatDate(formData.booking_date)
+											: "Select date"}
+									</Text>
+									<Ionicons
+										name="chevron-forward"
+										size={16}
+										color={theme.colors.text.secondary}
+									/>
+								</View>
 							</TouchableOpacity>
 						</View>
 
 						{/* Time Selection */}
-						<View style={styles.timeRow}>
-							<View style={[styles.formGroup, { flex: 1, marginRight: 8 }]}>
-								<Text style={styles.formLabel}>Start Time *</Text>
-								<TouchableOpacity
-									style={styles.timeInput}
-									onPress={() => {
-										const [hours, minutes] = formData.start_time
-											.split(":")
-											.map(Number);
-										const date = new Date();
-										date.setHours(hours, minutes);
-										setTempDate(date);
-										setShowStartTimePicker(true);
-									}}
-								>
-									<Text style={styles.timeInputText}>
-										{formData.start_time}
-									</Text>
-									<Ionicons
-										name="time"
-										size={20}
-										color={theme.colors.text.secondary}
-									/>
-								</TouchableOpacity>
+						<View style={styles.formSection}>
+							<View style={styles.sectionHeader}>
+								<Ionicons
+									name="time-outline"
+									size={20}
+									color={theme.colors.primary}
+								/>
+								<Text style={styles.sectionTitle}>Time *</Text>
 							</View>
-							<View style={[styles.formGroup, { flex: 1, marginLeft: 8 }]}>
-								<Text style={styles.formLabel}>End Time *</Text>
-								<TouchableOpacity
-									style={styles.timeInput}
-									onPress={() => {
-										const [hours, minutes] = formData.end_time
-											.split(":")
-											.map(Number);
-										const date = new Date();
-										date.setHours(hours, minutes);
-										setTempDate(date);
-										setShowEndTimePicker(true);
-									}}
-								>
-									<Text style={styles.timeInputText}>{formData.end_time}</Text>
+							<View style={styles.timeRow}>
+								<View style={styles.timeInputContainer}>
+									<Text style={styles.timeLabel}>Start</Text>
+									<TouchableOpacity
+										style={styles.enhancedTimeInput}
+										onPress={() => {
+											const [hours, minutes] = formData.start_time
+												.split(":")
+												.map(Number);
+											const date = new Date();
+											date.setHours(hours, minutes);
+											setTempDate(date);
+											setShowStartTimePicker(true);
+											Haptics.selectionAsync();
+										}}
+									>
+										<View style={styles.inputWithIcon}>
+											<Ionicons
+												name="time"
+												size={16}
+												color={theme.colors.primary}
+											/>
+											<Text style={styles.timeText}>
+												{formatTime(formData.start_time)}
+											</Text>
+										</View>
+									</TouchableOpacity>
+								</View>
+
+								<View style={styles.timeSeparator}>
+									<View style={styles.timeSeparatorLine} />
 									<Ionicons
-										name="time"
-										size={20}
-										color={theme.colors.text.secondary}
+										name="arrow-forward"
+										size={16}
+										color={theme.colors.primary}
 									/>
-								</TouchableOpacity>
+									<View style={styles.timeSeparatorLine} />
+								</View>
+
+								<View style={styles.timeInputContainer}>
+									<Text style={styles.timeLabel}>End</Text>
+									<TouchableOpacity
+										style={styles.enhancedTimeInput}
+										onPress={() => {
+											const [hours, minutes] = formData.end_time
+												.split(":")
+												.map(Number);
+											const date = new Date();
+											date.setHours(hours, minutes);
+											setTempDate(date);
+											setShowEndTimePicker(true);
+											Haptics.selectionAsync();
+										}}
+									>
+										<View style={styles.inputWithIcon}>
+											<Ionicons
+												name="time"
+												size={16}
+												color={theme.colors.primary}
+											/>
+											<Text style={styles.timeText}>
+												{formatTime(formData.end_time)}
+											</Text>
+										</View>
+									</TouchableOpacity>
+								</View>
 							</View>
+
+							{/* Time Format Hint */}
+							<View style={styles.hintContainer}>
+								<Ionicons
+									name="information-circle-outline"
+									size={14}
+									color={theme.colors.text.secondary}
+								/>
+								<Text style={styles.hintText}>
+									Use 24-hour format (HH:MM). Example: 14:30 for 2:30 PM
+								</Text>
+							</View>
+
+							{/* Past Time Validation */}
+							{formData.booking_date &&
+								formData.start_time &&
+								isPastTime(formData.booking_date, formData.start_time) && (
+									<View style={styles.validationError}>
+										<Ionicons
+											name="warning"
+											size={16}
+											color={theme.colors.error}
+										/>
+										<Text style={styles.validationErrorText}>
+											Cannot book past dates or times
+										</Text>
+									</View>
+								)}
 						</View>
 
 						{/* Availability Check */}
@@ -791,29 +967,33 @@ const BookingScreen: React.FC<BookingScreenProps> = ({ navigation }) => {
 							formData.booking_date &&
 							formData.start_time &&
 							formData.end_time && (
-								<View style={styles.formGroup}>
+								<View style={styles.formSection}>
 									<TouchableOpacity
-										style={styles.checkAvailabilityButton}
+										style={[
+											styles.checkAvailabilityButton,
+											checkingAvailability && styles.buttonDisabled,
+										]}
 										onPress={checkAvailability}
 										disabled={checkingAvailability}
 									>
-										{checkingAvailability ? (
-											<ActivityIndicator
-												size="small"
-												color={theme.colors.primary}
-											/>
-										) : (
-											<Ionicons
-												name="search"
-												size={16}
-												color={theme.colors.primary}
-											/>
-										)}
-										<Text style={styles.checkAvailabilityText}>
-											{checkingAvailability
-												? "Checking..."
-												: "Check Availability"}
-										</Text>
+										<LinearGradient
+											colors={[
+												theme.colors.secondary,
+												theme.colors.secondary + "DD",
+											]}
+											style={styles.buttonGradient}
+										>
+											{checkingAvailability ? (
+												<ActivityIndicator size="small" color="white" />
+											) : (
+												<Ionicons name="search" size={18} color="white" />
+											)}
+											<Text style={styles.checkAvailabilityText}>
+												{checkingAvailability
+													? "Checking..."
+													: "Check Availability"}
+											</Text>
+										</LinearGradient>
 									</TouchableOpacity>
 
 									{availabilityCheck && (
@@ -824,6 +1004,9 @@ const BookingScreen: React.FC<BookingScreenProps> = ({ navigation }) => {
 													borderColor: availabilityCheck.is_available
 														? theme.colors.success
 														: theme.colors.error,
+													backgroundColor: availabilityCheck.is_available
+														? theme.colors.success + "10"
+														: theme.colors.error + "10",
 												},
 											]}
 										>
@@ -939,75 +1122,150 @@ const BookingScreen: React.FC<BookingScreenProps> = ({ navigation }) => {
 							)}
 
 						{/* Purpose */}
-						<View style={styles.formGroup}>
-							<Text style={styles.formLabel}>Purpose *</Text>
-							<TextInput
-								style={styles.textInput}
-								value={formData.purpose}
-								onChangeText={(text) =>
-									setFormData((prev) => ({ ...prev, purpose: text }))
-								}
-								placeholder="e.g., Team Meeting, Workshop"
-								placeholderTextColor={theme.colors.text.secondary}
-							/>
+						<View style={styles.formSection}>
+							<View style={styles.sectionHeader}>
+								<Ionicons
+									name="document-text-outline"
+									size={20}
+									color={theme.colors.primary}
+								/>
+								<Text style={styles.sectionTitle}>Purpose *</Text>
+							</View>
+							<View style={styles.enhancedInputContainer}>
+								<TextInput
+									style={styles.enhancedTextInput}
+									value={formData.purpose}
+									onChangeText={(text) =>
+										setFormData((prev) => ({ ...prev, purpose: text }))
+									}
+									placeholder="e.g., Team Meeting, Workshop, Training Session"
+									placeholderTextColor={theme.colors.text.secondary}
+									returnKeyType="next"
+									blurOnSubmit={false}
+								/>
+							</View>
 						</View>
 
 						{/* Description */}
-						<View style={styles.formGroup}>
-							<Text style={styles.formLabel}>Description</Text>
-							<TextInput
-								style={[styles.textInput, styles.textArea]}
-								value={formData.description}
-								onChangeText={(text) =>
-									setFormData((prev) => ({ ...prev, description: text }))
-								}
-								placeholder="Additional details about the booking"
-								placeholderTextColor={theme.colors.text.secondary}
-								multiline
-								numberOfLines={3}
-							/>
+						<View style={styles.formSection}>
+							<View style={styles.sectionHeader}>
+								<Ionicons
+									name="information-circle-outline"
+									size={20}
+									color={theme.colors.primary}
+								/>
+								<Text style={styles.sectionTitle}>Description</Text>
+								<Text style={styles.optionalLabel}>(Optional)</Text>
+							</View>
+							<View style={styles.enhancedInputContainer}>
+								<TextInput
+									style={[styles.enhancedTextInput, styles.textArea]}
+									value={formData.description}
+									onChangeText={(text) =>
+										setFormData((prev) => ({ ...prev, description: text }))
+									}
+									placeholder="Additional details about your booking..."
+									placeholderTextColor={theme.colors.text.secondary}
+									multiline
+									numberOfLines={4}
+									textAlignVertical="top"
+								/>
+							</View>
 						</View>
 
 						{/* Attendees Count */}
-						<View style={styles.formGroup}>
-							<Text style={styles.formLabel}>Number of Attendees</Text>
-							<View style={styles.attendeesCounter}>
-								<TouchableOpacity
-									style={styles.counterButton}
-									onPress={() =>
+						<View style={styles.formSection}>
+							<View style={styles.sectionHeader}>
+								<Ionicons
+									name="people-outline"
+									size={20}
+									color={theme.colors.primary}
+								/>
+								<Text style={styles.sectionTitle}>Number of Attendees</Text>
+							</View>
+							<View style={styles.attendeesSection}>
+								<TextInput
+									style={styles.attendeesInput}
+									value={formData.attendees_count.toString()}
+									onChangeText={(value) => {
+										const numValue = parseInt(value) || 1;
 										setFormData((prev) => ({
 											...prev,
-											attendees_count: Math.max(1, prev.attendees_count - 1),
-										}))
-									}
-								>
-									<Ionicons
-										name="remove"
-										size={20}
-										color={theme.colors.primary}
-									/>
-								</TouchableOpacity>
-								<Text style={styles.counterText}>
-									{formData.attendees_count}
-								</Text>
-								<TouchableOpacity
-									style={styles.counterButton}
-									onPress={() =>
-										setFormData((prev) => ({
-											...prev,
-											attendees_count: prev.attendees_count + 1,
-										}))
-									}
-								>
-									<Ionicons name="add" size={20} color={theme.colors.primary} />
-								</TouchableOpacity>
+											attendees_count: Math.max(1, numValue),
+										}));
+									}}
+									placeholder="Enter number of attendees"
+									keyboardType="numeric"
+									maxLength={4}
+									returnKeyType="done"
+									onBlur={() => {
+										// Ensure minimum value of 1
+										if (formData.attendees_count < 1) {
+											setFormData((prev) => ({
+												...prev,
+												attendees_count: 1,
+											}));
+										}
+									}}
+								/>
+								<View style={styles.attendeesInputSuffix}>
+									<Text style={styles.attendeesInputSuffixText}>
+										{formData.attendees_count === 1 ? "person" : "people"}
+									</Text>
+								</View>
+
+								{/* Capacity warning */}
+								{formData.hall_id &&
+									halls.find((h) => h.id === formData.hall_id) && (
+										<View style={styles.capacityInfo}>
+											<Ionicons
+												name={
+													formData.attendees_count <=
+													halls.find((h) => h.id === formData.hall_id)?.capacity
+														? "checkmark-circle"
+														: "warning"
+												}
+												size={16}
+												color={
+													formData.attendees_count <=
+													halls.find((h) => h.id === formData.hall_id)?.capacity
+														? theme.colors.success
+														: theme.colors.warning
+												}
+											/>
+											<Text
+												style={[
+													styles.capacityText,
+													{
+														color:
+															formData.attendees_count <=
+															halls.find((h) => h.id === formData.hall_id)
+																?.capacity
+																? theme.colors.success
+																: theme.colors.warning,
+													},
+												]}
+											>
+												Hall capacity:{" "}
+												{halls.find((h) => h.id === formData.hall_id)?.capacity}{" "}
+												people
+											</Text>
+										</View>
+									)}
 							</View>
 						</View>
 
 						{/* Priority */}
-						<View style={styles.formGroup}>
-							<Text style={styles.formLabel}>Priority</Text>
-							<View style={styles.prioritySelector}>
+						<View style={styles.formSection}>
+							<View style={styles.sectionHeader}>
+								<Ionicons
+									name="flag-outline"
+									size={20}
+									color={theme.colors.primary}
+								/>
+								<Text style={styles.sectionTitle}>Priority</Text>
+							</View>
+							<View style={styles.priorityContainer}>
 								{(["low", "medium", "high"] as const).map((priority) => (
 									<TouchableOpacity
 										key={priority}
@@ -1016,24 +1274,97 @@ const BookingScreen: React.FC<BookingScreenProps> = ({ navigation }) => {
 											formData.priority === priority &&
 												styles.priorityOptionSelected,
 										]}
-										onPress={() =>
-											setFormData((prev) => ({ ...prev, priority }))
-										}
+										onPress={() => {
+											setFormData((prev) => ({ ...prev, priority }));
+											Haptics.selectionAsync();
+										}}
 									>
-										<Text
-											style={[
-												styles.priorityOptionText,
-												formData.priority === priority &&
-													styles.priorityOptionTextSelected,
-											]}
-										>
-											{priority.charAt(0).toUpperCase() + priority.slice(1)}
-										</Text>
+										<View style={styles.priorityContent}>
+											<Ionicons
+												name={
+													priority === "high"
+														? "chevron-up"
+														: priority === "medium"
+														? "remove"
+														: "chevron-down"
+												}
+												size={16}
+												color={
+													formData.priority === priority
+														? "white"
+														: theme.colors.text.secondary
+												}
+											/>
+											<Text
+												style={[
+													styles.priorityOptionText,
+													formData.priority === priority &&
+														styles.priorityOptionTextSelected,
+												]}
+											>
+												{priority.charAt(0).toUpperCase() + priority.slice(1)}
+											</Text>
+										</View>
 									</TouchableOpacity>
 								))}
 							</View>
 						</View>
 					</ScrollView>
+
+					{/* Modal Footer with Action Buttons */}
+					<View style={styles.modalFooter}>
+						<TouchableOpacity
+							style={[
+								styles.submitButton,
+								(!formData.hall_id ||
+									!formData.booking_date ||
+									!formData.purpose) &&
+									styles.submitButtonDisabled,
+							]}
+							onPress={
+								showEditModal ? handleUpdateBooking : handleCreateBooking
+							}
+							disabled={
+								!formData.hall_id ||
+								!formData.booking_date ||
+								!formData.purpose ||
+								creating ||
+								updating
+							}
+						>
+							<LinearGradient
+								colors={
+									!formData.hall_id ||
+									!formData.booking_date ||
+									!formData.purpose
+										? [theme.colors.text.secondary, theme.colors.text.secondary]
+										: [theme.colors.primary, theme.colors.primary + "DD"]
+								}
+								style={styles.submitButtonGradient}
+							>
+								{creating || updating ? (
+									<ActivityIndicator size="small" color="white" />
+								) : (
+									<>
+										<Ionicons
+											name={showEditModal ? "checkmark" : "add"}
+											size={20}
+											color="white"
+										/>
+										<Text style={styles.submitButtonText}>
+											{showEditModal
+												? updating
+													? "Updating..."
+													: "Update Booking"
+												: creating
+												? "Creating..."
+												: "Create Booking"}
+										</Text>
+									</>
+								)}
+							</LinearGradient>
+						</TouchableOpacity>
+					</View>
 				</SafeAreaView>
 			</Modal>
 
@@ -1622,6 +1953,337 @@ const createStyles = (dynamicTheme: any) =>
 			position: "absolute",
 			bottom: 20,
 			right: 20,
+		},
+		// Enhanced Form Styles
+		progressIndicator: {
+			marginBottom: dynamicTheme.spacing.lg,
+			alignItems: "center",
+		},
+		progressBar: {
+			width: "100%",
+			height: 4,
+			backgroundColor: dynamicTheme.colors.text.secondary + "20",
+			borderRadius: 2,
+			marginBottom: dynamicTheme.spacing.sm,
+		},
+		progressFill: {
+			height: "100%",
+			backgroundColor: theme.colors.primary,
+			borderRadius: 2,
+		},
+		progressText: {
+			fontSize: 14,
+			color: theme.colors.primary,
+			fontWeight: "600",
+		},
+		formSection: {
+			marginBottom: dynamicTheme.spacing.xl,
+		},
+		sectionHeader: {
+			flexDirection: "row",
+			alignItems: "center",
+			marginBottom: dynamicTheme.spacing.md,
+			paddingHorizontal: dynamicTheme.spacing.xs,
+		},
+		sectionTitle: {
+			fontSize: 18,
+			fontWeight: "700",
+			color: dynamicTheme.colors.text.primary,
+			marginLeft: dynamicTheme.spacing.sm,
+			flex: 1,
+		},
+		optionalLabel: {
+			fontSize: 14,
+			color: dynamicTheme.colors.text.secondary,
+			fontStyle: "italic",
+		},
+		// Enhanced Hall Cards
+		hallSelectorContent: {
+			paddingVertical: dynamicTheme.spacing.sm,
+		},
+		hallCard: {
+			marginRight: dynamicTheme.spacing.md,
+			borderRadius: dynamicTheme.borderRadius.md,
+			overflow: "hidden",
+			minWidth: 140,
+		},
+		hallCardSelected: {
+			transform: [{ scale: 1.05 }],
+		},
+		hallCardGradient: {
+			padding: dynamicTheme.spacing.md,
+			borderWidth: 2,
+			borderColor: "transparent",
+			borderRadius: dynamicTheme.borderRadius.md,
+		},
+		hallCardContent: {
+			alignItems: "center",
+		},
+		hallCardName: {
+			fontSize: 16,
+			fontWeight: "600",
+			color: dynamicTheme.colors.text.primary,
+			textAlign: "center",
+			marginBottom: dynamicTheme.spacing.xs,
+		},
+		hallCardNameSelected: {
+			color: theme.colors.primary,
+		},
+		hallCardCapacity: {
+			flexDirection: "row",
+			alignItems: "center",
+			marginTop: dynamicTheme.spacing.xs,
+		},
+		hallCardCapacityText: {
+			fontSize: 13,
+			color: dynamicTheme.colors.text.secondary,
+			marginLeft: 4,
+		},
+		hallCardCapacitySelected: {
+			color: theme.colors.primary,
+		},
+		selectedIndicator: {
+			position: "absolute",
+			top: -8,
+			right: -8,
+			backgroundColor: theme.colors.primary,
+			borderRadius: 12,
+			padding: 2,
+		},
+		// Enhanced Inputs
+		enhancedInput: {
+			backgroundColor: dynamicTheme.colors.surface,
+			borderRadius: dynamicTheme.borderRadius.md,
+			borderWidth: 2,
+			borderColor: dynamicTheme.colors.text.secondary + "20",
+			shadowColor: "#000",
+			shadowOffset: { width: 0, height: 2 },
+			shadowOpacity: 0.05,
+			shadowRadius: 4,
+			elevation: 2,
+		},
+		inputWithIcon: {
+			flexDirection: "row",
+			alignItems: "center",
+			padding: dynamicTheme.spacing.md,
+		},
+		inputIconContainer: {
+			width: 32,
+			height: 32,
+			borderRadius: 16,
+			backgroundColor: theme.colors.primary + "15",
+			justifyContent: "center",
+			alignItems: "center",
+			marginRight: dynamicTheme.spacing.sm,
+		},
+		enhancedInputText: {
+			fontSize: 16,
+			color: dynamicTheme.colors.text.primary,
+			flex: 1,
+		},
+		// Enhanced Time Inputs
+		timeInputContainer: {
+			flex: 1,
+		},
+		timeLabel: {
+			fontSize: 14,
+			fontWeight: "600",
+			color: dynamicTheme.colors.text.primary,
+			marginBottom: dynamicTheme.spacing.sm,
+			textAlign: "center",
+		},
+		enhancedTimeInput: {
+			backgroundColor: dynamicTheme.colors.surface,
+			borderRadius: dynamicTheme.borderRadius.md,
+			borderWidth: 2,
+			borderColor: dynamicTheme.colors.text.secondary + "20",
+			padding: dynamicTheme.spacing.md,
+			shadowColor: "#000",
+			shadowOffset: { width: 0, height: 2 },
+			shadowOpacity: 0.05,
+			shadowRadius: 4,
+			elevation: 2,
+		},
+		timeText: {
+			fontSize: 16,
+			color: dynamicTheme.colors.text.primary,
+			fontWeight: "600",
+			marginLeft: dynamicTheme.spacing.sm,
+		},
+		timeSeparator: {
+			alignItems: "center",
+			justifyContent: "center",
+			marginHorizontal: dynamicTheme.spacing.md,
+			marginTop: 32, // Account for label height
+		},
+		timeSeparatorLine: {
+			width: 20,
+			height: 1,
+			backgroundColor: theme.colors.primary + "30",
+		},
+		// Enhanced Buttons
+		buttonGradient: {
+			flexDirection: "row",
+			alignItems: "center",
+			justifyContent: "center",
+			paddingVertical: dynamicTheme.spacing.md,
+			borderRadius: dynamicTheme.borderRadius.md,
+			gap: dynamicTheme.spacing.sm,
+		},
+		buttonDisabled: {
+			opacity: 0.6,
+		},
+		// Enhanced Text Inputs
+		enhancedInputContainer: {
+			backgroundColor: dynamicTheme.colors.surface,
+			borderRadius: dynamicTheme.borderRadius.md,
+			borderWidth: 2,
+			borderColor: dynamicTheme.colors.text.secondary + "20",
+			shadowColor: "#000",
+			shadowOffset: { width: 0, height: 2 },
+			shadowOpacity: 0.05,
+			shadowRadius: 4,
+			elevation: 2,
+		},
+		enhancedTextInput: {
+			fontSize: 16,
+			color: dynamicTheme.colors.text.primary,
+			padding: dynamicTheme.spacing.md,
+			minHeight: 50,
+		},
+		// Enhanced Attendees Section
+		attendeesSection: {
+			alignItems: "center",
+		},
+		counterDisplay: {
+			alignItems: "center",
+			marginHorizontal: dynamicTheme.spacing.lg,
+			minWidth: 60,
+		},
+		counterLabel: {
+			fontSize: 12,
+			color: dynamicTheme.colors.text.secondary,
+			marginTop: 2,
+		},
+		counterButtonDisabled: {
+			opacity: 0.5,
+		},
+		capacityInfo: {
+			flexDirection: "row",
+			alignItems: "center",
+			marginTop: dynamicTheme.spacing.md,
+			paddingHorizontal: dynamicTheme.spacing.md,
+			paddingVertical: dynamicTheme.spacing.sm,
+			backgroundColor: dynamicTheme.colors.surface,
+			borderRadius: dynamicTheme.borderRadius.sm,
+			borderWidth: 1,
+			borderColor: dynamicTheme.colors.text.secondary + "20",
+		},
+		capacityText: {
+			fontSize: 14,
+			marginLeft: dynamicTheme.spacing.sm,
+		},
+		// Enhanced Priority Section
+		priorityContainer: {
+			flexDirection: "row",
+			gap: dynamicTheme.spacing.sm,
+		},
+		priorityContent: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: dynamicTheme.spacing.xs,
+		},
+		// Modal Footer
+		modalFooter: {
+			padding: dynamicTheme.spacing.md,
+			backgroundColor: dynamicTheme.colors.surface,
+			borderTopWidth: 1,
+			borderTopColor: dynamicTheme.colors.text.secondary + "20",
+		},
+		// Validation and Hint Styles
+		hintContainer: {
+			flexDirection: "row",
+			alignItems: "center",
+			marginTop: dynamicTheme.spacing.sm,
+			paddingHorizontal: dynamicTheme.spacing.md,
+			paddingVertical: dynamicTheme.spacing.sm,
+			backgroundColor: dynamicTheme.colors.primary + "10",
+			borderRadius: dynamicTheme.borderRadius.sm,
+			gap: dynamicTheme.spacing.xs,
+		},
+		hintText: {
+			fontSize: 12,
+			color: dynamicTheme.colors.text.secondary,
+			lineHeight: 16,
+			flex: 1,
+		},
+		validationError: {
+			flexDirection: "row",
+			alignItems: "center",
+			marginTop: dynamicTheme.spacing.sm,
+			paddingHorizontal: dynamicTheme.spacing.md,
+			paddingVertical: dynamicTheme.spacing.sm,
+			backgroundColor: dynamicTheme.colors.error + "15",
+			borderRadius: dynamicTheme.borderRadius.sm,
+			borderWidth: 1,
+			borderColor: dynamicTheme.colors.error + "30",
+			gap: dynamicTheme.spacing.xs,
+		},
+		validationErrorText: {
+			fontSize: 12,
+			color: dynamicTheme.colors.error,
+			lineHeight: 16,
+			flex: 1,
+			fontWeight: "500",
+		},
+		// Attendees Input Styles
+		attendeesInput: {
+			flex: 1,
+			height: 50,
+			paddingHorizontal: dynamicTheme.spacing.md,
+			paddingVertical: dynamicTheme.spacing.sm,
+			backgroundColor: dynamicTheme.colors.surface,
+			borderRadius: dynamicTheme.borderRadius.md,
+			borderWidth: 1,
+			borderColor: dynamicTheme.colors.text.secondary + "30",
+			fontSize: 16,
+			color: dynamicTheme.colors.text.primary,
+			textAlign: "center",
+		},
+		attendeesInputSuffix: {
+			marginLeft: dynamicTheme.spacing.md,
+			justifyContent: "center",
+			alignItems: "center",
+		},
+		attendeesInputSuffixText: {
+			fontSize: 14,
+			color: dynamicTheme.colors.text.secondary,
+			fontWeight: "500",
+		},
+		submitButton: {
+			borderRadius: dynamicTheme.borderRadius.md,
+			overflow: "hidden",
+			shadowColor: "#000",
+			shadowOffset: { width: 0, height: 4 },
+			shadowOpacity: 0.15,
+			shadowRadius: 8,
+			elevation: 6,
+		},
+		submitButtonDisabled: {
+			shadowOpacity: 0.05,
+			elevation: 2,
+		},
+		submitButtonGradient: {
+			flexDirection: "row",
+			alignItems: "center",
+			justifyContent: "center",
+			paddingVertical: dynamicTheme.spacing.md + 2,
+			gap: dynamicTheme.spacing.sm,
+		},
+		submitButtonText: {
+			fontSize: 16,
+			fontWeight: "700",
+			color: "white",
 		},
 	});
 

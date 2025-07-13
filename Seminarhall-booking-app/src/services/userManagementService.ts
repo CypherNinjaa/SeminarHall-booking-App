@@ -226,8 +226,8 @@ export const userManagementService = {
 	toggleUserActiveStatus: async (userId: string, isActive: boolean) => {
 		try {
 			const { data, error } = await supabase.rpc("toggle_user_active_status", {
-				user_id: userId,
-				is_active: isActive,
+				target_user_id: userId,
+				new_active_status: isActive,
 			});
 
 			if (error) throw error;
@@ -240,36 +240,26 @@ export const userManagementService = {
 	},
 
 	/**
-	 * Delete user - Complete deletion flow (profile + auth user)
+	 * Delete user - Simplified to only use database function (more reliable)
 	 */
 	deleteUser: async (userId: string) => {
 		try {
-			// Step 1: Delete the profile and related data via database function
-			const { data: profileData, error: profileError } = await supabase.rpc(
-				"admin_delete_user",
-				{ user_id: userId }
-			);
+			// Use only the database function for reliable deletion
+			const { data, error } = await supabase.rpc("delete_user", {
+				delete_target_user_id: userId,
+			});
 
-			if (profileError) throw profileError;
-
-			// Step 2: Delete the auth user via Edge Function
-			const { data: authData, error: authError } = await supabase.functions.invoke(
-				"admin-auth-operations",
-				{
-					body: {
-						operation: "deleteUser",
-						userId: userId,
-					},
-				}
-			);
-
-			if (authError) throw authError;
-
-			if (!authData?.success) {
-				throw new Error(authData?.error || "Failed to delete auth user");
+			if (error) {
+				console.error("Database error:", error);
+				throw new Error(`Database deletion failed: ${error.message}`);
 			}
 
-			return { success: true, message: "User completely deleted" };
+			// Check if the function returned false (meaning it failed)
+			if (data === false) {
+				throw new Error("User deletion was not successful");
+			}
+
+			return { success: true, message: "User successfully deleted" };
 		} catch (error) {
 			console.error("Error deleting user:", error);
 			throw error;
