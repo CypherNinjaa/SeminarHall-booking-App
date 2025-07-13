@@ -13,6 +13,7 @@ import LoginScreen from "../screens/LoginScreen";
 import HallListScreen from "../screens/HallListScreen";
 import BookingScreen from "../screens/BookingScreen";
 import ProfileScreen from "../screens/ProfileScreen";
+import EditProfileScreen from "../screens/EditProfileScreen";
 import SignupScreen from "../screens/SignupScreen";
 import SuperAdminScreen from "../screens/SuperAdminScreen";
 import NotificationsScreen from "../screens/NotificationsScreen";
@@ -33,6 +34,7 @@ export type RootStackParamList = {
 	Booking: { hallId: string };
 	AddEditHall: { hallId?: string; hall?: any } | undefined;
 	Notifications: undefined;
+	EditProfile: undefined;
 };
 
 export type MainTabParamList = {
@@ -105,6 +107,10 @@ export default function AppNavigator() {
 								<Stack.Screen
 									name="Notifications"
 									component={NotificationsScreen}
+								/>
+								<Stack.Screen
+									name="EditProfile"
+									component={EditProfileScreen}
 								/>
 								<Stack.Screen
 									name="AddEditHall"
