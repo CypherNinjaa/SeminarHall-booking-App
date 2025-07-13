@@ -1,6 +1,7 @@
 import { supabase } from '../utils/supabaseSetup';
 import { adminLoggingService } from './adminLoggingService';
 import { notificationService } from './notificationService';
+import { emailService } from './emailService';
 
 export interface BookingDetails {
   id: string;
@@ -261,6 +262,27 @@ class BookingOversightService {
               bookingDetails,
               adminName
             );
+            
+            // Send approval email
+            try {
+              await emailService.sendBookingApproval(
+                enrichedBookingData.user.email,
+                enrichedBookingData.user.name,
+                {
+                  id: bookingId,
+                  hallName: enrichedBookingData.hall?.name || 'Unknown Hall',
+                  bookingDate: enrichedBookingData.booking_date,
+                  startTime: enrichedBookingData.start_time,
+                  endTime: enrichedBookingData.end_time,
+                  purpose: enrichedBookingData.purpose,
+                },
+                adminName
+              );
+              console.log('✅ Booking approval email sent successfully');
+            } catch (emailError) {
+              console.error('❌ Failed to send booking approval email:', emailError);
+              // Don't fail the entire operation if email fails
+            }
             break;
 
           case 'rejected':
@@ -270,6 +292,27 @@ class BookingOversightService {
               rejectedReason || adminNotes || 'No reason provided',
               adminName
             );
+            
+            // Send rejection email
+            try {
+              await emailService.sendBookingRejection(
+                enrichedBookingData.user.email,
+                enrichedBookingData.user.name,
+                {
+                  id: bookingId,
+                  hallName: enrichedBookingData.hall?.name || 'Unknown Hall',
+                  bookingDate: enrichedBookingData.booking_date,
+                  startTime: enrichedBookingData.start_time,
+                  endTime: enrichedBookingData.end_time,
+                  purpose: enrichedBookingData.purpose,
+                },
+                rejectedReason || adminNotes
+              );
+              console.log('✅ Booking rejection email sent successfully');
+            } catch (emailError) {
+              console.error('❌ Failed to send booking rejection email:', emailError);
+              // Don't fail the entire operation if email fails
+            }
             break;
 
           case 'cancelled':
@@ -279,6 +322,27 @@ class BookingOversightService {
               adminNotes || 'Booking was cancelled by admin',
               adminName
             );
+            
+            // Send cancellation email
+            try {
+              await emailService.sendBookingCancellation(
+                enrichedBookingData.user.email,
+                enrichedBookingData.user.name,
+                {
+                  id: bookingId,
+                  hallName: enrichedBookingData.hall?.name || 'Unknown Hall',
+                  bookingDate: enrichedBookingData.booking_date,
+                  startTime: enrichedBookingData.start_time,
+                  endTime: enrichedBookingData.end_time,
+                  purpose: enrichedBookingData.purpose,
+                },
+                adminNotes
+              );
+              console.log('✅ Booking cancellation email sent successfully');
+            } catch (emailError) {
+              console.error('❌ Failed to send booking cancellation email:', emailError);
+              // Don't fail the entire operation if email fails
+            }
             break;
         }
       }
