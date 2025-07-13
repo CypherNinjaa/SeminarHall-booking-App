@@ -72,6 +72,10 @@ class SmartBookingService {
   // Buffer time in minutes (44 minutes as requested)
   private readonly BUFFER_TIME = 44;
 
+  // Throttling for expired booking checks (minimum 2 minutes between checks)
+  private lastExpiredBookingCheck = 0;
+  private readonly EXPIRED_BOOKING_CHECK_INTERVAL = 2 * 60 * 1000; // 2 minutes in milliseconds
+
   // Standard time slots for the day (24-hour format)
   private readonly TIME_SLOTS = [
     { start: '06:00', end: '08:00' }, // Early morning
@@ -846,6 +850,21 @@ class SmartBookingService {
    */
   async updateExpiredBookings(): Promise<number> {
     try {
+      // Check if user is authenticated before proceeding
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) {
+        console.log('🔄 No authenticated user, skipping expired booking check');
+        return 0;
+      }
+
+      // Throttle the expired booking checks to prevent too frequent calls
+      const now = Date.now();
+      if (now - this.lastExpiredBookingCheck < this.EXPIRED_BOOKING_CHECK_INTERVAL) {
+        console.log('🔄 Skipping expired booking check (throttled)');
+        return 0;
+      }
+      this.lastExpiredBookingCheck = now;
+
       console.log('🔄 Checking for expired bookings to mark as completed...');
       console.log('🕐 Current time:', new Date().toLocaleString());
       
