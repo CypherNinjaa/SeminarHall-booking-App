@@ -14,12 +14,15 @@ import HallListScreen from "../screens/HallListScreen";
 import BookingScreen from "../screens/BookingScreen";
 import ProfileScreen from "../screens/ProfileScreen";
 import EditProfileScreen from "../screens/EditProfileScreen";
+import BookingHistoryScreen from "../screens/BookingHistoryScreen";
 import SignupScreen from "../screens/SignupScreen";
 import SuperAdminScreen from "../screens/SuperAdminScreen";
 import NotificationsScreen from "../screens/NotificationsScreen";
 import LoadingScreen from "../components/LoadingScreen";
 import AddEditHallScreen from "../screens/admin/AddEditHallScreen";
 import HallDetailsScreen from "../screens/admin/HallDetailsScreen";
+import HelpSupportScreen from "../screens/HelpSupportScreen";
+import SettingsScreen from "../screens/SettingsScreen";
 
 // Import admin navigation
 import AdminTabNavigator from "./AdminTabNavigator";
@@ -35,6 +38,9 @@ export type RootStackParamList = {
 	AddEditHall: { hallId?: string; hall?: any } | undefined;
 	Notifications: undefined;
 	EditProfile: undefined;
+	BookingHistory: undefined;
+	HelpSupport: undefined;
+	Settings: undefined;
 };
 
 export type MainTabParamList = {
@@ -113,6 +119,10 @@ export default function AppNavigator() {
 									component={EditProfileScreen}
 								/>
 								<Stack.Screen
+									name="BookingHistory"
+									component={BookingHistoryScreen}
+								/>
+								<Stack.Screen
 									name="AddEditHall"
 									component={AddEditHallScreen}
 								/>
@@ -120,6 +130,11 @@ export default function AppNavigator() {
 									name="HallDetails"
 									component={HallDetailsScreen}
 								/>
+								<Stack.Screen
+									name="HelpSupport"
+									component={HelpSupportScreen}
+								/>
+								<Stack.Screen name="Settings" component={SettingsScreen} />
 								{user?.role === "super_admin" && (
 									// Super Admin gets access to both admin tabs and super admin screen
 									<>
