@@ -55,7 +55,8 @@ const HallCard: React.FC<{
 	onEdit: (hall: Hall) => void;
 	onToggleStatus: (hall: Hall) => void;
 	onViewDetails: (hall: Hall) => void;
-}> = ({ hall, onEdit, onToggleStatus, onViewDetails }) => {
+	onDelete: (hall: Hall) => void;
+}> = ({ hall, onEdit, onToggleStatus, onViewDetails, onDelete }) => {
 	const { isDark } = useTheme();
 
 	const getStatusColor = (isActive: boolean) => {
@@ -120,6 +121,8 @@ const HallCard: React.FC<{
 						<TouchableOpacity
 							style={[styles.actionButton, styles.editButton]}
 							onPress={() => onEdit(hall)}
+							accessibilityLabel={`Edit ${hall.name}`}
+							accessibilityHint="Edit hall details"
 						>
 							<Ionicons name="pencil" size={16} color={Colors.primary[600]} />
 						</TouchableOpacity>
@@ -131,6 +134,12 @@ const HallCard: React.FC<{
 									: styles.activateButton,
 							]}
 							onPress={() => onToggleStatus(hall)}
+							accessibilityLabel={`${
+								hall.is_active ? "Deactivate" : "Activate"
+							} ${hall.name}`}
+							accessibilityHint={`${
+								hall.is_active ? "Deactivate" : "Activate"
+							} this hall`}
 						>
 							<Ionicons
 								name={hall.is_active ? "pause" : "play"}
@@ -138,6 +147,18 @@ const HallCard: React.FC<{
 								color={
 									hall.is_active ? Colors.warning.main : Colors.success.main
 								}
+							/>
+						</TouchableOpacity>
+						<TouchableOpacity
+							style={[styles.actionButton, styles.deleteButton]}
+							onPress={() => onDelete(hall)}
+							accessibilityLabel={`Delete ${hall.name}`}
+							accessibilityHint="Delete this hall permanently"
+						>
+							<Ionicons
+								name="trash-outline"
+								size={16}
+								color={Colors.error.main}
 							/>
 						</TouchableOpacity>
 					</View>
@@ -488,6 +509,47 @@ export default function HallManagementScreen({
 		);
 	};
 
+	const handleDeleteHall = async (hall: Hall) => {
+		Alert.alert(
+			"Delete Hall",
+			`Are you sure you want to delete "${hall.name}"? This action cannot be undone.\n\nNote: Halls with active bookings cannot be deleted.`,
+			[
+				{ text: "Cancel", style: "cancel" },
+				{
+					text: "Delete",
+					style: "destructive",
+					onPress: async () => {
+						try {
+							// Use real service call to delete hall
+							await hallManagementService.deleteHall(hall.id);
+
+							// Reload halls to get updated data
+							loadHalls();
+
+							Alert.alert(
+								"Success",
+								`${hall.name} has been deleted successfully.`
+							);
+						} catch (error) {
+							console.error("Error deleting hall:", error);
+							const errorMessage =
+								error instanceof Error
+									? error.message
+									: "Unknown error occurred";
+
+							Alert.alert(
+								"Delete Failed",
+								errorMessage.includes("active bookings")
+									? "Cannot delete hall with active bookings. Please cancel or complete all future bookings first."
+									: "Failed to delete hall. Please try again."
+							);
+						}
+					},
+				},
+			]
+		);
+	};
+
 	const handleViewHallDetails = (hall: Hall) => {
 		navigation.navigate("HallDetails", { hallId: hall.id, hall });
 	};
@@ -576,6 +638,7 @@ export default function HallManagementScreen({
 							onEdit={handleEditHall}
 							onToggleStatus={handleToggleHallStatus}
 							onViewDetails={handleViewHallDetails}
+							onDelete={handleDeleteHall}
 						/>
 					)}
 					contentContainerStyle={[styles.listContent, { paddingBottom: 80 }]}
@@ -886,6 +949,9 @@ const styles = StyleSheet.create({
 	},
 	editButton: {
 		backgroundColor: Colors.primary[100],
+	},
+	deleteButton: {
+		backgroundColor: Colors.error.light,
 	},
 	activateButton: {
 		backgroundColor: Colors.success.light,

@@ -130,10 +130,18 @@ const AdminReportsScreen: React.FC = () => {
 	const loadReports = useCallback(async () => {
 		try {
 			setLoading(true);
+			console.log(
+				`[AdminReportsScreen] Loading reports for ${selectedTimeRange.value}`
+			);
+
+			// Debug database contents
+			await adminReportsService.debugDatabaseContents();
+
 			// Use real service call
 			const reportsData = await adminReportsService.getMetrics(
 				selectedTimeRange.value
 			);
+			console.log("[AdminReportsScreen] Reports data received:", reportsData);
 			setMetrics(reportsData);
 		} catch (error) {
 			console.error("Error loading reports:", error);

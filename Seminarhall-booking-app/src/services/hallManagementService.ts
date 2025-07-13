@@ -331,19 +331,31 @@ class HallManagementService {
         throw new Error('Hall not found');
       }
 
-      // Check if hall has active bookings
+      // Check if hall has active bookings in smart_bookings table
+      // Need to format current date as DDMMYYYY format
+      const today = new Date();
+      const currentDateStr = today.getDate().toString().padStart(2, '0') + 
+                            (today.getMonth() + 1).toString().padStart(2, '0') + 
+                            today.getFullYear().toString();
+
+      console.log(`[HallManagement] Checking for active bookings after ${currentDateStr}`);
+
       const { data: activeBookings, error: bookingsError } = await supabase
-        .from('bookings')
-        .select('id')
+        .from('smart_bookings')
+        .select('id, booking_date, start_time, status')
         .eq('hall_id', id)
-        .gte('start_time', new Date().toISOString())
-        .eq('status', 'confirmed');
+        .gte('booking_date', currentDateStr)
+        .in('status', ['pending', 'approved']);
 
       if (bookingsError) {
+        console.error('[HallManagement] Error checking active bookings:', bookingsError);
         throw bookingsError;
       }
 
+      console.log(`[HallManagement] Found ${activeBookings?.length || 0} future bookings for hall ${id}`);
+
       if (activeBookings && activeBookings.length > 0) {
+        console.log(`[HallManagement] Active bookings found:`, activeBookings);
         throw new Error('Cannot delete hall with active bookings');
       }
 
@@ -357,8 +369,11 @@ class HallManagementService {
         .eq('id', id);
 
       if (error) {
+        console.error('[HallManagement] Error updating hall status:', error);
         throw error;
       }
+
+      console.log(`[HallManagement] Successfully deactivated hall ${id}`);
 
       // Log the activity
       await this.logHallActivity('hall_deleted', {
