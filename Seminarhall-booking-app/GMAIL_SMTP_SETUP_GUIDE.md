@@ -25,8 +25,8 @@ Replace the placeholders in your `.env` file:
 
 ```env
 # Gmail SMTP Configuration
-GMAIL_SMTP_HOST=smtp.gmail.com
-GMAIL_SMTP_PORT=587
+GMAIL_SMTP_HOST=smtp.example.com
+GMAIL_SMTP_PORT=*******
 GMAIL_SMTP_SECURE=false
 GMAIL_SMTP_USER=your-actual-email@gmail.com
 GMAIL_SMTP_PASSWORD=your-16-character-app-password
