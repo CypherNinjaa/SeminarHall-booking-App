@@ -456,7 +456,7 @@ class SmartBookingService {
       const bufferTimes = this.addBufferTime(bookingData.start_time, bookingData.end_time);
       const duration = this.calculateDuration(bookingData.start_time, bookingData.end_time);
 
-      // Create booking object
+      // Create booking object - Always start as pending for admin approval
       const newBooking = {
         user_id: userId,
         hall_id: bookingData.hall_id,
@@ -469,12 +469,12 @@ class SmartBookingService {
         attendees_count: bookingData.attendees_count,
         equipment_needed: bookingData.equipment_needed || [],
         special_requirements: bookingData.special_requirements || null,
-        status: 'approved' as const, // Auto-approve since slot is available
+        status: 'pending' as const, // Start as pending for admin approval
         priority: bookingData.priority || 'medium',
-        auto_approved: true,
+        auto_approved: false, // Require admin approval
         buffer_start: bufferTimes.bufferStart,
         buffer_end: bufferTimes.bufferEnd,
-        approved_at: new Date().toISOString(),
+        approved_at: null, // Will be set when admin approves
       };
 
       // Insert into database
