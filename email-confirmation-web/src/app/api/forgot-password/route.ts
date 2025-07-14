@@ -7,24 +7,19 @@ export async function POST(request: NextRequest) {
 		const { email, redirectTo } = body;
 
 		if (!email) {
-			return NextResponse.json(
-				{ error: "Email is required" },
-				{ status: 400 }
-			);
+			return NextResponse.json({ error: "Email is required" }, { status: 400 });
 		}
 
 		// Set default redirect URL if not provided
-		const resetRedirectTo = redirectTo || `${request.nextUrl.origin}/forgot-password`;
+		const resetRedirectTo =
+			redirectTo || `${request.nextUrl.origin}/forgot-password`;
 
 		const { error } = await supabase.auth.resetPasswordForEmail(email, {
 			redirectTo: resetRedirectTo,
 		});
 
 		if (error) {
-			return NextResponse.json(
-				{ error: error.message },
-				{ status: 400 }
-			);
+			return NextResponse.json({ error: error.message }, { status: 400 });
 		}
 
 		return NextResponse.json({
