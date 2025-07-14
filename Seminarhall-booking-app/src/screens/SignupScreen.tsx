@@ -379,7 +379,7 @@ export default function SignupScreen({ navigation }: Props) {
 			// Show success message
 			Alert.alert(
 				"Registration Successful",
-				"Your account has been created. Please wait for admin approval.",
+				"Your account has been created! Please check your email and click the verification link before logging in. After verification, wait for admin approval to access the app.",
 				[
 					{
 						text: "OK",

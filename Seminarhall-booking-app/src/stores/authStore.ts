@@ -32,7 +32,11 @@ interface AuthState {
 	login: (email: string, password: string) => Promise<void>;
 	logout: () => Promise<void>;
 	register: (userData: Partial<User> & { password: string }) => Promise<void>;
+	checkEmailVerification: (email: string) => Promise<{ isVerified: boolean; message: string }>;
+	resendVerificationEmail: (email: string) => Promise<{ success: boolean; message: string }>;
 	updateProfile: (updates: Partial<User>) => Promise<void>;
+	requestPasswordReset: (email: string) => Promise<{ success: boolean; message: string }>;
+	updatePassword: (newPassword: string) => Promise<void>;
 	clearError: () => void;
 	initializeAuth: () => Promise<void>;
 	setupAuthListener: () => void;
@@ -349,6 +353,12 @@ export const useAuthStore = create<AuthState>()(
 						throw new Error("Authentication failed");
 					}
 
+					// Check if email is verified
+					if (!authData.user.email_confirmed_at) {
+						await supabase.auth.signOut();
+						throw new Error("Please verify your email address before logging in. Check your email for the verification link.");
+					}
+
 					// Get user profile from the profiles table with retries
 					let profileData = null;
 					let profileError = null;
@@ -454,15 +464,100 @@ export const useAuthStore = create<AuthState>()(
 				}
 			},
 
+			checkEmailVerification: async (email: string): Promise<{ isVerified: boolean; message: string }> => {
+				try {
+					console.log('🔍 Checking email verification status for:', email);
+
+					// Get user from Supabase Auth
+					const { data: { users }, error } = await supabase.auth.admin.listUsers();
+					
+					if (error) {
+						throw new Error(error.message);
+					}
+
+					const user = users.find(u => u.email === email);
+					
+					if (!user) {
+						return {
+							isVerified: false,
+							message: 'User not found. Please check your email address.'
+						};
+					}
+
+					const isVerified = user.email_confirmed_at !== null;
+					
+					console.log(`✅ Email verification status for ${email}:`, isVerified);
+					
+					return {
+						isVerified,
+						message: isVerified 
+							? 'Email is verified. You can now login.' 
+							: 'Email not verified. Please check your email and click the verification link.'
+					};
+				} catch (error) {
+					console.error("❌ Email verification check error:", error);
+					return {
+						isVerified: false,
+						message: error instanceof Error ? error.message : 'Failed to check email verification status'
+					};
+				}
+			},
+
+			resendVerificationEmail: async (email: string): Promise<{ success: boolean; message: string }> => {
+				set({ isLoading: true, error: null });
+
+				try {
+					console.log('📧 Resending verification email to:', email);
+
+					const { error } = await supabase.auth.resend({
+						type: 'signup',
+						email: email,
+						options: {
+							emailRedirectTo: 'https://seminarhall-ivory.vercel.app/email-verification'
+						}
+					});
+
+					if (error) {
+						throw new Error(error.message);
+					}
+
+					console.log('✅ Verification email resent successfully');
+					set({ isLoading: false, error: null });
+					
+					return {
+						success: true,
+						message: 'Verification email has been resent. Please check your email and click the verification link.',
+					};
+				} catch (error) {
+					console.error("❌ Resend verification email error:", error);
+					const errorMessage = error instanceof Error 
+						? error.message 
+						: "Failed to resend verification email";
+					
+					set({
+						error: errorMessage,
+						isLoading: false,
+					});
+					
+					return {
+						success: false,
+						message: errorMessage,
+					};
+				}
+			},
+
 			register: async (userData) => {
 				set({ isLoading: true, error: null });
 
 				try {
-					// Create user in Supabase Auth
+					// Create user in Supabase Auth with email verification
 					const { data: authData, error: authError } =
 						await supabase.auth.signUp({
 							email: userData.email!,
 							password: userData.password,
+							options: {
+								emailRedirectTo: 'https://seminarhall-ivory.vercel.app/email-verification'
+							}
 						});
 
 					if (authError) {
@@ -631,6 +726,79 @@ export const useAuthStore = create<AuthState>()(
 					set({
 						error:
 							error instanceof Error ? error.message : "Profile update failed",
+						isLoading: false,
+					});
+					throw error;
+				}
+			},
+
+			requestPasswordReset: async (email: string): Promise<{ success: boolean; message: string }> => {
+				set({ isLoading: true, error: null });
+
+				try {
+					console.log('🔄 Requesting password reset for:', email);
+
+					// Send password reset email using Supabase Auth with website redirect
+					const { error: resetError } = await supabase.auth.resetPasswordForEmail(
+						email,
+						{
+							// Redirect to your website's password reset page
+							// Your website should then redirect to: seminarhallbooking://auth/password-reset-success
+							redirectTo: 'https://seminarhall-ivory.vercel.app/forgot-password'
+						}
+					);
+
+					if (resetError) {
+						throw new Error(resetError.message);
+					}
+
+					console.log('✅ Password reset email sent successfully');
+					set({ isLoading: false, error: null });
+					
+					return {
+						success: true,
+						message: 'Password reset link has been sent to your email address. Please check your email and follow the link to reset your password on our website.',
+					};
+				} catch (error) {
+					console.error("❌ Password reset error:", error);
+					const errorMessage = error instanceof Error 
+						? error.message 
+						: "Failed to send password reset email";
+					
+					set({
+						error: errorMessage,
+						isLoading: false,
+					});
+					
+					return {
+						success: false,
+						message: errorMessage,
+					};
+				}
+			},
+
+			updatePassword: async (newPassword: string) => {
+				set({ isLoading: true, error: null });
+
+				try {
+					// Update password using Supabase Auth
+					const { error: updateError } = await supabase.auth.updateUser({
+						password: newPassword
+					});
+
+					if (updateError) {
+						throw new Error(updateError.message);
+					}
+
+					set({ isLoading: false, error: null });
+				} catch (error) {
+					console.error("Password update error:", error);
+					const errorMessage = error instanceof Error 
+						? error.message 
+						: "Failed to update password";
+					
+					set({
+						error: errorMessage,
 						isLoading: false,
 					});
 					throw error;
