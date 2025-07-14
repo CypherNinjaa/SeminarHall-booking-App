@@ -1,11 +1,29 @@
 {
-	"extends": "expo/tsconfig.base",
 	"compilerOptions": {
 		"strict": true,
 		"jsx": "react-jsx",
 		"esModuleInterop": true,
 		"allowSyntheticDefaultImports": true,
-		"moduleResolution": "bundler",
-		"skipLibCheck": true
-	}
+		"module": "esnext",
+		"moduleResolution": "node",
+		"skipLibCheck": true,
+		"target": "es2017",
+		"lib": ["es2017", "dom"],
+		"allowJs": true,
+		"forceConsistentCasingInFileNames": true,
+		"noEmit": true,
+		"incremental": true,
+		"resolveJsonModule": true,
+		"isolatedModules": true,
+		"noFallthroughCasesInSwitch": true,
+		"noImplicitReturns": true,
+		"noUnusedLocals": false,
+		"noUnusedParameters": false,
+		"baseUrl": "./",
+		"paths": {
+			"@/*": ["src/*"]
+		}
+	},
+	"include": ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx"],
+	"exclude": ["node_modules", "babel.config.js", "metro.config.js"]
 }

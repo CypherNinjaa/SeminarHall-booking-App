@@ -4,8 +4,8 @@
   "main": "index.ts",
   "scripts": {
     "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
     "web": "expo start --web"
   },
   "dependencies": {
@@ -18,7 +18,7 @@
     "@react-navigation/stack": "^7.4.2",
     "@supabase/supabase-js": "^2.50.3",
     "@tanstack/react-query": "^5.81.5",
-    "expo": "~53.0.17",
+    "expo": "53.0.19",
     "expo-blur": "~14.1.5",
     "expo-device": "~7.1.4",
     "expo-document-picker": "^13.1.6",
@@ -48,6 +48,13 @@
     "@types/react": "~19.0.10",
     "babel-preset-expo": "~13.0.0",
     "typescript": "~5.8.3"
+  },
+  "expo": {
+    "doctor": {
+      "reactNativeDirectoryCheck": {
+        "listUnknownPackages": false
+      }
+    }
   },
   "private": true
 }
