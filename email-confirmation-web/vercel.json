@@ -4,6 +4,11 @@
 	"outputDirectory": ".next",
 	"installCommand": "npm install",
 	"devCommand": "npm run dev",
+	"functions": {
+		"src/app/api/forgot-password/route.ts": {
+			"runtime": "nodejs18.x"
+		}
+	},
 	"headers": [
 		{
 			"source": "/(.*)",
