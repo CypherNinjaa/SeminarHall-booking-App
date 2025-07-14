@@ -321,3 +321,99 @@ For technical support or questions about the email system, contact:
 - **v1.0.0**: Initial SMTP setup with booking confirmation
 - **v2.0.0**: Added comprehensive email templates for all booking statuses
 - **v2.1.0**: Added mobile app integration support
+- **v2.2.0**: Integrated password reset system with Supabase Auth
+
+## Password Reset System
+
+The app now includes a comprehensive password reset system that integrates with Supabase Auth:
+
+### Forgot Password Page
+**URL**: `/forgot-password`
+
+This page handles two scenarios:
+1. **Request Password Reset**: Users can enter their email to receive a reset link
+2. **Reset Password**: When users click the reset link in their email, they're redirected here to set a new password
+
+### Features:
+- **Responsive Design**: Works on all devices with beautiful UI
+- **Email Validation**: Validates email format before sending
+- **Password Strength**: Enforces minimum 6-character passwords
+- **Loading States**: Shows loading indicators during requests
+- **Error Handling**: Displays clear error messages
+- **Success Messages**: Confirms successful operations
+- **Auto-redirect**: Redirects to main app after successful password reset
+
+### Supabase Configuration
+
+To use the password reset functionality, configure your Supabase project:
+
+1. **Email Templates**: Set up custom email templates in Supabase Dashboard
+2. **Redirect URLs**: Add your domain to allowed redirect URLs:
+   ```
+   https://your-domain.com/forgot-password
+   http://localhost:3000/forgot-password (for development)
+   ```
+
+### API Endpoints
+
+#### Forgot Password API
+**Endpoint**: `POST /api/forgot-password`
+
+**Request Body**:
+```json
+{
+    "email": "user@example.com",
+    "redirectTo": "https://your-domain.com/forgot-password" // optional
+}
+```
+
+**Response**:
+```json
+{
+    "success": true,
+    "message": "Password reset email sent successfully"
+}
+```
+
+### Usage Examples
+
+#### Web Interface
+Users can visit `/forgot-password` directly to:
+1. Enter their email address
+2. Receive a reset link via email
+3. Click the link to return and set a new password
+
+#### Mobile App Integration
+```javascript
+// Request password reset
+const response = await fetch('/api/forgot-password', {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+        email: userEmail,
+        redirectTo: 'https://your-domain.com/forgot-password'
+    })
+});
+```
+
+#### Deep Linking
+The mobile app can implement deep linking to handle password reset URLs:
+```javascript
+// Handle deep link in React Native
+const handlePasswordReset = (url) => {
+    if (url.includes('/forgot-password')) {
+        // Extract tokens from URL
+        const urlParams = new URLSearchParams(url.split('?')[1]);
+        const accessToken = urlParams.get('access_token');
+        const refreshToken = urlParams.get('refresh_token');
+        const type = urlParams.get('type');
+        
+        if (type === 'recovery' && accessToken) {
+            // Navigate to password reset screen in app
+            navigateToPasswordReset({ accessToken, refreshToken });
+        }
+    }
+};
+```
