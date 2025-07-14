@@ -328,13 +328,16 @@ For technical support or questions about the email system, contact:
 The app now includes a comprehensive password reset system that integrates with Supabase Auth:
 
 ### Forgot Password Page
+
 **URL**: `/forgot-password`
 
 This page handles two scenarios:
+
 1. **Request Password Reset**: Users can enter their email to receive a reset link
 2. **Reset Password**: When users click the reset link in their email, they're redirected here to set a new password
 
 ### Features:
+
 - **Responsive Design**: Works on all devices with beautiful UI
 - **Email Validation**: Validates email format before sending
 - **Password Strength**: Enforces minimum 6-character passwords
@@ -357,63 +360,71 @@ To use the password reset functionality, configure your Supabase project:
 ### API Endpoints
 
 #### Forgot Password API
+
 **Endpoint**: `POST /api/forgot-password`
 
 **Request Body**:
+
 ```json
 {
-    "email": "user@example.com",
-    "redirectTo": "https://your-domain.com/forgot-password" // optional
+	"email": "user@example.com",
+	"redirectTo": "https://your-domain.com/forgot-password" // optional
 }
 ```
 
 **Response**:
+
 ```json
 {
-    "success": true,
-    "message": "Password reset email sent successfully"
+	"success": true,
+	"message": "Password reset email sent successfully"
 }
 ```
 
 ### Usage Examples
 
 #### Web Interface
+
 Users can visit `/forgot-password` directly to:
+
 1. Enter their email address
 2. Receive a reset link via email
 3. Click the link to return and set a new password
 
 #### Mobile App Integration
+
 ```javascript
 // Request password reset
-const response = await fetch('/api/forgot-password', {
-    method: 'POST',
-    headers: {
-        'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-        email: userEmail,
-        redirectTo: 'https://your-domain.com/forgot-password'
-    })
+const response = await fetch("/api/forgot-password", {
+	method: "POST",
+	headers: {
+		"Content-Type": "application/json",
+	},
+	body: JSON.stringify({
+		email: userEmail,
+		redirectTo: "https://your-domain.com/forgot-password",
+	}),
 });
 ```
 
 #### Deep Linking
+
 The mobile app can implement deep linking to handle password reset URLs:
+
 ```javascript
 // Handle deep link in React Native
 const handlePasswordReset = (url) => {
-    if (url.includes('/forgot-password')) {
-        // Extract tokens from URL
-        const urlParams = new URLSearchParams(url.split('?')[1]);
-        const accessToken = urlParams.get('access_token');
-        const refreshToken = urlParams.get('refresh_token');
-        const type = urlParams.get('type');
-        
-        if (type === 'recovery' && accessToken) {
-            // Navigate to password reset screen in app
-            navigateToPasswordReset({ accessToken, refreshToken });
-        }
-    }
+	if (url.includes("/forgot-password")) {
+		// Extract tokens from URL
+		const urlParams = new URLSearchParams(url.split("?")[1]);
+		const accessToken = urlParams.get("access_token");
+		const refreshToken = urlParams.get("refresh_token");
+		const type = urlParams.get("type");
+
+		if (type === "recovery" && accessToken) {
+			// Navigate to password reset screen in app
+			navigateToPasswordReset({ accessToken, refreshToken });
+		}
+	}
 };
 ```
