@@ -10,6 +10,7 @@ import { useAuthStore } from "../stores/authStore";
 // Import screens
 import HomeScreen from "../screens/HomeScreen";
 import LoginScreen from "../screens/LoginScreen";
+import ForgotPasswordScreen from "../screens/ForgotPasswordScreen";
 import HallListScreen from "../screens/HallListScreen";
 import BookingScreen from "../screens/BookingScreen";
 import ProfileScreen from "../screens/ProfileScreen";
@@ -30,6 +31,7 @@ import AdminTabNavigator from "./AdminTabNavigator";
 export type RootStackParamList = {
 	Login: undefined;
 	Signup: undefined;
+	ForgotPassword: undefined;
 	MainTabs: undefined;
 	AdminTabs: undefined;
 	SuperAdmin: undefined;
@@ -41,6 +43,9 @@ export type RootStackParamList = {
 	BookingHistory: undefined;
 	HelpSupport: undefined;
 	Settings: undefined;
+	"auth/email-verified": undefined;
+	"auth/password-reset-success": undefined;
+	"auth/login": undefined;
 };
 
 export type MainTabParamList = {
@@ -90,6 +95,25 @@ function MainTabNavigator() {
 export default function AppNavigator() {
 	const { isAuthenticated, isLoading, user } = useAuthStore();
 
+	// Deep linking configuration for website redirects
+	const linking = {
+		prefixes: ["seminarhallbooking://"],
+		config: {
+			screens: {
+				Login: "login",
+				Signup: "signup",
+				ForgotPassword: "forgot-password",
+				MainTabs: "main",
+				AdminTabs: "admin",
+				SuperAdmin: "super-admin",
+				// Auth-related deep links from website
+				"auth/email-verified": "main",
+				"auth/password-reset-success": "login",
+				"auth/login": "login",
+			},
+		},
+	};
+
 	// Show loading spinner while initializing auth
 	if (isLoading) {
 		return (
@@ -104,7 +128,7 @@ export default function AppNavigator() {
 	return (
 		<ThemeProvider>
 			<SafeAreaProvider>
-				<NavigationContainer>
+				<NavigationContainer linking={linking}>
 					<Stack.Navigator screenOptions={{ headerShown: false }}>
 						{isAuthenticated ? (
 							// Authenticated screens - Always start with MainTabs for all users
@@ -161,6 +185,10 @@ export default function AppNavigator() {
 							<>
 								<Stack.Screen name="Login" component={LoginScreen} />
 								<Stack.Screen name="Signup" component={SignupScreen} />
+								<Stack.Screen
+									name="ForgotPassword"
+									component={ForgotPasswordScreen}
+								/>
 							</>
 						)}
 					</Stack.Navigator>

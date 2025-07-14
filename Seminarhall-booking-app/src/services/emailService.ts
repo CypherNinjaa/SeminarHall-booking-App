@@ -33,50 +33,57 @@ export interface SendEmailRequest {
 }
 
 class EmailService {
+  private readonly WEBSITE_EMAIL_API_URL = 'https://seminarhall-ivory.vercel.app'; // Your website's production domain
+  
   private readonly VERCEL_EMAIL_API_URL = 'https://seminarhall-ivory.vercel.app/api/send-email';
   private readonly LOCAL_EMAIL_API_URL = 'http://192.168.196.170:3000/api/send-email';
   private readonly MAX_RETRY_ATTEMPTS = 3;
   private readonly RETRY_DELAY = 5000; // 5 seconds
 
   /**
-   * Get the appropriate API URL (Vercel for now, local for future development)
+   * Get the appropriate API URL - prioritize your website's email API
    */
   private getEmailApiUrl(): string {
-    // For now, always use Vercel since local network setup can be tricky
-    // TODO: Fix local development setup later
-    return this.VERCEL_EMAIL_API_URL;
+    // Use your website's email API as primary, fallback to Vercel
+    return this.WEBSITE_EMAIL_API_URL;
   }
 
   /**
-   * Send email using Vercel/Local API
+   * Get the forgot password API URL
+   */
+  private getForgotPasswordApiUrl(): string {
+    return `${this.WEBSITE_EMAIL_API_URL}/api/forgot-password`;
+  }
+
+  /**
+   * Send email using your website's email API
    */
   async sendEmail(template: EmailNotification['template_type'], emailData: EmailData): Promise<boolean> {
     try {
       console.log(`📧 Sending ${template} email to ${emailData.to}`);
 
-      // Prepare email data for API
+      // Prepare email data for your website's API format
       const emailPayload = {
-        toEmail: emailData.to,
-        subject: this.getEmailSubject(template),
         emailType: template,
+        toEmail: emailData.to,
         data: {
           userName: emailData.name || 'User',
-          bookingId: emailData.bookingId,
-          hallName: emailData.hallName,
-          bookingDate: emailData.bookingDate,
-          startTime: emailData.startTime,
-          endTime: emailData.endTime,
-          purpose: emailData.purpose,
-          rejectionReason: emailData.reason,
-          adminMessage: emailData.reason,
+          hallName: emailData.hallName || '',
+          bookingDate: emailData.bookingDate || '',
+          startTime: emailData.startTime || '',
+          endTime: emailData.endTime || '',
+          purpose: emailData.purpose || '',
+          bookingId: emailData.bookingId || '',
+          adminMessage: template === 'booking_approved' ? (emailData.reason || 'Your booking has been approved.') : undefined,
+          rejectionReason: template === 'booking_rejected' ? (emailData.reason || 'Unable to approve your booking.') : undefined,
           timeUntil: this.calculateTimeUntil(emailData.bookingDate, emailData.startTime),
         }
       };
 
-      const apiUrl = this.getEmailApiUrl();
+      const apiUrl = `${this.getEmailApiUrl()}/api/send-email`;
       console.log(`📤 Using email API: ${apiUrl}`);
 
-      // Call the Email API
+      // Call your website's Email API
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
@@ -95,14 +102,167 @@ class EmailService {
       
       if (!result.success) {
         console.error('❌ Email sending failed:', result);
-        throw new Error(result.error || 'Failed to send email');
+        throw new Error(result.message || 'Failed to send email');
       }
 
       console.log('✅ Email sent successfully:', result.message);
       return true;
     } catch (error) {
       console.error('❌ Error in sendEmail:', error);
-      return false; // Return false instead of throwing to prevent app crashes
+      
+      // Fallback to Vercel API if website API fails
+      try {
+        console.log('📧 Attempting fallback to Vercel API...');
+        return await this.sendEmailFallback(template, emailData);
+      } catch (fallbackError) {
+        console.error('❌ Fallback email also failed:', fallbackError);
+        return false;
+      }
+    }
+  }
+
+  /**
+   * Fallback email method using Vercel API
+   */
+  private async sendEmailFallback(template: EmailNotification['template_type'], emailData: EmailData): Promise<boolean> {
+    try {
+      const emailPayload = {
+        toEmail: emailData.to,
+        subject: this.getEmailSubject(template),
+        emailType: template,
+        data: {
+          userName: emailData.name || 'User',
+          bookingId: emailData.bookingId,
+          hallName: emailData.hallName,
+          bookingDate: emailData.bookingDate,
+          startTime: emailData.startTime,
+          endTime: emailData.endTime,
+          purpose: emailData.purpose,
+          rejectionReason: emailData.reason,
+          adminMessage: emailData.reason,
+          timeUntil: this.calculateTimeUntil(emailData.bookingDate, emailData.startTime),
+        }
+      };
+
+      const response = await fetch(this.VERCEL_EMAIL_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(emailPayload),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Fallback email service error: ${response.status}`);
+      }
+
+      const result = await response.json();
+      return result.success;
+    } catch (error) {
+      console.error('❌ Fallback email error:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Send password reset email using your website's forgot password API
+   */
+  async sendPasswordResetEmail(
+    userEmail: string,
+    redirectUrl?: string
+  ): Promise<{ success: boolean; message: string }> {
+    try {
+      console.log(`� Sending password reset email to ${userEmail}`);
+
+      const resetPayload = {
+        email: userEmail,
+        redirectTo: redirectUrl || `${this.WEBSITE_EMAIL_API_URL}/forgot-password`
+      };
+
+      const apiUrl = this.getForgotPasswordApiUrl();
+      console.log(`📤 Using forgot password API: ${apiUrl}`);
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(resetPayload),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Password reset API error:', errorText);
+        throw new Error(`Password reset service error: ${response.status} - ${errorText}`);
+      }
+
+      const result = await response.json();
+      
+      if (!result.success) {
+        console.error('❌ Password reset failed:', result);
+        throw new Error(result.message || 'Failed to send password reset email');
+      }
+
+      console.log('✅ Password reset email sent successfully:', result.message);
+      return { success: true, message: result.message };
+    } catch (error) {
+      console.error('❌ Error in sendPasswordResetEmail:', error);
+      return { 
+        success: false, 
+        message: error instanceof Error ? error.message : 'Failed to send password reset email'
+      };
+    }
+  }
+
+  /**
+   * Test email configuration using your website's test API
+   */
+  async testEmailConfiguration(
+    testEmail: string,
+    subject: string = 'Test Email',
+    message: string = 'This is a test email from the Amity Seminar Hall Booking App'
+  ): Promise<{ success: boolean; message: string }> {
+    try {
+      console.log(`🧪 Testing email configuration with ${testEmail}`);
+
+      const testPayload = {
+        to: testEmail,
+        subject,
+        message
+      };
+
+      const apiUrl = `${this.getEmailApiUrl()}/api/test-email`;
+      console.log(`📤 Using test email API: ${apiUrl}`);
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(testPayload),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Test email API error:', errorText);
+        throw new Error(`Test email service error: ${response.status} - ${errorText}`);
+      }
+
+      const result = await response.json();
+      
+      if (!result.success) {
+        console.error('❌ Test email failed:', result);
+        throw new Error(result.message || 'Failed to send test email');
+      }
+
+      console.log('✅ Test email sent successfully:', result.message);
+      return { success: true, message: result.message };
+    } catch (error) {
+      console.error('❌ Error in testEmailConfiguration:', error);
+      return { 
+        success: false, 
+        message: error instanceof Error ? error.message : 'Failed to send test email'
+      };
     }
   }
 

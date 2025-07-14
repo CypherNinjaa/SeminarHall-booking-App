@@ -62,10 +62,12 @@ export default function LoginScreen({ navigation }: Props) {
 			// navigation.navigate("MainTabs");
 		} catch (error) {
 			Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-			Alert.alert(
-				"Login Failed",
-				"Please check your credentials and try again"
-			);
+			// Show the specific error message from auth store (includes email verification errors)
+			const errorMessage =
+				error instanceof Error
+					? error.message
+					: "Login failed. Please check your credentials and try again.";
+			Alert.alert("Login Failed", errorMessage);
 		} finally {
 			setIsLoading(false);
 		}
@@ -222,7 +224,11 @@ export default function LoginScreen({ navigation }: Props) {
 							</TouchableOpacity>
 
 							{/* Forgot Password */}
-							<TouchableOpacity style={styles.forgotPasswordButton}>
+							<TouchableOpacity
+								style={styles.forgotPasswordButton}
+								onPress={() => navigation.navigate("ForgotPassword")}
+								activeOpacity={0.7}
+							>
 								<Text style={styles.forgotPasswordText}>
 									Forgot your password?
 								</Text>

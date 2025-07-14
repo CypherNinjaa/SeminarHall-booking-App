@@ -1,7 +1,75 @@
+"use client";
+
+import { useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { CheckCircle, Mail, Smartphone, Download } from "lucide-react";
 
-export default function HomePage() {
+function HomePageContent() {
+	const router = useRouter();
+	const searchParams = useSearchParams();
+
+	useEffect(() => {
+		// Check URL hash first (newer Supabase method)
+		const hash = window.location.hash;
+		const hashParams = new URLSearchParams(hash.substring(1));
+		let type: string | null = hashParams.get("type");
+		let accessToken: string | null = hashParams.get("access_token");
+		let refreshToken: string | null = hashParams.get("refresh_token");
+
+		// Fallback: check search params for older method
+		if (!type) {
+			type = searchParams?.get("type") || null;
+		}
+		const token = searchParams?.get("token");
+		if (!accessToken) {
+			accessToken = searchParams?.get("access_token") || null;
+			refreshToken = searchParams?.get("refresh_token") || null;
+		}
+
+		console.log("Homepage redirect check:", {
+			type,
+			token: !!token,
+			accessToken: !!accessToken,
+			refreshToken: !!refreshToken,
+		});
+
+		// Handle email verification redirect
+		if (type === "signup" && (token || (accessToken && refreshToken))) {
+			console.log("Redirecting to email verification");
+			// For hash-based tokens, preserve them in the URL
+			if (hash) {
+				router.replace(`/email-verification${hash}`);
+			} else {
+				// For search param tokens, convert to query string
+				const params = new URLSearchParams();
+				if (token) params.set("token", token);
+				if (type) params.set("type", type);
+				if (accessToken) params.set("access_token", accessToken);
+				if (refreshToken) params.set("refresh_token", refreshToken);
+				router.replace(`/email-verification?${params.toString()}`);
+			}
+			return;
+		}
+
+		// Handle password reset redirect
+		if (type === "recovery" && (token || (accessToken && refreshToken))) {
+			console.log("Redirecting to password reset");
+			// For hash-based tokens, preserve them in the URL
+			if (hash) {
+				router.replace(`/forgot-password${hash}`);
+			} else {
+				// For search param tokens, convert to query string
+				const params = new URLSearchParams();
+				if (token) params.set("token", token);
+				if (type) params.set("type", type);
+				if (accessToken) params.set("access_token", accessToken);
+				if (refreshToken) params.set("refresh_token", refreshToken);
+				router.replace(`/forgot-password?${params.toString()}`);
+			}
+			return;
+		}
+	}, [searchParams, router]);
 	return (
 		<div className="min-h-screen flex items-center justify-center p-4">
 			<div className="max-w-md w-full">
@@ -82,5 +150,22 @@ export default function HomePage() {
 				</div>
 			</div>
 		</div>
+	);
+}
+
+export default function HomePage() {
+	return (
+		<Suspense
+			fallback={
+				<div className="min-h-screen flex items-center justify-center p-4">
+					<div className="text-white text-center">
+						<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-4"></div>
+						<p>Loading...</p>
+					</div>
+				</div>
+			}
+		>
+			<HomePageContent />
+		</Suspense>
 	);
 }
