@@ -1,5 +1,6 @@
 import { supabase } from './userManagementService';
 import { emailService } from './emailService';
+import { notificationService } from './notificationService';
 
 // Enhanced Types for Smart Booking System
 export interface SmartBooking {
@@ -107,6 +108,16 @@ class SmartBookingService {
     const month = parseInt(dateString.substring(2, 4)) - 1; // Month is 0-indexed
     const year = parseInt(dateString.substring(4, 8));
     return new Date(year, month, day);
+  }
+
+  /**
+   * Format DDMMYYYY to display format (DD/MM/YYYY)
+   */
+  private formatDateForDisplay(dateString: string): string {
+    const day = dateString.substring(0, 2);
+    const month = dateString.substring(2, 4);
+    const year = dateString.substring(4, 8);
+    return `${day}/${month}/${year}`;
   }
 
   /**
@@ -521,6 +532,26 @@ class SmartBookingService {
       } catch (emailError) {
         console.error('❌ Failed to send booking confirmation email:', emailError);
         // Don't fail the booking creation if email fails
+      }
+
+      // Create in-app notification for booking confirmation
+      try {
+        await notificationService.createNotification({
+          userId: completeBooking.user_id,
+          title: '🎉 Booking Confirmed!',
+          message: `Your booking for ${completeBooking.hall_name} on ${this.formatDateForDisplay(completeBooking.booking_date)} from ${completeBooking.start_time} to ${completeBooking.end_time} has been submitted and is pending approval.`,
+          type: 'booking',
+          data: {
+            bookingId: completeBooking.id,
+            hallName: completeBooking.hall_name,
+            bookingDate: completeBooking.booking_date,
+            status: completeBooking.status
+          }
+        });
+        console.log('✅ Booking confirmation notification created successfully');
+      } catch (notificationError) {
+        console.error('❌ Failed to create booking confirmation notification:', notificationError);
+        // Don't fail the booking creation if notification fails
       }
 
       return completeBooking;
