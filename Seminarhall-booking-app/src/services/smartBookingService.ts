@@ -1081,6 +1081,80 @@ class SmartBookingService {
       };
     }
   }
+
+  /**
+   * Get all bookings for calendar view (all users)
+   * Returns bookings with hall names for calendar display
+   */
+  async getAllBookingsForCalendar(): Promise<SmartBooking[]> {
+    try {
+      // First, get all bookings
+      const { data: bookings, error } = await supabase
+        .from('smart_bookings')
+        .select('*')
+        .neq('status', 'cancelled')
+        .neq('status', 'rejected')
+        .order('booking_date', { ascending: true })
+        .order('start_time', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching calendar bookings:', error);
+        throw error;
+      }
+
+      if (!bookings || bookings.length === 0) {
+        return [];
+      }
+
+      // Get unique hall IDs and user IDs
+      const hallIds = [...new Set(bookings.map(b => b.hall_id))];
+      const userIds = [...new Set(bookings.map(b => b.user_id))];
+
+      // Fetch hall names
+      const { data: halls, error: hallsError } = await supabase
+        .from('halls')
+        .select('id, name')
+        .in('id', hallIds);
+
+      if (hallsError) {
+        console.error('Error fetching halls:', hallsError);
+      }
+
+      // Fetch user names
+      const { data: users, error: usersError } = await supabase
+        .from('profiles')
+        .select('id, name, email')
+        .in('id', userIds);
+
+      if (usersError) {
+        console.error('Error fetching users:', usersError);
+      }
+
+      // Create lookup maps
+      const hallMap = (halls || []).reduce((acc, hall) => {
+        acc[hall.id] = hall;
+        return acc;
+      }, {} as any);
+
+      const userMap = (users || []).reduce((acc, user) => {
+        acc[user.id] = user;
+        return acc;
+      }, {} as any);
+
+      // Transform data to include hall names and user info
+      const transformedBookings: SmartBooking[] = bookings.map((booking: any) => ({
+        ...booking,
+        hall_name: hallMap[booking.hall_id]?.name || 'Unknown Hall',
+        user_name: userMap[booking.user_id]?.name || 'Unknown User',
+        user_email: userMap[booking.user_id]?.email || '',
+      }));
+
+      return transformedBookings;
+    } catch (error) {
+      console.error('Error in getAllBookingsForCalendar:', error);
+      throw error;
+    }
+  }
 }
 
 export const smartBookingService = new SmartBookingService();

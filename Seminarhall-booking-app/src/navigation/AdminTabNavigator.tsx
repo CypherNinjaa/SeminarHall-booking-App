@@ -10,11 +10,13 @@ import AdminDashboardScreen from "../screens/admin/AdminDashboardScreen";
 import HallManagementScreen from "../screens/admin/HallManagementScreen";
 import BookingOversightScreen from "../screens/admin/BookingOversightScreen";
 import AdminReportsScreen from "../screens/admin/AdminReportsScreen";
+import BookedCalendarScreen from "../screens/BookedCalendarScreen";
 
 export type AdminTabParamList = {
 	AdminDashboard: undefined;
 	HallManagement: undefined;
 	BookingOversight: undefined;
+	BookingCalendar: undefined;
 	AdminReports: undefined;
 };
 
@@ -38,6 +40,9 @@ export default function AdminTabNavigator() {
 							break;
 						case "BookingOversight":
 							iconName = focused ? "calendar" : "calendar-outline";
+							break;
+						case "BookingCalendar":
+							iconName = focused ? "today" : "today-outline";
 							break;
 						case "AdminReports":
 							iconName = focused ? "analytics" : "analytics-outline";
@@ -88,6 +93,13 @@ export default function AdminTabNavigator() {
 				component={BookingOversightScreen}
 				options={{
 					tabBarLabel: "Bookings",
+				}}
+			/>
+			<Tab.Screen
+				name="BookingCalendar"
+				component={BookedCalendarScreen}
+				options={{
+					tabBarLabel: "Calendar",
 				}}
 			/>
 			<Tab.Screen

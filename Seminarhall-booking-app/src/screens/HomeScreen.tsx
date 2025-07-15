@@ -463,8 +463,9 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
 			},
 		];
 
-		// Add admin-specific action if user is admin or super_admin
+		// Add role-specific actions
 		if (user && ["admin", "super_admin"].includes(user.role)) {
+			// Admin gets both admin panel and booking calendar
 			baseActions.push({
 				id: "admin",
 				title: "Admin Panel",
@@ -475,12 +476,22 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
 					: ["rgba(139,92,246,0.1)", "rgba(109,40,217,0.1)"],
 				iconColor: "#8b5cf6",
 			});
-		} else {
-			// For regular users, show schedule instead
 			baseActions.push({
 				id: "schedule",
-				title: "My Schedule",
-				description: "Plan ahead",
+				title: "Booking Calendar",
+				description: "View all schedules",
+				icon: "today",
+				colors: isDark
+					? ["rgba(99,102,241,0.2)", "rgba(67,56,202,0.2)"]
+					: ["rgba(99,102,241,0.1)", "rgba(67,56,202,0.1)"],
+				iconColor: "#6366f1",
+			});
+		} else {
+			// For regular users, show booking calendar
+			baseActions.push({
+				id: "schedule",
+				title: "Booking Calendar",
+				description: "View all schedules",
 				icon: "today",
 				colors: isDark
 					? ["rgba(139,92,246,0.2)", "rgba(109,40,217,0.2)"]
@@ -500,7 +511,7 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
 				navigation.navigate("Halls");
 				break;
 			case "quick-book":
-				navigation.navigate("Bookings"); // Navigate to Bookings tab where users can create new bookings
+				navigation.navigate("BookingForm", {}); // Navigate directly to the new booking form
 				break;
 			case "bookings":
 				// Navigate to the Bookings tab inside AdminTabs if admin, else to Bookings screen
@@ -518,7 +529,7 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
 				break;
 			case "schedule":
 				// Navigate to schedule/calendar view
-				console.log("Navigate to schedule");
+				navigation.navigate("BookedCalendar");
 				break;
 			case "booking-details":
 			case "reminder":
@@ -917,7 +928,7 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
 									<Text style={styles.statNumber}>
 										{loading ? "..." : stats.thisMonthBookings}
 									</Text>
-									<Text style={styles.statLabel}>This Month</Text>
+									<Text style={styles.statLabel}>My Bookings</Text>
 								</LinearGradient>
 							</BlurView>
 						</View>
