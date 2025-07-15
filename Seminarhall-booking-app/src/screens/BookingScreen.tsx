@@ -288,6 +288,10 @@ const BookingScreen: React.FC<BookingScreenProps> = ({ navigation }) => {
 		useState<AvailabilityCheck | null>(null);
 	const [checkingAvailability, setCheckingAvailability] = useState(false);
 
+	// Booked slots state for selected hall and date
+	const [bookedSlots, setBookedSlots] = useState<SmartBooking[]>([]);
+	const [loadingBookedSlots, setLoadingBookedSlots] = useState(false);
+
 	// Animation refs for floating action button
 	const fadeAnim = useRef(new Animated.Value(0)).current;
 	const scaleAnim = useRef(new Animated.Value(0.9)).current;
@@ -364,6 +368,46 @@ const BookingScreen: React.FC<BookingScreenProps> = ({ navigation }) => {
 			Alert.alert("Error", "Failed to check availability");
 		} finally {
 			setCheckingAvailability(false);
+		}
+	};
+
+	const fetchBookedSlots = async (hallId: string, bookingDate: string) => {
+		if (!hallId || !bookingDate) {
+			setBookedSlots([]);
+			return;
+		}
+
+		try {
+			setLoadingBookedSlots(true);
+			const result = await smartBookingService.getBookingsForHallAndDate(
+				hallId,
+				bookingDate
+			);
+
+			// Filter to only show future bookings and approved/pending ones
+			const futureBookings = result.filter((booking: SmartBooking) => {
+				const now = new Date();
+				const [hours, minutes] = booking.start_time.split(":").map(Number);
+				const bookingDateTime = new Date(
+					parseInt(bookingDate.substring(4, 8)), // year
+					parseInt(bookingDate.substring(2, 4)) - 1, // month (0-indexed)
+					parseInt(bookingDate.substring(0, 2)), // day
+					hours,
+					minutes
+				);
+
+				return (
+					bookingDateTime >= now &&
+					(booking.status === "approved" || booking.status === "pending")
+				);
+			});
+
+			setBookedSlots(futureBookings);
+		} catch (error) {
+			console.error("Error fetching booked slots:", error);
+			setBookedSlots([]);
+		} finally {
+			setLoadingBookedSlots(false);
 		}
 	};
 
@@ -448,20 +492,7 @@ const BookingScreen: React.FC<BookingScreenProps> = ({ navigation }) => {
 	};
 
 	const openEditModal = (booking: SmartBooking) => {
-		setEditingBooking(booking);
-		setFormData({
-			hall_id: booking.hall_id,
-			booking_date: booking.booking_date,
-			start_time: booking.start_time,
-			end_time: booking.end_time,
-			purpose: booking.purpose,
-			description: booking.description || "",
-			attendees_count: booking.attendees_count,
-			equipment_needed: booking.equipment_needed || [],
-			special_requirements: booking.special_requirements || "",
-			priority: booking.priority,
-		});
-		setShowEditModal(true);
+		navigation.navigate("BookingForm", { editingBooking: booking });
 	};
 
 	const formatDateForInput = (dateString: string): Date => {
@@ -489,8 +520,7 @@ const BookingScreen: React.FC<BookingScreenProps> = ({ navigation }) => {
 
 	const handleFabPress = () => {
 		Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-		resetForm();
-		setShowCreateModal(true);
+		navigation.navigate("BookingForm", {});
 	};
 
 	if (loading) {
@@ -641,8 +671,7 @@ const BookingScreen: React.FC<BookingScreenProps> = ({ navigation }) => {
 						<TouchableOpacity
 							style={styles.emptyButton}
 							onPress={() => {
-								resetForm();
-								setShowCreateModal(true);
+								navigation.navigate("BookingForm", {});
 							}}
 						>
 							<Text style={styles.emptyButtonText}>Create Booking</Text>
@@ -740,6 +769,12 @@ const BookingScreen: React.FC<BookingScreenProps> = ({ navigation }) => {
 											onPress={() => {
 												setFormData((prev) => ({ ...prev, hall_id: hall.id }));
 												Haptics.selectionAsync();
+
+												// Fetch booked slots for this hall and date
+												if (formData.booking_date) {
+													fetchBookedSlots(hall.id, formData.booking_date);
+												}
+
 												if (
 													formData.booking_date &&
 													formData.start_time &&
@@ -1121,6 +1156,102 @@ const BookingScreen: React.FC<BookingScreenProps> = ({ navigation }) => {
 								</View>
 							)}
 
+						{/* Booked Slots Preview */}
+						{formData.hall_id && formData.booking_date && (
+							<View style={styles.formSection}>
+								<View style={styles.sectionHeader}>
+									<Ionicons
+										name="calendar-outline"
+										size={20}
+										color={theme.colors.primary}
+									/>
+									<Text style={styles.sectionTitle}>Today's Bookings</Text>
+									{loadingBookedSlots && (
+										<ActivityIndicator
+											size="small"
+											color={theme.colors.primary}
+										/>
+									)}
+								</View>
+
+								{bookedSlots.length > 0 ? (
+									<View style={styles.bookedSlotsContainer}>
+										<Text style={styles.bookedSlotsTitle}>
+											⏰ Already booked times ({bookedSlots.length} booking
+											{bookedSlots.length !== 1 ? "s" : ""}):
+										</Text>
+										{bookedSlots
+											.sort((a, b) => a.start_time.localeCompare(b.start_time))
+											.map((booking, index) => (
+												<View key={index} style={styles.bookedSlotItem}>
+													<View style={styles.bookedSlotTime}>
+														<Ionicons
+															name="time"
+															size={16}
+															color={theme.colors.warning}
+														/>
+														<Text style={styles.bookedSlotTimeText}>
+															{formatTime(booking.start_time)} -{" "}
+															{formatTime(booking.end_time)}
+														</Text>
+														<View
+															style={[
+																styles.bookedSlotStatusBadge,
+																{
+																	backgroundColor: getStatusColor(
+																		booking.status
+																	),
+																},
+															]}
+														>
+															<Text style={styles.bookedSlotStatusText}>
+																{booking.status}
+															</Text>
+														</View>
+													</View>
+													<Text
+														style={styles.bookedSlotPurpose}
+														numberOfLines={1}
+													>
+														📝 {booking.purpose}
+													</Text>
+													{booking.user_name && (
+														<Text
+															style={styles.bookedSlotUser}
+															numberOfLines={1}
+														>
+															👤 {booking.user_name}
+														</Text>
+													)}
+												</View>
+											))}
+										<View style={styles.bookedSlotsHint}>
+											<Ionicons
+												name="information-circle-outline"
+												size={14}
+												color={theme.colors.text.secondary}
+											/>
+											<Text style={styles.bookedSlotsHintText}>
+												💡 Choose a time that doesn't overlap with these
+												bookings
+											</Text>
+										</View>
+									</View>
+								) : !loadingBookedSlots ? (
+									<View style={styles.noBookedSlotsContainer}>
+										<Ionicons
+											name="checkmark-circle-outline"
+											size={24}
+											color={theme.colors.success}
+										/>
+										<Text style={styles.noBookedSlotsText}>
+											🎉 No bookings for this day! All time slots are available.
+										</Text>
+									</View>
+								) : null}
+							</View>
+						)}
+
 						{/* Purpose */}
 						<View style={styles.formSection}>
 							<View style={styles.sectionHeader}>
@@ -1380,6 +1511,12 @@ const BookingScreen: React.FC<BookingScreenProps> = ({ navigation }) => {
 						if (selectedDate) {
 							const dateString = formatDateToString(selectedDate);
 							setFormData((prev) => ({ ...prev, booking_date: dateString }));
+
+							// Fetch booked slots for this date and hall
+							if (formData.hall_id) {
+								fetchBookedSlots(formData.hall_id, dateString);
+							}
+
 							if (
 								formData.hall_id &&
 								formData.start_time &&
@@ -2284,6 +2421,89 @@ const createStyles = (dynamicTheme: any) =>
 			fontSize: 16,
 			fontWeight: "700",
 			color: "white",
+		},
+		// Booked slots styles
+		bookedSlotsContainer: {
+			backgroundColor: dynamicTheme.colors.surface,
+			borderRadius: dynamicTheme.borderRadius.md,
+			padding: dynamicTheme.spacing.md,
+			marginTop: dynamicTheme.spacing.sm,
+		},
+		bookedSlotsTitle: {
+			fontSize: 14,
+			fontWeight: "600",
+			color: dynamicTheme.colors.text.primary,
+			marginBottom: dynamicTheme.spacing.sm,
+		},
+		bookedSlotItem: {
+			backgroundColor: dynamicTheme.colors.background,
+			borderRadius: dynamicTheme.borderRadius.sm,
+			padding: dynamicTheme.spacing.sm,
+			marginBottom: dynamicTheme.spacing.xs,
+			borderLeftWidth: 3,
+			borderLeftColor: dynamicTheme.colors.warning,
+		},
+		bookedSlotTime: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: dynamicTheme.spacing.xs,
+			marginBottom: dynamicTheme.spacing.xs / 2,
+		},
+		bookedSlotTimeText: {
+			fontSize: 14,
+			fontWeight: "600",
+			color: dynamicTheme.colors.text.primary,
+			flex: 1,
+		},
+		bookedSlotStatusBadge: {
+			paddingHorizontal: dynamicTheme.spacing.xs,
+			paddingVertical: 2,
+			borderRadius: dynamicTheme.borderRadius.sm / 2,
+		},
+		bookedSlotStatusText: {
+			fontSize: 10,
+			fontWeight: "600",
+			color: "white",
+			textTransform: "uppercase",
+		},
+		bookedSlotPurpose: {
+			fontSize: 12,
+			color: dynamicTheme.colors.text.secondary,
+			marginBottom: dynamicTheme.spacing.xs / 2,
+		},
+		bookedSlotUser: {
+			fontSize: 12,
+			color: dynamicTheme.colors.text.secondary,
+			fontStyle: "italic",
+		},
+		bookedSlotsHint: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: dynamicTheme.spacing.xs,
+			marginTop: dynamicTheme.spacing.sm,
+			padding: dynamicTheme.spacing.sm,
+			backgroundColor: dynamicTheme.colors.primary + "10",
+			borderRadius: dynamicTheme.borderRadius.sm,
+		},
+		bookedSlotsHintText: {
+			fontSize: 12,
+			color: dynamicTheme.colors.text.secondary,
+			flex: 1,
+		},
+		noBookedSlotsContainer: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: dynamicTheme.spacing.sm,
+			padding: dynamicTheme.spacing.md,
+			backgroundColor: dynamicTheme.colors.success + "10",
+			borderRadius: dynamicTheme.borderRadius.sm,
+			marginTop: dynamicTheme.spacing.sm,
+		},
+		noBookedSlotsText: {
+			fontSize: 14,
+			color: dynamicTheme.colors.success,
+			fontWeight: "500",
+			flex: 1,
 		},
 	});
 

@@ -13,9 +13,11 @@ import LoginScreen from "../screens/LoginScreen";
 import ForgotPasswordScreen from "../screens/ForgotPasswordScreen";
 import HallListScreen from "../screens/HallListScreen";
 import BookingScreen from "../screens/BookingScreen";
+import BookingFormScreen from "../screens/BookingFormScreen";
 import ProfileScreen from "../screens/ProfileScreen";
 import EditProfileScreen from "../screens/EditProfileScreen";
 import BookingHistoryScreen from "../screens/BookingHistoryScreen";
+import BookedCalendarScreen from "../screens/BookedCalendarScreen";
 import SignupScreen from "../screens/SignupScreen";
 import SuperAdminScreen from "../screens/SuperAdminScreen";
 import NotificationsScreen from "../screens/NotificationsScreen";
@@ -37,10 +39,12 @@ export type RootStackParamList = {
 	SuperAdmin: undefined;
 	HallDetails: { hallId: string; hall?: any };
 	Booking: { hallId: string };
+	BookingForm: { editingBooking?: any };
 	AddEditHall: { hallId?: string; hall?: any } | undefined;
 	Notifications: undefined;
 	EditProfile: undefined;
 	BookingHistory: undefined;
+	BookedCalendar: undefined;
 	HelpSupport: undefined;
 	Settings: undefined;
 	"auth/email-verified": undefined;
@@ -145,6 +149,14 @@ export default function AppNavigator() {
 								<Stack.Screen
 									name="BookingHistory"
 									component={BookingHistoryScreen}
+								/>
+								<Stack.Screen
+									name="BookedCalendar"
+									component={BookedCalendarScreen}
+								/>
+								<Stack.Screen
+									name="BookingForm"
+									component={BookingFormScreen}
 								/>
 								<Stack.Screen
 									name="AddEditHall"
