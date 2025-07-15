@@ -176,12 +176,12 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
 		let nextStatusChange: Date | null = null;
 
 		if (isOnline) {
-			statusText = "Campus Online";
+			statusText = "Campus Open";
 			// Next change is at 6:00 PM today
 			nextStatusChange = new Date();
 			nextStatusChange.setHours(18, 0, 0, 0);
 		} else {
-			statusText = "Campus Offline";
+			statusText = "Campus closed";
 			// Calculate next opening time
 			nextStatusChange = new Date();
 			if (currentTime < openTime) {
@@ -578,12 +578,12 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
 		const minutes = Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60));
 
 		if (hours > 0) {
-			return `${hours}h ${minutes}m until ${
-				campusStatus.isOnline ? "offline" : "online"
+			return `${hours}h ${minutes}m ${
+				campusStatus.isOnline ? "left" : "until campus opens"
 			}`;
 		} else if (minutes > 0) {
-			return `${minutes}m until ${
-				campusStatus.isOnline ? "offline" : "online"
+			return `${minutes}m ${
+				campusStatus.isOnline ? "left" : "until campus opens"
 			}`;
 		} else {
 			return "Status changing soon...";
