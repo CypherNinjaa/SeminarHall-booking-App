@@ -41,6 +41,7 @@ export default function LoginScreen({ navigation }: Props) {
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
 	const [showPassword, setShowPassword] = useState(false);
+	const [rememberMe, setRememberMe] = useState(false);
 	const [isLoading, setIsLoading] = useState(false);
 
 	const { login, error, clearError } = useAuthStore();
@@ -75,6 +76,11 @@ export default function LoginScreen({ navigation }: Props) {
 
 	const togglePasswordVisibility = () => {
 		setShowPassword(!showPassword);
+		Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+	};
+
+	const toggleRememberMe = () => {
+		setRememberMe(!rememberMe);
 		Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 	};
 
@@ -189,6 +195,27 @@ export default function LoginScreen({ navigation }: Props) {
 									<Text style={styles.errorText}>{error}</Text>
 								</View>
 							)}
+
+							{/* Remember Me Checkbox */}
+							<View style={styles.rememberMeContainer}>
+								<TouchableOpacity
+									style={styles.checkboxContainer}
+									onPress={toggleRememberMe}
+									activeOpacity={0.7}
+								>
+									<View
+										style={[
+											styles.checkbox,
+											rememberMe && styles.checkboxChecked,
+										]}
+									>
+										{rememberMe && (
+											<Ionicons name="checkmark" size={16} color="white" />
+										)}
+									</View>
+									<Text style={styles.rememberMeText}>Remember me</Text>
+								</TouchableOpacity>
+							</View>
 
 							{/* Login Button */}
 							<TouchableOpacity
@@ -452,5 +479,37 @@ const styles = StyleSheet.create({
 		fontSize: Typography.fontSize.sm,
 		color: "white",
 		fontWeight: Typography.fontWeight.semibold,
+	},
+
+	rememberMeContainer: {
+		marginBottom: Spacing[4],
+	},
+
+	checkboxContainer: {
+		flexDirection: "row",
+		alignItems: "center",
+	},
+
+	checkbox: {
+		width: 20,
+		height: 20,
+		borderRadius: BorderRadius.sm,
+		borderWidth: 2,
+		borderColor: Colors.gray[400],
+		backgroundColor: "transparent",
+		justifyContent: "center",
+		alignItems: "center",
+		marginRight: Spacing[2],
+	},
+
+	checkboxChecked: {
+		backgroundColor: Colors.primary[600],
+		borderColor: Colors.primary[600],
+	},
+
+	rememberMeText: {
+		fontSize: Typography.fontSize.sm,
+		color: Colors.gray[700],
+		fontWeight: Typography.fontWeight.medium,
 	},
 });
