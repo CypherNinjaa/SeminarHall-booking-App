@@ -480,7 +480,8 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 						updating ||
 						!formData.hall_id ||
 						!formData.booking_date ||
-						!formData.purpose
+						!formData.purpose ||
+						formData.attendees_count > 100
 					}
 					style={[
 						styles.submitButton,
@@ -488,7 +489,8 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 							updating ||
 							!formData.hall_id ||
 							!formData.booking_date ||
-							!formData.purpose) &&
+							!formData.purpose ||
+							formData.attendees_count > 100) &&
 							styles.submitButtonDisabled,
 					]}
 				>
@@ -499,7 +501,8 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 								updating ||
 								!formData.hall_id ||
 								!formData.booking_date ||
-								!formData.purpose) &&
+								!formData.purpose ||
+								formData.attendees_count > 100) &&
 								styles.submitButtonTextDisabled,
 						]}
 					>
@@ -555,12 +558,20 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 							/>
 						</LinearGradient>
 						<Text style={styles.sectionTitle}>Select Hall *</Text>
-						{formData.hall_id && (
+						{formData.hall_id ? (
 							<View style={styles.completedIndicator}>
 								<Ionicons
 									name="checkmark-circle"
 									size={16}
 									color={theme.colors.success}
+								/>
+							</View>
+						) : (
+							<View style={styles.completedIndicator}>
+								<Ionicons
+									name="close-circle"
+									size={16}
+									color={theme.colors.error}
 								/>
 							</View>
 						)}
@@ -725,16 +736,24 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 						</LinearGradient>
 						<Text style={styles.sectionTitle}>Date & Time *</Text>
 						{formData.booking_date &&
-							formData.start_time &&
-							formData.end_time && (
-								<View style={styles.completedIndicator}>
-									<Ionicons
-										name="checkmark-circle"
-										size={16}
-										color={theme.colors.success}
-									/>
-								</View>
-							)}
+						formData.start_time &&
+						formData.end_time ? (
+							<View style={styles.completedIndicator}>
+								<Ionicons
+									name="checkmark-circle"
+									size={16}
+									color={theme.colors.success}
+								/>
+							</View>
+						) : (
+							<View style={styles.completedIndicator}>
+								<Ionicons
+									name="close-circle"
+									size={16}
+									color={theme.colors.error}
+								/>
+							</View>
+						)}
 					</View>
 
 					{/* Date Selection */}
@@ -1036,12 +1055,20 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 							/>
 						</LinearGradient>
 						<Text style={styles.sectionTitle}>Purpose & Details *</Text>
-						{formData.purpose && (
+						{formData.purpose ? (
 							<View style={styles.completedIndicator}>
 								<Ionicons
 									name="checkmark-circle"
 									size={16}
 									color={theme.colors.success}
+								/>
+							</View>
+						) : (
+							<View style={styles.completedIndicator}>
+								<Ionicons
+									name="close-circle"
+									size={16}
+									color={theme.colors.error}
 								/>
 							</View>
 						)}
@@ -1101,9 +1128,26 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 								>
 									<Ionicons name="remove" size={20} color="#FFFFFF" />
 								</TouchableOpacity>
-								<Text style={styles.attendeesCount}>
-									{formData.attendees_count}
-								</Text>
+								<TextInput
+									style={styles.attendeesCount}
+									value={formData.attendees_count.toString()}
+									onChangeText={(text) => {
+										// Remove any non-numeric characters
+										const numericText = text.replace(/[^0-9]/g, '');
+										const count = parseInt(numericText) || 1;
+										// Ensure minimum of 1
+										const finalCount = Math.max(1, count);
+										setFormData((prev) => ({
+											...prev,
+											attendees_count: finalCount,
+										}));
+									}}
+									keyboardType="numeric"
+									placeholder="1"
+									placeholderTextColor={dynamicTheme.colors.text.secondary}
+									maxLength={3}
+									selectTextOnFocus={true}
+								/>
 								<TouchableOpacity
 									style={styles.attendeesButton}
 									onPress={() => {
@@ -1118,6 +1162,16 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 								</TouchableOpacity>
 							</View>
 						</View>
+
+						{/* Attendees Validation Error */}
+						{formData.attendees_count > 100 && (
+							<View style={styles.validationError}>
+								<Ionicons name="warning" size={16} color={theme.colors.error} />
+								<Text style={styles.validationErrorText}>
+									Attendees exceed hall capacity (max 100)
+								</Text>
+							</View>
+						)}
 
 						{/* Quick increment buttons */}
 						<View style={styles.quickIncrementContainer}>
@@ -1787,6 +1841,8 @@ const createStyles = (theme: any) =>
 			paddingHorizontal: theme.spacing.sm,
 			paddingVertical: theme.spacing.xs,
 			borderRadius: theme.borderRadius.sm,
+			borderWidth: 1,
+			borderColor: theme.colors.border,
 		},
 		quickIncrementContainer: {
 			marginTop: theme.spacing.md,
