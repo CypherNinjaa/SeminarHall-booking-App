@@ -27,6 +27,7 @@
     "expo-file-system": "^18.1.11",
     "expo-haptics": "~14.1.4",
     "expo-linear-gradient": "~14.1.5",
+    "expo-notifications": "~0.31.4",
     "expo-sharing": "^13.1.5",
     "expo-status-bar": "~2.2.3",
     "react": "19.0.0",
