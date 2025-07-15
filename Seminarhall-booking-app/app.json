@@ -1,37 +1,55 @@
 {
-  "expo": {
-    "name": "Seminarhall-booking-app",
-    "slug": "seminar-hall-booking",
-    "version": "1.0.0",
-    "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
-    "newArchEnabled": true,
-    "scheme": "seminarhallbooking",
-    "web": {
-      "favicon": "./assets/favicon.png"
-    },
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
-    "ios": {
-      "supportsTablet": true
-    },
-    "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
-      },
-      "edgeToEdgeEnabled": true,
-      "package": "com.cypherninja.seminarhallbooking"
-    },
-    "extra": {
-      "eas": {
-        "projectId": "3474eaee-01b2-4e2c-8ba1-83ac94ced14e"
-      }
-    },
-    "owner": "cypherninja"
-  }
+	"expo": {
+		"name": "Seminarhall-booking-app",
+		"slug": "seminar-hall-booking",
+		"version": "1.0.0",
+		"orientation": "portrait",
+		"icon": "./assets/icon.png",
+		"userInterfaceStyle": "light",
+		"newArchEnabled": true,
+		"scheme": "seminarhallbooking",
+		"web": {
+			"favicon": "./assets/favicon.png"
+		},
+		"splash": {
+			"image": "./assets/splash-icon.png",
+			"resizeMode": "contain",
+			"backgroundColor": "#ffffff"
+		},
+		"ios": {
+			"supportsTablet": true,
+			"bundleIdentifier": "com.cypherninja.seminarhallbooking"
+		},
+		"android": {
+			"adaptiveIcon": {
+				"foregroundImage": "./assets/adaptive-icon.png",
+				"backgroundColor": "#ffffff"
+			},
+			"edgeToEdgeEnabled": true,
+			"package": "com.cypherninja.seminarhallbooking",
+			"permissions": ["RECEIVE_BOOT_COMPLETED", "VIBRATE", "WAKE_LOCK"]
+		},
+		"notification": {
+			"icon": "./assets/icon.png",
+			"color": "#3b82f6",
+			"androidMode": "default",
+			"androidCollapsedTitle": "📅 Seminar Hall Booking"
+		},
+		"plugins": [
+			[
+				"expo-notifications",
+				{
+					"icon": "./assets/icon.png",
+					"color": "#3b82f6",
+					"defaultChannel": "default"
+				}
+			]
+		],
+		"extra": {
+			"eas": {
+				"projectId": "3474eaee-01b2-4e2c-8ba1-83ac94ced14e"
+			}
+		},
+		"owner": "cypherninja"
+	}
 }

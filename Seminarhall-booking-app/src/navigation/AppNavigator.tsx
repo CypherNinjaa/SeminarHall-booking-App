@@ -21,6 +21,7 @@ import BookedCalendarScreen from "../screens/BookedCalendarScreen";
 import SignupScreen from "../screens/SignupScreen";
 import SuperAdminScreen from "../screens/SuperAdminScreen";
 import NotificationsScreen from "../screens/NotificationsScreen";
+import NotificationSettingsScreen from "../screens/NotificationSettingsScreen";
 import LoadingScreen from "../components/LoadingScreen";
 import AddEditHallScreen from "../screens/admin/AddEditHallScreen";
 import HallDetailsScreen from "../screens/admin/HallDetailsScreen";
@@ -42,6 +43,7 @@ export type RootStackParamList = {
 	BookingForm: { editingBooking?: any };
 	AddEditHall: { hallId?: string; hall?: any } | undefined;
 	Notifications: undefined;
+	NotificationSettings: undefined;
 	EditProfile: undefined;
 	BookingHistory: undefined;
 	BookedCalendar: undefined;
@@ -171,6 +173,11 @@ export default function AppNavigator() {
 									component={HelpSupportScreen}
 								/>
 								<Stack.Screen name="Settings" component={SettingsScreen} />
+								<Stack.Screen
+									name="NotificationSettings"
+									component={NotificationSettingsScreen}
+									options={{ title: "Notification Settings" }}
+								/>
 								{user?.role === "super_admin" && (
 									// Super Admin gets access to both admin tabs and super admin screen
 									<>
