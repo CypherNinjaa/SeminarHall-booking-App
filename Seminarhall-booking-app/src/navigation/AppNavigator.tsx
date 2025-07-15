@@ -19,7 +19,6 @@ import EditProfileScreen from "../screens/EditProfileScreen";
 import BookingHistoryScreen from "../screens/BookingHistoryScreen";
 import BookedCalendarScreen from "../screens/BookedCalendarScreen";
 import SignupScreen from "../screens/SignupScreen";
-import SuperAdminScreen from "../screens/SuperAdminScreen";
 import NotificationsScreen from "../screens/NotificationsScreen";
 import NotificationSettingsScreen from "../screens/NotificationSettingsScreen";
 import LoadingScreen from "../components/LoadingScreen";
@@ -37,7 +36,6 @@ export type RootStackParamList = {
 	ForgotPassword: undefined;
 	MainTabs: undefined;
 	AdminTabs: undefined;
-	SuperAdmin: undefined;
 	HallDetails: { hallId: string; hall?: any };
 	Booking: { hallId: string };
 	BookingForm: { editingBooking?: any };
@@ -178,21 +176,8 @@ export default function AppNavigator() {
 									component={NotificationSettingsScreen}
 									options={{ title: "Notification Settings" }}
 								/>
-								{user?.role === "super_admin" && (
-									// Super Admin gets access to both admin tabs and super admin screen
-									<>
-										<Stack.Screen
-											name="AdminTabs"
-											component={AdminTabNavigator}
-										/>
-										<Stack.Screen
-											name="SuperAdmin"
-											component={SuperAdminScreen}
-										/>
-									</>
-								)}
-								{user?.role === "admin" && (
-									// Regular Admin gets admin tabs only
+								{(user?.role === "super_admin" || user?.role === "admin") && (
+									// Both Super Admin and Admin get access to unified admin tabs
 									<Stack.Screen
 										name="AdminTabs"
 										component={AdminTabNavigator}

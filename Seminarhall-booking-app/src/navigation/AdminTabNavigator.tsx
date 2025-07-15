@@ -6,7 +6,7 @@ import { Colors, Typography, Spacing } from "../constants/theme";
 import { useTheme } from "../contexts/ThemeContext";
 
 // Import admin screens
-import AdminDashboardScreen from "../screens/admin/AdminDashboardScreen";
+import UnifiedAdminDashboardScreen from "../screens/admin/UnifiedAdminDashboardScreen";
 import HallManagementScreen from "../screens/admin/HallManagementScreen";
 import BookingOversightScreen from "../screens/admin/BookingOversightScreen";
 import AdminReportsScreen from "../screens/admin/AdminReportsScreen";
@@ -76,7 +76,7 @@ export default function AdminTabNavigator() {
 		>
 			<Tab.Screen
 				name="AdminDashboard"
-				component={AdminDashboardScreen}
+				component={UnifiedAdminDashboardScreen}
 				options={{
 					tabBarLabel: "Dashboard",
 				}}
