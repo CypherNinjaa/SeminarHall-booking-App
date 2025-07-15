@@ -64,13 +64,37 @@ class NotificationService {
   private isInitialized = false;
 
   /**
+   * Check if running in Expo Go
+   */
+  async isRunningInExpoGo(): Promise<boolean> {
+    try {
+      // In Expo Go, Constants.executionEnvironment is 'storeClient'
+      const Constants = require('expo-constants');
+      return Constants.default?.executionEnvironment === 'storeClient';
+    } catch (error) {
+      // If expo-constants is not available, assume not Expo Go
+      return false;
+    }
+  }
+
+  /**
    * Initialize notification service with push notifications
    */
   async initialize(userId?: string): Promise<boolean> {
     try {
       if (this.isInitialized) return true;
 
-      // Request permissions
+      // Check if running in Expo Go
+      const isExpoGo = await this.isRunningInExpoGo();
+      if (isExpoGo) {
+        console.warn('📱 Running in Expo Go - Push notifications not supported in SDK 53+');
+        console.warn('📱 Use a development build for full push notification functionality');
+        console.log('✅ Notification service initialized (Expo Go mode - limited functionality)');
+        this.isInitialized = true;
+        return true;
+      }
+
+      // Request permissions (only for development builds/production)
       const hasPermissions = await this.requestPermissions();
       if (!hasPermissions) {
         console.warn('Notification permissions not granted');
@@ -89,7 +113,7 @@ class NotificationService {
       this.setupNotificationListeners();
       
       this.isInitialized = true;
-      console.log('✅ Notification service initialized successfully');
+      console.log('✅ Notification service initialized successfully (Development Build)');
       return true;
     } catch (error) {
       console.error('❌ Failed to initialize notification service:', error);
@@ -219,11 +243,25 @@ class NotificationService {
   async registerForPushNotifications(userId: string): Promise<string | null> {
     try {
       if (!Device.isDevice) {
+        console.log('📱 Push notifications only work on physical devices');
         return null;
       }
 
+      // Check if running in Expo Go
+      const isExpoGo = await this.isRunningInExpoGo();
+      if (isExpoGo) {
+        console.warn('📱 Push notifications not available in Expo Go (SDK 53+)');
+        console.warn('📱 Use EAS development build: npx expo run:android or npx expo run:ios');
+        return null;
+      }
+
+      // Get project ID from environment variable or use hardcoded value
+      const projectId = process.env.EXPO_PUBLIC_PROJECT_ID || '3474eaee-01b2-4e2c-8ba1-83ac94ced14e';
+      
+      console.log('📱 Registering for push notifications with project ID:', projectId);
+
       const token = await Notifications.getExpoPushTokenAsync({
-        projectId: process.env.EXPO_PUBLIC_PROJECT_ID || 'your-expo-project-id',
+        projectId: projectId,
       });
 
       this.pushToken = token.data;
@@ -235,6 +273,7 @@ class NotificationService {
       return token.data;
     } catch (error) {
       console.error('❌ Error registering for push notifications:', error);
+      console.error('💡 If using Expo Go, switch to development build for push notifications');
       return null;
     }
   }
@@ -332,6 +371,13 @@ class NotificationService {
    */
   async sendPushNotification(userId: string, payload: PushNotificationPayload): Promise<boolean> {
     try {
+      // Check if running in Expo Go
+      const isExpoGo = await this.isRunningInExpoGo();
+      if (isExpoGo) {
+        console.warn('📱 Push notifications not supported in Expo Go. Notification skipped.');
+        return false;
+      }
+
       // Check if user has push notifications enabled
       const settings = await this.getNotificationSettings(userId);
       if (!settings?.push_enabled) {
