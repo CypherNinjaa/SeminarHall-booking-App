@@ -465,7 +465,7 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
 
 		// Add role-specific actions
 		if (user && ["admin", "super_admin"].includes(user.role)) {
-			// Admin gets both admin panel and booking calendar
+			// Admin gets both admin panel and booking history
 			baseActions.push({
 				id: "admin",
 				title: "Admin Panel",
@@ -478,7 +478,7 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
 			});
 			baseActions.push({
 				id: "schedule",
-				title: "Booking Calendar",
+				title: "Booking History",
 				description: "View all schedules",
 				icon: "today",
 				colors: isDark
@@ -487,10 +487,10 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
 				iconColor: "#6366f1",
 			});
 		} else {
-			// For regular users, show booking calendar
+			// For regular users, show booking history
 			baseActions.push({
 				id: "schedule",
-				title: "Booking Calendar",
+				title: "Booking History",
 				description: "View all schedules",
 				icon: "today",
 				colors: isDark

@@ -276,7 +276,7 @@ const BookedCalendarScreen: React.FC<BookedCalendarScreenProps> = ({
 						color={dynamicTheme.colors.text.primary}
 					/>
 				</TouchableOpacity>
-				<Text style={styles.headerTitle}>Booking Calendar</Text>
+				<Text style={styles.headerTitle}>Booking History</Text>
 				<TouchableOpacity onPress={handleRefresh} style={styles.refreshButton}>
 					<Ionicons name="refresh" size={24} color={theme.colors.primary} />
 				</TouchableOpacity>
@@ -429,14 +429,7 @@ const BookedCalendarScreen: React.FC<BookedCalendarScreenProps> = ({
 								<Text style={styles.noBookingsText}>
 									No bookings for this day
 								</Text>
-								<TouchableOpacity
-									style={styles.createBookingButton}
-									onPress={() => navigation.navigate("BookingForm", {})}
-								>
-									<Text style={styles.createBookingButtonText}>
-										Create Booking
-									</Text>
-								</TouchableOpacity>
+								
 							</View>
 						) : (
 							<View style={styles.bookingsList}>
