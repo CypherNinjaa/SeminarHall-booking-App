@@ -3,7 +3,6 @@ import {
 	View,
 	Text,
 	StyleSheet,
-	SafeAreaView,
 	ScrollView,
 	TouchableOpacity,
 	ActivityIndicator,
@@ -18,6 +17,7 @@ import {
 	Switch,
 	FlatList,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -1064,7 +1064,7 @@ export default function UnifiedAdminDashboardScreen({
 			{/* Hall Stats */}
 			<View style={styles.section}>
 				<Text style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}>
-					Hall Management
+					Management
 				</Text>
 				<View style={styles.statsGrid}>
 					<StatsCard
@@ -1261,7 +1261,7 @@ export default function UnifiedAdminDashboardScreen({
 	}
 
 	return (
-		<SafeAreaView style={[styles.container, isDark && styles.containerDark]}>
+		<SafeAreaView style={[styles.container, isDark && styles.containerDark]} edges={['top']}>
 			<StatusBar style={isDark ? "light" : "dark"} />
 
 			{/* Header */}
@@ -1422,9 +1422,9 @@ const styles = StyleSheet.create({
 		color: Colors.dark.text.secondary,
 	},
 	header: {
-		paddingTop: Spacing[5],
 		paddingHorizontal: Spacing[5],
 		paddingBottom: Spacing[3],
+		paddingTop: Spacing[2],
 	},
 	headerContent: {
 		flexDirection: "row",
