@@ -299,7 +299,7 @@ ${user?.name || "User"}`;
 			if (success) {
 				Alert.alert(
 					"✅ Message Sent to Developer",
-					"Your message has been sent to the developer successfully! Vikash will respond as soon as possible.",
+					"Your message has been sent to the developer successfully! Our development team will respond as soon as possible.",
 					[{ text: "OK" }]
 				);
 			} else {
@@ -315,7 +315,7 @@ ${user?.name || "User"}`;
 	const handleDeveloperContactFallback = () => {
 		const email = "vikashkelly@gmail.com";
 		const subject = "Seminar Hall Booking App - Developer Contact";
-		const body = `Hello Vikash,
+		const body = `Hello Development Team,
 
 I would like to contact you regarding the Seminar Hall Booking App.
 
@@ -599,8 +599,8 @@ ${user?.name || "User"}`;
 							</Text>
 						</View>
 						<View style={styles.infoRow}>
-							<Text style={styles.infoLabel}>Developer</Text>
-							<Text style={styles.infoValue}>Vikash Kumar</Text>
+							<Text style={styles.infoLabel}>Developers</Text>
+							<Text style={styles.infoValue}>Vikash Kumar{'\n'}Nikhil Anand</Text>
 						</View>
 						<View style={styles.infoRow}>
 							<Text style={styles.infoLabel}>Contact</Text>

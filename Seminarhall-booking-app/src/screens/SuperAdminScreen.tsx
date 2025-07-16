@@ -78,6 +78,7 @@ interface UserItemProps {
 	onManage: (user: User) => void;
 	onToggleActive: (user: User) => void;
 	onDeleteUser: (user: User) => void;
+	currentUserRole: string; // Add current user role prop
 }
 
 interface UserManagementModalProps {
@@ -117,6 +118,7 @@ const UserItem: React.FC<UserItemProps> = ({
 	onManage,
 	onToggleActive,
 	onDeleteUser,
+	currentUserRole,
 }) => {
 	const { isDark } = useTheme();
 
@@ -231,63 +233,76 @@ const UserItem: React.FC<UserItemProps> = ({
 					)}
 				</View>
 			</View>
-
-			<View style={[styles.actionButtons, isDark && styles.actionButtonsDark]}>
-				<TouchableOpacity
-					style={[styles.actionButton, styles.manageButton]}
-					onPress={() => onManage(user)}
-				>
-					<Ionicons
-						name="settings-outline"
-						size={18}
-						color={Colors.primary[600]}
-					/>
-					<Text style={styles.manageButtonText}>Manage</Text>
-				</TouchableOpacity>
-
-				<TouchableOpacity
-					style={[
-						styles.actionButton,
-						user.is_active ? styles.deactivateButton : styles.activateButton,
-					]}
-					onPress={() => onToggleActive(user)}
-				>
-					<Ionicons
-						name={
-							user.is_active
-								? "close-circle-outline"
-								: "checkmark-circle-outline"
-						}
-						size={18}
-						color={user.is_active ? Colors.error.main : Colors.success.main}
-					/>
-					<Text
-						style={[
-							styles.actionButtonText,
-							{
-								color: user.is_active ? Colors.error.main : Colors.success.main,
-							},
-						]}
-					>
-						{user.is_active ? "Deactivate" : "Activate"}
-					</Text>
-				</TouchableOpacity>
-
-				{/* Only show delete button for non-super admins */}
-				{user.role !== "super_admin" && (
+		<View style={[styles.actionButtons, isDark && styles.actionButtonsDark]}>
+			{/* Only show user management buttons for super admins */}
+			{currentUserRole === "super_admin" && (
+				<>
 					<TouchableOpacity
-						style={[styles.actionButton, styles.deleteButton]}
-						onPress={() => onDeleteUser(user)}
+						style={[styles.actionButton, styles.manageButton]}
+						onPress={() => onManage(user)}
 					>
 						<Ionicons
-							name="trash-outline"
+							name="settings-outline"
 							size={18}
-							color={Colors.error.dark}
+							color={Colors.primary[600]}
 						/>
-						<Text style={styles.deleteButtonText}>Delete</Text>
+						<Text style={styles.manageButtonText}>Manage</Text>
 					</TouchableOpacity>
-				)}
-			</View>
+
+					<TouchableOpacity
+						style={[
+							styles.actionButton,
+							user.is_active ? styles.deactivateButton : styles.activateButton,
+						]}
+						onPress={() => onToggleActive(user)}
+					>
+						<Ionicons
+							name={
+								user.is_active
+									? "close-circle-outline"
+									: "checkmark-circle-outline"
+							}
+							size={18}
+							color={user.is_active ? Colors.error.main : Colors.success.main}
+						/>
+						<Text
+							style={[
+								styles.actionButtonText,
+								{
+									color: user.is_active ? Colors.error.main : Colors.success.main,
+								},
+							]}
+						>
+							{user.is_active ? "Deactivate" : "Activate"}
+						</Text>
+					</TouchableOpacity>
+
+					{/* Only show delete button for non-super admins */}
+					{user.role !== "super_admin" && (
+						<TouchableOpacity
+							style={[styles.actionButton, styles.deleteButton]}
+							onPress={() => onDeleteUser(user)}
+						>
+							<Ionicons
+								name="trash-outline"
+								size={18}
+								color={Colors.error.dark}
+							/>
+							<Text style={styles.deleteButtonText}>Delete</Text>
+						</TouchableOpacity>
+					)}
+				</>
+			)}
+			
+			{/* For regular admins, show a limited view message */}
+			{currentUserRole === "admin" && (
+				<View style={styles.actionButton}>
+					<Text style={[styles.actionButtonText, { color: Colors.gray[500] }]}>
+						Admin View - Limited Access
+					</Text>
+				</View>
+			)}
+		</View>
 		</View>
 	);
 };
@@ -657,7 +672,7 @@ const AnalyticsCard: React.FC<AnalyticsCardProps> = ({
 export default function SuperAdminScreen({
 	navigation,
 }: {
-	navigation: StackNavigationProp<RootStackParamList, "SuperAdmin">;
+	navigation: any; // Using any to avoid navigation type issues
 }) {
 	const { user } = useAuthStore();
 	const { isDark } = useTheme();
@@ -884,6 +899,113 @@ export default function SuperAdminScreen({
 		},
 		[searchQuery, pagination.pageSize, currentUser]
 	);
+
+	// Load pending approvals
+	const loadPendingApprovals = useCallback(async () => {
+		if (!currentUser?.id) return;
+
+		try {
+			const { data: pendingUsers, error } = await supabase
+				.from('pending_user_approvals')
+				.select('*')
+				.order('created_at', { ascending: false });
+
+			if (error) {
+				console.error('Error loading pending approvals:', error);
+				return;
+			}
+
+			console.log('📋 Pending approvals loaded:', pendingUsers?.length || 0);
+			return pendingUsers || [];
+		} catch (error) {
+			console.error('Error loading pending approvals:', error);
+			return [];
+		}
+	}, [currentUser]);
+
+	// Handle approve user
+	const handleApproveUser = async (userEmail: string, userName: string) => {
+		try {
+			console.log(`✅ Approving user: ${userName} (${userEmail})`);
+			
+			const { data, error } = await supabase.rpc('approve_user', {
+				user_email: userEmail,
+				approved_by_admin_id: currentUser.id
+			});
+
+			if (error) {
+				throw new Error(error.message);
+			}
+
+			console.log('✅ User approved successfully:', data);
+			
+			// Refresh data
+			await Promise.all([loadUsers(), loadAnalytics()]);
+			
+			Alert.alert(
+				'✅ User Approved',
+				`${userName} has been approved and can now access the app.`,
+				[{ text: 'OK' }]
+			);
+			
+			Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+		} catch (error) {
+			console.error('❌ Error approving user:', error);
+			Alert.alert(
+				'Approval Failed',
+				`Failed to approve ${userName}. ${error instanceof Error ? error.message : 'Please try again.'}`
+			);
+		}
+	};
+
+	// Handle reject user approval
+	const handleRejectUser = async (userEmail: string, userName: string) => {
+		Alert.alert(
+			'Reject User',
+			`Are you sure you want to reject ${userName}'s account approval?`,
+			[
+				{ text: 'Cancel', style: 'cancel' },
+				{
+					text: 'Reject',
+					style: 'destructive',
+					onPress: async () => {
+						try {
+							console.log(`❌ Rejecting user: ${userName} (${userEmail})`);
+							
+							const { data, error } = await supabase.rpc('revoke_user_approval', {
+								user_email: userEmail,
+								revoked_by_admin_id: currentUser.id,
+								reason: 'Account application rejected by admin'
+							});
+
+							if (error) {
+								throw new Error(error.message);
+							}
+
+							console.log('❌ User rejected successfully:', data);
+							
+							// Refresh data
+							await Promise.all([loadUsers(), loadAnalytics()]);
+							
+							Alert.alert(
+								'❌ User Rejected',
+								`${userName}'s account approval has been rejected.`,
+								[{ text: 'OK' }]
+							);
+							
+							Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+						} catch (error) {
+							console.error('❌ Error rejecting user:', error);
+							Alert.alert(
+								'Rejection Failed',
+								`Failed to reject ${userName}. ${error instanceof Error ? error.message : 'Please try again.'}`
+							);
+						}
+					}
+				}
+			]
+		);
+	};
 
 	// Load analytics with error handling and fallback values
 	const loadAnalytics = useCallback(async () => {
@@ -1163,6 +1285,10 @@ export default function SuperAdminScreen({
 	// Render list header (analytics)
 	const renderListHeader = () => (
 		<View style={styles.analyticsContainer}>
+			{/* Pending Approvals Section */}
+			{renderPendingApprovals()}
+			
+			{/* Analytics Cards */}
 			<View style={styles.analyticsRow}>
 				<AnalyticsCard
 					title="Total Users"
@@ -1209,6 +1335,85 @@ export default function SuperAdminScreen({
 			</View>
 		</View>
 	);
+
+	// Render pending approvals section
+	const renderPendingApprovals = () => {
+		const [pendingUsers, setPendingUsers] = useState<any[]>([]);
+		const [loadingPending, setLoadingPending] = useState(false);
+
+		// Load pending users when component mounts
+		useEffect(() => {
+			const loadPending = async () => {
+				if (!currentUser?.id) return;
+				
+				setLoadingPending(true);
+				try {
+					const pending = await loadPendingApprovals();
+					setPendingUsers(pending || []);
+				} catch (error) {
+					console.error('Error loading pending approvals:', error);
+				} finally {
+					setLoadingPending(false);
+				}
+			};
+
+			loadPending();
+		}, [currentUser]);
+
+		if (loadingPending) {
+			return (
+				<View style={styles.pendingSection}>
+					<Text style={styles.pendingSectionTitle}>⏳ Pending Approvals</Text>
+					<ActivityIndicator size="small" color={Colors.primary[500]} />
+				</View>
+			);
+		}
+
+		if (pendingUsers.length === 0) {
+			return (
+				<View style={styles.pendingSection}>
+					<Text style={styles.pendingSectionTitle}>✅ No Pending Approvals</Text>
+					<Text style={styles.pendingEmptyText}>All users have been approved</Text>
+				</View>
+			);
+		}
+
+		return (
+			<View style={styles.pendingSection}>
+				<Text style={styles.pendingSectionTitle}>
+					⏳ Pending Approvals ({pendingUsers.length})
+				</Text>
+				{pendingUsers.map((user) => (
+					<View key={user.id} style={styles.pendingUserCard}>
+						<View style={styles.pendingUserInfo}>
+							<Text style={styles.pendingUserName}>{user.name}</Text>
+							<Text style={styles.pendingUserEmail}>{user.email}</Text>
+							<Text style={styles.pendingUserDepartment}>{user.department || 'No Department'}</Text>
+							<Text style={styles.pendingUserDate}>
+								Applied: {new Date(user.created_at).toLocaleDateString()}
+							</Text>
+						</View>
+						<View style={styles.pendingUserActions}>
+							<TouchableOpacity
+								style={styles.approveButton}
+								onPress={() => handleApproveUser(user.email, user.name)}
+							>
+								<Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+								<Text style={styles.approveButtonText}>Approve</Text>
+							</TouchableOpacity>
+							<TouchableOpacity
+								style={styles.rejectButton}
+								onPress={() => handleRejectUser(user.email, user.name)}
+							>
+								<Ionicons name="close-circle" size={20} color="#FFFFFF" />
+								<Text style={styles.rejectButtonText}>Reject</Text>
+							</TouchableOpacity>
+						</View>
+					</View>
+				))}
+			</View>
+		);
+	};
 
 	// Render empty state
 	const renderEmptyState = () => (
@@ -1394,7 +1599,9 @@ export default function SuperAdminScreen({
 									color="white"
 									style={styles.headerIcon}
 								/>
-								<Text style={styles.headerTitle}>Super Admin Portal</Text>
+								<Text style={styles.headerTitle}>
+									{currentUser?.role === "super_admin" ? "Super Admin Portal" : "Admin Portal"}
+								</Text>
 							</View>
 							<TouchableOpacity
 								style={styles.profileButton}
@@ -1408,7 +1615,9 @@ export default function SuperAdminScreen({
 							</TouchableOpacity>
 						</View>
 						<Text style={styles.headerSubtitle}>
-							User Management & Analytics
+							{currentUser?.role === "super_admin" 
+								? "User Management & Analytics" 
+								: "User Approval Management"}
 						</Text>
 						<View style={styles.headerStats}>
 							<View style={styles.headerStat}>
@@ -1457,32 +1666,48 @@ export default function SuperAdminScreen({
 				</View>
 			</View>
 
-			{/* User List */}
-			<FlatList
-				data={users}
-				keyExtractor={(item) => item.id}
-				renderItem={({ item }) => (
-					<UserItem
-						user={item}
-						onManage={handleManageUser}
-						onToggleActive={handleToggleActive}
-						onDeleteUser={handleDeleteUser}
-					/>
-				)}
-				contentContainerStyle={styles.listContent}
-				ListHeaderComponent={renderListHeader}
-				ListEmptyComponent={renderEmptyState}
-				ListFooterComponent={renderListFooter}
-				refreshControl={
-					<RefreshControl
-						refreshing={refreshing}
-						onRefresh={handleRefresh}
-						colors={[Colors.primary[500]]}
-						tintColor={Colors.primary[500]}
-					/>
-				}
-				showsVerticalScrollIndicator={false}
-			/>
+			{/* User List - Only show for super admins */}
+			{currentUser?.role === "super_admin" && (
+				<FlatList
+					data={users}
+					keyExtractor={(item) => item.id}
+					renderItem={({ item }) => (
+						<UserItem
+							user={item}
+							onManage={handleManageUser}
+							onToggleActive={handleToggleActive}
+							onDeleteUser={handleDeleteUser}
+							currentUserRole={currentUser?.role || ""}
+						/>
+					)}
+					contentContainerStyle={styles.listContent}
+					ListHeaderComponent={renderListHeader}
+					ListEmptyComponent={renderEmptyState}
+					ListFooterComponent={renderListFooter}
+					refreshControl={
+						<RefreshControl
+							refreshing={refreshing}
+							onRefresh={handleRefresh}
+							colors={[Colors.primary[500]]}
+							tintColor={Colors.primary[500]}
+						/>
+					}
+					showsVerticalScrollIndicator={false}
+				/>
+			)}
+
+			{/* For regular admins, show only pending approvals */}
+			{currentUser?.role === "admin" && (
+				<View style={styles.adminOnlyView}>
+					<Text style={[styles.adminOnlyTitle, isDark && styles.adminOnlyTitleDark]}>
+						Admin Dashboard - Pending Approvals Only
+					</Text>
+					<Text style={[styles.adminOnlySubtitle, isDark && styles.adminOnlySubtitleDark]}>
+						You can approve/reject new user accounts. Full user management is restricted to Super Admins.
+					</Text>
+					{renderPendingApprovals()}
+				</View>
+			)}
 
 			{/* User Management Modal */}
 			<UserManagementModal
@@ -1494,6 +1719,11 @@ export default function SuperAdminScreen({
 				}}
 				onSave={handleSaveUser}
 			/>
+		{/* Pending Approvals Section - Always show this at the bottom */}
+		<View style={styles.pendingApprovalsContainer}>
+			{/* Render pending approvals for both super admin and admin */}
+			{(currentUser?.role === "super_admin" || currentUser?.role === "admin") && renderPendingApprovals()}
+		</View>
 		</SafeAreaView>
 	);
 }
@@ -1618,7 +1848,8 @@ const styles = StyleSheet.create({
 		paddingBottom: Spacing[6],
 	},
 	analyticsContainer: {
-		marginBottom: Spacing[5],
+		paddingHorizontal: Spacing[4],
+		paddingBottom: Spacing[4],
 	},
 	analyticsRow: {
 		flexDirection: "row",
@@ -1966,7 +2197,7 @@ const styles = StyleSheet.create({
 		justifyContent: "space-between",
 		marginTop: Spacing[4],
 		marginBottom: Spacing[4], // Add bottom margin to prevent overlap
-		paddingTop: Spacing[3], // Add top padding for better separation
+		paddingTop: Spacing[3], // Add extra padding for better separation
 		borderTopWidth: 1, // Add subtle border to separate from content
 		borderTopColor: Colors.border.light,
 	},
@@ -2110,5 +2341,121 @@ const styles = StyleSheet.create({
 	simpleCancelText: {
 		color: Colors.text.secondary,
 		fontSize: 16,
+	},
+
+	// Pending Approvals Section
+	pendingApprovalsContainer: {
+		padding: Spacing[5],
+		backgroundColor: Colors.background.secondary,
+	},
+	pendingSection: {
+		marginBottom: Spacing[4],
+		backgroundColor: Colors.background.primary,
+		borderRadius: BorderRadius.lg,
+		padding: Spacing[4],
+		borderWidth: 1,
+		borderColor: Colors.gray[200],
+	},
+	pendingSectionTitle: {
+		fontSize: Typography.fontSize.lg,
+		fontWeight: Typography.fontWeight.bold,
+		color: Colors.gray[900],
+		marginBottom: Spacing[3],
+	},
+	pendingEmptyText: {
+		fontSize: Typography.fontSize.sm,
+		color: Colors.gray[600],
+		textAlign: "center",
+		fontStyle: "italic",
+	},
+	pendingUserCard: {
+		backgroundColor: Colors.gray[50],
+		borderRadius: BorderRadius.md,
+		padding: Spacing[3],
+		marginBottom: Spacing[3],
+		flexDirection: "row",
+		alignItems: "center",
+		justifyContent: "space-between",
+	},
+	pendingUserInfo: {
+		flex: 1,
+		marginRight: Spacing[3],
+	},
+	pendingUserName: {
+		fontSize: Typography.fontSize.base,
+		fontWeight: Typography.fontWeight.semibold,
+		color: Colors.gray[900],
+		marginBottom: 2,
+	},
+	pendingUserEmail: {
+		fontSize: Typography.fontSize.sm,
+		color: Colors.gray[700],
+		marginBottom: 2,
+	},
+	pendingUserDepartment: {
+		fontSize: Typography.fontSize.xs,
+		color: Colors.gray[600],
+		marginBottom: 2,
+	},
+	pendingUserDate: {
+		fontSize: Typography.fontSize.xs,
+		color: Colors.gray[500],
+	},
+	pendingUserActions: {
+		flexDirection: "row",
+		gap: Spacing[2],
+	},
+	approveButton: {
+		flexDirection: "row",
+		alignItems: "center",
+		backgroundColor: Colors.success.main,
+		paddingHorizontal: Spacing[3],
+		paddingVertical: Spacing[2],
+		borderRadius: BorderRadius.md,
+		gap: Spacing[1],
+	},
+	approveButtonText: {
+		color: "#FFFFFF",
+		fontSize: Typography.fontSize.sm,
+		fontWeight: Typography.fontWeight.medium,
+	},
+	rejectButton: {
+		flexDirection: "row",
+		alignItems: "center",
+		backgroundColor: Colors.error.main,
+		paddingHorizontal: Spacing[3],
+		paddingVertical: Spacing[2],
+		borderRadius: BorderRadius.md,
+		gap: Spacing[1],
+	},
+	rejectButtonText: {
+		color: "#FFFFFF",
+		fontSize: Typography.fontSize.sm,
+		fontWeight: Typography.fontWeight.medium,
+	},
+	adminOnlyView: {
+		flex: 1,
+		padding: Spacing[4],
+		backgroundColor: Colors.gray[50],
+	},
+	adminOnlyTitle: {
+		fontSize: Typography.fontSize.xl,
+		fontWeight: Typography.fontWeight.bold,
+		color: Colors.primary[600],
+		marginBottom: Spacing[2],
+		textAlign: "center",
+	},
+	adminOnlyTitleDark: {
+		color: Colors.dark.text.primary,
+	},
+	adminOnlySubtitle: {
+		fontSize: Typography.fontSize.base,
+		color: Colors.gray[600],
+		marginBottom: Spacing[6],
+		textAlign: "center",
+		lineHeight: 20,
+	},
+	adminOnlySubtitleDark: {
+		color: Colors.dark.text.secondary,
 	},
 });

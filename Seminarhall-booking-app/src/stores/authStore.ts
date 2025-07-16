@@ -13,6 +13,7 @@ export interface User {
 	department?: string;
 	employeeId?: string;
 	avatar?: string;
+	approved_by_admin?: boolean;
 	createdAt: string;
 	lastLoginAt?: string;
 }
@@ -88,14 +89,25 @@ export const useAuthStore = create<AuthState>()(
 							error: null,
 						});
 						return;
-					}
+					}				if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+					try {
+						set({ isLoading: true });
 
-					if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
-						try {
-							set({ isLoading: true });
+						// Check if email is verified
+						if (!session.user.email_confirmed_at) {
+							console.log("Email not verified, signing out user");
+							await supabase.auth.signOut();
+							set({
+								user: null,
+								isAuthenticated: false,
+								isLoading: false,
+								error: "Please verify your email address before logging in. Check your email for the verification link.",
+							});
+							return;
+						}
 
-							// Add a small delay to ensure the user is properly created
-							await new Promise((resolve) => setTimeout(resolve, 1000));
+						// Add a small delay to ensure the user is properly created
+						await new Promise((resolve) => setTimeout(resolve, 1000));
 
 							// Get user profile from the profiles table with retries
 							let profileData = null;
@@ -213,6 +225,19 @@ export const useAuthStore = create<AuthState>()(
 								return;
 							}
 
+							// Check if user is approved by admin (for new accounts)
+							// Only faculty users need admin approval, admin and super_admin are pre-approved
+							if (profileData.role === 'faculty' && !profileData.approved_by_admin) {
+								await supabase.auth.signOut();
+								set({
+									user: null,
+									isAuthenticated: false,
+									isLoading: false,
+									error: null, // Don't show error for initialization
+								});
+								return;
+							}
+
 							// Convert to our User format
 							const user: User = {
 								id: profileData.id,
@@ -223,6 +248,7 @@ export const useAuthStore = create<AuthState>()(
 								department: profileData.department,
 								employeeId: profileData.employee_id,
 								avatar: profileData.avatar_url,
+								approved_by_admin: profileData.approved_by_admin,
 								createdAt: profileData.created_at,
 								lastLoginAt: profileData.last_login_at,
 							};
@@ -271,6 +297,19 @@ export const useAuthStore = create<AuthState>()(
 						return;
 					}
 
+					// Check if email is verified
+					if (!session.user.email_confirmed_at) {
+						console.log("Email not verified during initialization, signing out user");
+						await supabase.auth.signOut();
+						set({
+							user: null,
+							isAuthenticated: false,
+							isLoading: false,
+							error: null, // Don't show error for initialization
+						});
+						return;
+					}
+
 					// Get user profile from the profiles table
 					const { data: profileData, error: profileError } = await supabase
 						.from("profiles")
@@ -303,6 +342,19 @@ export const useAuthStore = create<AuthState>()(
 						return;
 					}
 
+					// Check if user is approved by admin (for new accounts)
+					// Only faculty users need admin approval, admin and super_admin are pre-approved
+					if (profileData.role === 'faculty' && !profileData.approved_by_admin) {
+						await supabase.auth.signOut();
+						set({
+							user: null,
+							isAuthenticated: false,
+							isLoading: false,
+							error: null, // Don't show error for initialization
+						});
+						return;
+					}
+
 					// Convert to our User format
 					const user: User = {
 						id: profileData.id,
@@ -313,6 +365,7 @@ export const useAuthStore = create<AuthState>()(
 						department: profileData.department,
 						employeeId: profileData.employee_id,
 						avatar: profileData.avatar_url,
+						approved_by_admin: profileData.approved_by_admin,
 						createdAt: profileData.created_at,
 						lastLoginAt: profileData.last_login_at,
 					};
@@ -397,6 +450,15 @@ export const useAuthStore = create<AuthState>()(
 						);
 					}
 
+					// Check if user is approved by admin (for new accounts)
+					// Only faculty users need admin approval, admin and super_admin are pre-approved
+					if (profileData.role === 'faculty' && !profileData.approved_by_admin) {
+						await supabase.auth.signOut();
+						throw new Error(
+							"Your account is pending admin approval. Please wait for an administrator to approve your account before you can access the app."
+						);
+					}
+
 					// Update last login time (ignore errors)
 					try {
 						await supabase
@@ -417,6 +479,7 @@ export const useAuthStore = create<AuthState>()(
 						department: profileData.department,
 						employeeId: profileData.employee_id,
 						avatar: profileData.avatar_url,
+						approved_by_admin: profileData.approved_by_admin,
 						createdAt: profileData.created_at,
 						lastLoginAt: new Date().toISOString(),
 					};
@@ -657,6 +720,7 @@ export const useAuthStore = create<AuthState>()(
 						employeeId: profileData.employee_id,
 						phone: profileData.phone,
 						avatar: profileData.avatar_url,
+						approved_by_admin: profileData.approved_by_admin,
 						createdAt: profileData.created_at,
 					};
 
@@ -712,6 +776,7 @@ export const useAuthStore = create<AuthState>()(
 						department: profileData.department,
 						employeeId: profileData.employee_id,
 						avatar: profileData.avatar_url,
+						approved_by_admin: profileData.approved_by_admin,
 						createdAt: profileData.created_at,
 						lastLoginAt: profileData.last_login_at,
 					};
@@ -743,7 +808,7 @@ export const useAuthStore = create<AuthState>()(
 						email,
 						{
 							// Redirect to your website's password reset page
-							// Your website should then redirect to: seminarhallbooking://auth/password-reset-success
+							// Your website should then redirect to: seminarhallbooking://auth/password-reset
 							redirectTo: 'https://seminarhall-ivory.vercel.app/forgot-password'
 						}
 					);

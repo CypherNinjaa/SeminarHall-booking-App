@@ -11,12 +11,14 @@ import {
 	Animated,
 	TextInput,
 	Dimensions,
+	Switch,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StyleSheet } from "react-native";
 
 import { useTheme } from "../contexts/ThemeContext";
@@ -113,6 +115,7 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 	const { user } = useAuthStore();
 	const { isDark } = useTheme();
 	const themeColors = getThemeColors(isDark);
+	const insets = useSafeAreaInsets();
 	const editingBooking = route.params?.editingBooking;
 
 	// Enhanced dynamic theme with better dark mode support
@@ -159,6 +162,14 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 		priority: "medium",
 	});
 
+	// Multi-date booking state
+	const [isMultiDateBooking, setIsMultiDateBooking] = useState(false);
+	const [selectedDates, setSelectedDates] = useState<string[]>([]);
+	const [isWholeDayBooking, setIsWholeDayBooking] = useState(false);
+	const [bookingMode, setBookingMode] = useState<'single' | 'multiple' | 'recurring'>('single');
+	const [recurringDays, setRecurringDays] = useState(3);
+	const [recurringStartDate, setRecurringStartDate] = useState<Date | null>(null);
+
 	// Date picker state
 	const [showDatePicker, setShowDatePicker] = useState(false);
 	const [showStartTimePicker, setShowStartTimePicker] = useState(false);
@@ -182,7 +193,7 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 	// Form validation
 	const [formProgress, setFormProgress] = useState(0);
 
-	const styles = createStyles(dynamicTheme);
+	const styles = createStyles(dynamicTheme, insets);
 
 	// Helper functions
 	const isHallAvailable = (hall: any) => {
@@ -232,6 +243,31 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 		return `${hours}:${minutes}`;
 	};
 
+	// Multi-date booking helpers
+	const addSelectedDate = (dateString: string) => {
+		if (!selectedDates.includes(dateString)) {
+			setSelectedDates(prev => [...prev, dateString].sort());
+		}
+	};
+
+	const removeSelectedDate = (dateString: string) => {
+		setSelectedDates(prev => prev.filter(date => date !== dateString));
+	};
+
+	const generateRecurringDates = (startDate: Date, days: number): string[] => {
+		const dates: string[] = [];
+		for (let i = 0; i < days; i++) {
+			const date = new Date(startDate);
+			date.setDate(date.getDate() + i);
+			dates.push(formatDateToString(date));
+		}
+		return dates;
+	};
+
+	const getWholeDay = () => {
+		return { start_time: "09:00", end_time: "18:00" };
+	};
+
 	const isPastTime = (dateString: string, timeString: string): boolean => {
 		const now = new Date();
 		const [hours, minutes] = timeString.split(":").map(Number);
@@ -250,7 +286,7 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 		let progress = 0;
 		const fields = [
 			formData.hall_id,
-			formData.booking_date,
+			isMultiDateBooking ? (selectedDates.length > 0 ? 'dates' : '') : formData.booking_date,
 			formData.start_time,
 			formData.end_time,
 			formData.purpose,
@@ -270,7 +306,7 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 			duration: 300,
 			useNativeDriver: false,
 		}).start();
-	}, [formData, progressAnim]);
+	}, [formData, isMultiDateBooking, selectedDates, progressAnim]);
 
 	useEffect(() => {
 		calculateProgress();
@@ -398,15 +434,20 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 		if (!user) return;
 
 		// Validate required fields
-		if (!formData.hall_id || !formData.booking_date || !formData.purpose) {
+		const datesToBook = isMultiDateBooking ? selectedDates : [formData.booking_date];
+		if (!formData.hall_id || datesToBook.length === 0 || !formData.purpose) {
 			Alert.alert("Error", "Please fill in all required fields");
 			return;
 		}
 
 		// Check for past time
-		if (isPastTime(formData.booking_date, formData.start_time)) {
-			Alert.alert("Error", "Cannot book past dates or times");
-			return;
+		const currentTimes = isWholeDayBooking ? getWholeDay() : { start_time: formData.start_time, end_time: formData.end_time };
+		
+		for (const date of datesToBook) {
+			if (isPastTime(date, currentTimes.start_time)) {
+				Alert.alert("Error", `Cannot book past dates or times for ${formatDate(date)}`);
+				return;
+			}
 		}
 
 		try {
@@ -414,14 +455,34 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 				setUpdating(true);
 				await smartBookingService.updateBooking(
 					editingBooking.id,
-					formData,
+					{
+						...formData,
+						...currentTimes,
+					},
 					user.id
 				);
 				Alert.alert("Success", "Booking updated successfully!");
 			} else {
 				setCreating(true);
-				await smartBookingService.createBooking(formData, user.id);
-				Alert.alert("Success", "Booking created successfully!");
+				
+				// Create multiple bookings
+				const bookingPromises = datesToBook.map(date => 
+					smartBookingService.createBooking(
+						{
+							...formData,
+							booking_date: date,
+							...currentTimes,
+						},
+						user.id
+					)
+				);
+
+				await Promise.all(bookingPromises);
+				
+				const successMessage = datesToBook.length > 1 
+					? `${datesToBook.length} bookings created successfully!`
+					: "Booking created successfully!";
+				Alert.alert("Success", successMessage);
 			}
 
 			navigation.goBack();
@@ -436,18 +497,18 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 
 	if (loading) {
 		return (
-			<SafeAreaView style={styles.container}>
+			<View style={styles.container}>
 				<StatusBar style="auto" />
 				<View style={styles.loadingContainer}>
 					<ActivityIndicator size="large" color={theme.colors.primary} />
 					<Text style={styles.loadingText}>Loading form...</Text>
 				</View>
-			</SafeAreaView>
+			</View>
 		);
 	}
 
 	return (
-		<SafeAreaView style={styles.container}>
+		<View style={styles.container}>
 			<StatusBar style="auto" />
 
 			{/* Header */}
@@ -479,7 +540,7 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 						creating ||
 						updating ||
 						!formData.hall_id ||
-						!formData.booking_date ||
+						(isMultiDateBooking ? selectedDates.length === 0 : !formData.booking_date) ||
 						!formData.purpose ||
 						formData.attendees_count > 100
 					}
@@ -488,7 +549,7 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 						(creating ||
 							updating ||
 							!formData.hall_id ||
-							!formData.booking_date ||
+							(isMultiDateBooking ? selectedDates.length === 0 : !formData.booking_date) ||
 							!formData.purpose ||
 							formData.attendees_count > 100) &&
 							styles.submitButtonDisabled,
@@ -500,7 +561,7 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 							(creating ||
 								updating ||
 								!formData.hall_id ||
-								!formData.booking_date ||
+								(isMultiDateBooking ? selectedDates.length === 0 : !formData.booking_date) ||
 								!formData.purpose ||
 								formData.attendees_count > 100) &&
 								styles.submitButtonTextDisabled,
@@ -718,6 +779,103 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 					</ScrollView>
 				</View>
 
+				{/* Booking Mode Selection */}
+				<View style={styles.formSection}>
+					<View style={styles.sectionHeader}>
+						<LinearGradient
+							colors={[
+								theme.colors.warning + "15",
+								theme.colors.warning + "05",
+							]}
+							style={styles.sectionIconContainer}
+						>
+							<Ionicons
+								name="options"
+								size={20}
+								color={theme.colors.warning}
+							/>
+						</LinearGradient>
+						<Text style={styles.sectionTitle}>Booking Mode</Text>
+					</View>
+
+					<View style={styles.bookingModeContainer}>
+						<TouchableOpacity
+							style={[
+								styles.bookingModeButton,
+								bookingMode === 'single' && styles.bookingModeButtonActive
+							]}
+							onPress={() => {
+								setBookingMode('single');
+								setIsMultiDateBooking(false);
+								setSelectedDates([]);
+								Haptics.selectionAsync();
+							}}
+						>
+							<Ionicons
+								name="calendar-outline"
+								size={20}
+								color={bookingMode === 'single' ? '#FFFFFF' : theme.colors.text.secondary}
+							/>
+							<Text style={[
+								styles.bookingModeText,
+								bookingMode === 'single' && styles.bookingModeTextActive
+							]}>
+								Single Date
+							</Text>
+						</TouchableOpacity>
+
+						<TouchableOpacity
+							style={[
+								styles.bookingModeButton,
+								bookingMode === 'multiple' && styles.bookingModeButtonActive
+							]}
+							onPress={() => {
+								setBookingMode('multiple');
+								setIsMultiDateBooking(true);
+								setFormData(prev => ({ ...prev, booking_date: '' }));
+								Haptics.selectionAsync();
+							}}
+						>
+							<Ionicons
+								name="calendar"
+								size={20}
+								color={bookingMode === 'multiple' ? '#FFFFFF' : theme.colors.text.secondary}
+							/>
+							<Text style={[
+								styles.bookingModeText,
+								bookingMode === 'multiple' && styles.bookingModeTextActive
+							]}>
+								Multiple Dates
+							</Text>
+						</TouchableOpacity>
+
+						<TouchableOpacity
+							style={[
+								styles.bookingModeButton,
+								bookingMode === 'recurring' && styles.bookingModeButtonActive
+							]}
+							onPress={() => {
+								setBookingMode('recurring');
+								setIsMultiDateBooking(true);
+								setFormData(prev => ({ ...prev, booking_date: '' }));
+								Haptics.selectionAsync();
+							}}
+						>
+							<Ionicons
+								name="repeat"
+								size={20}
+								color={bookingMode === 'recurring' ? '#FFFFFF' : theme.colors.text.secondary}
+							/>
+							<Text style={[
+								styles.bookingModeText,
+								bookingMode === 'recurring' && styles.bookingModeTextActive
+							]}>
+								Recurring
+							</Text>
+						</TouchableOpacity>
+					</View>
+				</View>
+
 				{/* Date & Time Selection */}
 				<View style={styles.formSection}>
 					<View style={styles.sectionHeader}>
@@ -735,7 +893,8 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 							/>
 						</LinearGradient>
 						<Text style={styles.sectionTitle}>Date & Time *</Text>
-						{formData.booking_date &&
+						{((isMultiDateBooking && selectedDates.length > 0) || 
+						  (!isMultiDateBooking && formData.booking_date)) &&
 						formData.start_time &&
 						formData.end_time ? (
 							<View style={styles.completedIndicator}>
@@ -756,75 +915,269 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 						)}
 					</View>
 
-					{/* Date Selection */}
+					{/* Whole Day Toggle */}
 					<TouchableOpacity
-						style={styles.enhancedInput}
+						style={styles.wholeDayToggle}
 						onPress={() => {
-							setTempDate(
-								formData.booking_date
-									? formatDateForInput(formData.booking_date)
-									: new Date()
-							);
-							setShowDatePicker(true);
+							setIsWholeDayBooking(!isWholeDayBooking);
+							if (!isWholeDayBooking) {
+								const wholeDay = getWholeDay();
+								setFormData(prev => ({
+									...prev,
+									start_time: wholeDay.start_time,
+									end_time: wholeDay.end_time,
+								}));
+							}
 							Haptics.selectionAsync();
 						}}
 					>
-						<View style={styles.inputWithIcon}>
-							<View style={styles.inputIconContainer}>
+						<View>
+							<Text style={styles.wholeDayToggleText}>Book for Whole Day</Text>
+							<Text style={styles.wholeDayToggleSubtext}>
+								{isWholeDayBooking ? "9:00 AM - 6:00 PM" : "Select custom times"}
+							</Text>
+						</View>
+						<Switch
+							value={isWholeDayBooking}
+							onValueChange={(value) => {
+								setIsWholeDayBooking(value);
+								if (value) {
+									const wholeDay = getWholeDay();
+									setFormData(prev => ({
+										...prev,
+										start_time: wholeDay.start_time,
+										end_time: wholeDay.end_time,
+									}));
+								}
+								Haptics.selectionAsync();
+							}}
+							trackColor={{ false: theme.colors.border, true: theme.colors.primary + "40" }}
+							thumbColor={isWholeDayBooking ? theme.colors.primary : theme.colors.text.tertiary}
+						/>
+					</TouchableOpacity>
+
+					{/* Single Date Selection */}
+					{bookingMode === 'single' && (
+						<TouchableOpacity
+							style={styles.enhancedInput}
+							onPress={() => {
+								setTempDate(
+									formData.booking_date
+										? formatDateForInput(formData.booking_date)
+										: new Date()
+								);
+								setShowDatePicker(true);
+								Haptics.selectionAsync();
+							}}
+						>
+							<View style={styles.inputWithIcon}>
+								<View style={styles.inputIconContainer}>
+									<Ionicons
+										name="calendar-outline"
+										size={20}
+										color={theme.colors.primary}
+									/>
+								</View>
+								<View style={styles.inputTextContainer}>
+									<Text style={styles.inputLabel}>Date</Text>
+									<Text
+										style={[
+											styles.enhancedInputText,
+											!formData.booking_date && styles.placeholderText,
+										]}
+									>
+										{formData.booking_date
+											? formatDate(formData.booking_date)
+											: "Select date"}
+									</Text>
+								</View>
 								<Ionicons
-									name="calendar-outline"
-									size={20}
-									color={theme.colors.primary}
+									name="chevron-forward"
+									size={16}
+									color={dynamicTheme.colors.text.secondary}
 								/>
 							</View>
-							<View style={styles.inputTextContainer}>
-								<Text style={styles.inputLabel}>Date</Text>
-								<Text
-									style={[
-										styles.enhancedInputText,
-										!formData.booking_date && styles.placeholderText,
-									]}
-								>
-									{formData.booking_date
-										? formatDate(formData.booking_date)
-										: "Select date"}
-								</Text>
-							</View>
-							<Ionicons
-								name="chevron-forward"
-								size={16}
-								color={dynamicTheme.colors.text.secondary}
-							/>
+						</TouchableOpacity>
+					)}
+
+					{/* Multiple Date Selection */}
+					{bookingMode === 'multiple' && (
+						<View style={styles.multiDateSelector}>
+							<TouchableOpacity
+								style={styles.enhancedInput}
+								onPress={() => {
+									setTempDate(new Date());
+									setShowDatePicker(true);
+									Haptics.selectionAsync();
+								}}
+							>
+								<View style={styles.inputWithIcon}>
+									<View style={styles.inputIconContainer}>
+										<Ionicons
+											name="add-circle-outline"
+											size={20}
+											color={theme.colors.primary}
+										/>
+									</View>
+									<View style={styles.inputTextContainer}>
+										<Text style={styles.inputLabel}>Add Date</Text>
+										<Text style={[styles.enhancedInputText, styles.placeholderText]}>
+											Select dates to book
+										</Text>
+									</View>
+									<Ionicons
+										name="chevron-forward"
+										size={16}
+										color={dynamicTheme.colors.text.secondary}
+									/>
+								</View>
+							</TouchableOpacity>
+
+							{/* Selected Dates */}
+							{selectedDates.length > 0 && (
+								<View style={styles.selectedDatesContainer}>
+									{selectedDates.map((date, index) => (
+										<View key={index} style={styles.selectedDateChip}>
+											<Text style={styles.selectedDateText}>
+												{formatDate(date)}
+											</Text>
+											<TouchableOpacity
+												onPress={() => {
+													removeSelectedDate(date);
+													Haptics.selectionAsync();
+												}}
+											>
+												<Ionicons
+													name="close-circle"
+													size={16}
+													color={theme.colors.primary}
+												/>
+											</TouchableOpacity>
+										</View>
+									))}
+								</View>
+							)}
 						</View>
-					</TouchableOpacity>
+					)}
+
+					{/* Recurring Date Selection */}
+					{bookingMode === 'recurring' && (
+						<View style={styles.recurringControls}>
+							<TouchableOpacity
+								style={styles.enhancedInput}
+								onPress={() => {
+									setTempDate(recurringStartDate || new Date());
+									setShowDatePicker(true);
+									Haptics.selectionAsync();
+								}}
+							>
+								<View style={styles.inputWithIcon}>
+									<View style={styles.inputIconContainer}>
+										<Ionicons
+											name="calendar-outline"
+											size={20}
+											color={theme.colors.primary}
+										/>
+									</View>
+									<View style={styles.inputTextContainer}>
+										<Text style={styles.inputLabel}>Start Date</Text>
+										<Text
+											style={[
+												styles.enhancedInputText,
+												!recurringStartDate && styles.placeholderText,
+											]}
+										>
+											{recurringStartDate
+												? formatDate(formatDateToString(recurringStartDate))
+												: "Select start date"}
+										</Text>
+									</View>
+									<Ionicons
+										name="chevron-forward"
+										size={16}
+										color={dynamicTheme.colors.text.secondary}
+									/>
+								</View>
+							</TouchableOpacity>
+
+							<View style={styles.recurringRow}>
+								<Text style={styles.inputLabel}>Number of days:</Text>
+								<TextInput
+									style={styles.recurringInput}
+									value={recurringDays.toString()}
+									onChangeText={(text) => {
+										const days = parseInt(text) || 1;
+										setRecurringDays(Math.max(1, Math.min(30, days)));
+										
+										// Update selected dates
+										if (recurringStartDate) {
+											const dates = generateRecurringDates(recurringStartDate, days);
+											setSelectedDates(dates);
+										}
+									}}
+									keyboardType="number-pad"
+									placeholder="3"
+								/>
+							</View>
+
+							{/* Generated Dates Preview */}
+							{recurringStartDate && (
+								<View style={styles.selectedDatesContainer}>
+									{generateRecurringDates(recurringStartDate, recurringDays).map((date, index) => (
+										<View key={index} style={styles.selectedDateChip}>
+											<Text style={styles.selectedDateText}>
+												{formatDate(date)}
+											</Text>
+										</View>
+									))}
+								</View>
+							)}
+						</View>
+					)}
 
 					{/* Time Selection */}
 					<View style={styles.timeRow}>
 						<View style={styles.timeInputContainer}>
 							<TouchableOpacity
-								style={styles.enhancedTimeInput}
+								style={[
+									styles.enhancedTimeInput,
+									isWholeDayBooking && styles.disabledInput,
+								]}
 								onPress={() => {
-									const [hours, minutes] = formData.start_time
-										.split(":")
-										.map(Number);
-									const date = new Date();
-									date.setHours(hours, minutes);
-									setTempDate(date);
-									setShowStartTimePicker(true);
-									Haptics.selectionAsync();
+									if (!isWholeDayBooking) {
+										const [hours, minutes] = formData.start_time
+											.split(":")
+											.map(Number);
+										const date = new Date();
+										date.setHours(hours, minutes);
+										setTempDate(date);
+										setShowStartTimePicker(true);
+										Haptics.selectionAsync();
+									}
 								}}
+								disabled={isWholeDayBooking}
 							>
 								<View style={styles.inputWithIcon}>
 									<View style={styles.timeIconContainer}>
 										<Ionicons
 											name="time-outline"
 											size={16}
-											color={theme.colors.primary}
+											color={isWholeDayBooking ? theme.colors.text.tertiary : theme.colors.primary}
 										/>
 									</View>
 									<View style={styles.timeTextContainer}>
-										<Text style={styles.timeLabel}>Start Time</Text>
-										<Text style={styles.timeText}>{formData.start_time}</Text>
+										<Text style={[
+											styles.timeLabel,
+											isWholeDayBooking && styles.disabledText,
+										]}>
+											Start Time
+										</Text>
+										<Text style={[
+											styles.timeText,
+											isWholeDayBooking && styles.disabledText,
+										]}>
+											{formData.start_time}
+										</Text>
 									</View>
 								</View>
 							</TouchableOpacity>
@@ -835,36 +1188,52 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 							<Ionicons
 								name="arrow-forward"
 								size={16}
-								color={theme.colors.primary}
+								color={isWholeDayBooking ? theme.colors.text.tertiary : theme.colors.primary}
 							/>
 							<View style={styles.timeSeparatorLine} />
 						</View>
 
 						<View style={styles.timeInputContainer}>
 							<TouchableOpacity
-								style={styles.enhancedTimeInput}
+								style={[
+									styles.enhancedTimeInput,
+									isWholeDayBooking && styles.disabledInput,
+								]}
 								onPress={() => {
-									const [hours, minutes] = formData.end_time
-										.split(":")
-										.map(Number);
-									const date = new Date();
-									date.setHours(hours, minutes);
-									setTempDate(date);
-									setShowEndTimePicker(true);
-									Haptics.selectionAsync();
+									if (!isWholeDayBooking) {
+										const [hours, minutes] = formData.end_time
+											.split(":")
+											.map(Number);
+										const date = new Date();
+										date.setHours(hours, minutes);
+										setTempDate(date);
+										setShowEndTimePicker(true);
+										Haptics.selectionAsync();
+									}
 								}}
+								disabled={isWholeDayBooking}
 							>
 								<View style={styles.inputWithIcon}>
 									<View style={styles.timeIconContainer}>
 										<Ionicons
 											name="time-outline"
 											size={16}
-											color={theme.colors.primary}
+											color={isWholeDayBooking ? theme.colors.text.tertiary : theme.colors.primary}
 										/>
 									</View>
 									<View style={styles.timeTextContainer}>
-										<Text style={styles.timeLabel}>End Time</Text>
-										<Text style={styles.timeText}>{formData.end_time}</Text>
+										<Text style={[
+											styles.timeLabel,
+											isWholeDayBooking && styles.disabledText,
+										]}>
+											End Time
+										</Text>
+										<Text style={[
+											styles.timeText,
+											isWholeDayBooking && styles.disabledText,
+										]}>
+											{formData.end_time}
+										</Text>
 									</View>
 								</View>
 							</TouchableOpacity>
@@ -886,7 +1255,8 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 
 				{/* Availability Check */}
 				{formData.hall_id &&
-					formData.booking_date &&
+					((bookingMode === 'single' && formData.booking_date) || 
+					 (bookingMode !== 'single' && selectedDates.length > 0)) &&
 					formData.start_time &&
 					formData.end_time && (
 						<View style={styles.formSection}>
@@ -1309,20 +1679,31 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 						setShowDatePicker(false);
 						if (selectedDate) {
 							const dateString = formatDateToString(selectedDate);
-							setFormData((prev) => ({ ...prev, booking_date: dateString }));
-
-							// Fetch booked slots for new date
-							if (formData.hall_id) {
-								fetchBookedSlots(formData.hall_id, dateString);
-							}
-
-							// Check availability if all fields are filled
-							if (
-								formData.hall_id &&
-								formData.start_time &&
-								formData.end_time
-							) {
-								setTimeout(checkAvailability, 100);
+							
+							if (bookingMode === 'single') {
+								setFormData((prev) => ({ ...prev, booking_date: dateString }));
+								
+								// Fetch booked slots for new date
+								if (formData.hall_id) {
+									fetchBookedSlots(formData.hall_id, dateString);
+								}
+								
+								// Check availability if all fields are filled
+								if (
+									formData.hall_id &&
+									formData.start_time &&
+									formData.end_time
+								) {
+									setTimeout(checkAvailability, 100);
+								}
+							} else if (bookingMode === 'multiple') {
+								if (!selectedDates.includes(dateString)) {
+									setSelectedDates(prev => [...prev, dateString]);
+								}
+							} else if (bookingMode === 'recurring') {
+								setRecurringStartDate(selectedDate);
+								const dates = generateRecurringDates(selectedDate, recurringDays);
+								setSelectedDates(dates);
 							}
 						}
 					}}
@@ -1382,11 +1763,11 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 					}}
 				/>
 			)}
-		</SafeAreaView>
+		</View>
 	);
 };
 
-const createStyles = (theme: any) =>
+const createStyles = (theme: any, insets: any) =>
 	StyleSheet.create({
 		container: {
 			flex: 1,
@@ -1408,7 +1789,8 @@ const createStyles = (theme: any) =>
 			alignItems: "center",
 			justifyContent: "space-between",
 			paddingHorizontal: theme.spacing.md,
-			paddingVertical: theme.spacing.md,
+			paddingTop: insets.top + theme.spacing.md,
+			paddingBottom: theme.spacing.md,
 			backgroundColor: theme.colors.surface,
 			borderBottomWidth: 1,
 			borderBottomColor: theme.colors.text.secondary + "20",
@@ -1951,6 +2333,113 @@ const createStyles = (theme: any) =>
 			color: "#FFFFFF",
 			fontSize: theme.fontSize.sm,
 			fontWeight: "600",
+		},
+		bookingModeContainer: {
+			flexDirection: "row",
+			marginTop: theme.spacing.sm,
+			backgroundColor: theme.colors.surface,
+			borderRadius: theme.borderRadius.md,
+			padding: theme.spacing.xs,
+			...theme.shadows.small,
+		},
+		bookingModeButton: {
+			flex: 1,
+			flexDirection: "row",
+			alignItems: "center",
+			justifyContent: "center",
+			paddingVertical: theme.spacing.sm,
+			paddingHorizontal: theme.spacing.sm,
+			borderRadius: theme.borderRadius.sm,
+			marginHorizontal: theme.spacing.xs,
+		},
+		bookingModeButtonActive: {
+			backgroundColor: theme.colors.primary,
+			...theme.shadows.small,
+		},
+		bookingModeText: {
+			marginLeft: theme.spacing.xs,
+			fontSize: theme.fontSize.sm,
+			fontWeight: "600",
+			color: theme.colors.text.secondary,
+		},
+		bookingModeTextActive: {
+			color: "#FFFFFF",
+		},
+		multiDateSelector: {
+			gap: 12,
+		},
+		selectedDatesContainer: {
+			flexDirection: "row",
+			flexWrap: "wrap",
+			gap: 8,
+			marginTop: 8,
+		},
+		selectedDateChip: {
+			flexDirection: "row",
+			alignItems: "center",
+			backgroundColor: theme.colors.primary + "15",
+			paddingHorizontal: 12,
+			paddingVertical: 6,
+			borderRadius: 20,
+			gap: 6,
+		},
+		selectedDateText: {
+			fontSize: 14,
+			color: theme.colors.primary,
+			fontWeight: "500",
+		},
+		recurringControls: {
+			gap: 12,
+		},
+		recurringRow: {
+			flexDirection: "row",
+			alignItems: "center",
+			justifyContent: "space-between",
+			backgroundColor: theme.colors.surface,
+			padding: 16,
+			borderRadius: 12,
+			borderWidth: 1,
+			borderColor: theme.colors.border + "30",
+		},
+		recurringInput: {
+			backgroundColor: theme.colors.surface,
+			borderWidth: 1,
+			borderColor: theme.colors.border,
+			borderRadius: 8,
+			paddingHorizontal: 12,
+			paddingVertical: 8,
+			fontSize: 16,
+			color: theme.colors.text.primary,
+			minWidth: 60,
+			textAlign: "center",
+		},
+		wholeDayToggle: {
+			flexDirection: "row",
+			alignItems: "center",
+			justifyContent: "space-between",
+			backgroundColor: theme.colors.surface,
+			borderRadius: theme.borderRadius.md,
+			paddingHorizontal: theme.spacing.md,
+			paddingVertical: theme.spacing.md,
+			marginTop: theme.spacing.sm,
+			...theme.shadows.small,
+		},
+		wholeDayToggleText: {
+			fontSize: theme.fontSize.md,
+			fontWeight: "600",
+			color: theme.colors.text.primary,
+		},
+		wholeDayToggleSubtext: {
+			fontSize: theme.fontSize.sm,
+			color: theme.colors.text.secondary,
+			marginTop: theme.spacing.xs,
+		},
+		disabledInput: {
+			backgroundColor: theme.colors.surface + "50",
+			borderColor: theme.colors.border + "20",
+		},
+		disabledText: {
+			color: theme.colors.text.tertiary,
 		},
 		bottomSpacing: {
 			height: 100,
