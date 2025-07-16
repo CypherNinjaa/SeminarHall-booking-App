@@ -205,6 +205,12 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 		return hall.is_active === true && hall.is_maintenance === false;
 	};
 
+	const getSelectedHallCapacity = () => {
+		if (!formData.hall_id || halls.length === 0) return null;
+		const selectedHall = halls.find(hall => hall.id === formData.hall_id);
+		return selectedHall ? selectedHall.capacity : null;
+	};
+
 	const formatDate = (dateString: string) => {
 		if (!dateString) return "-";
 		let year, month, day;
@@ -656,7 +662,7 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 							? selectedDates.length === 0
 							: !formData.booking_date) ||
 						!formData.purpose ||
-						formData.attendees_count > 100
+						(getSelectedHallCapacity() && formData.attendees_count > getSelectedHallCapacity())
 					}
 					style={[
 						styles.submitButton,
@@ -667,7 +673,7 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 								? selectedDates.length === 0
 								: !formData.booking_date) ||
 							!formData.purpose ||
-							formData.attendees_count > 100) &&
+							(getSelectedHallCapacity() && formData.attendees_count > getSelectedHallCapacity())) &&
 							styles.submitButtonDisabled,
 					]}
 				>
@@ -681,7 +687,7 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 									? selectedDates.length === 0
 									: !formData.booking_date) ||
 								!formData.purpose ||
-								formData.attendees_count > 100) &&
+								(getSelectedHallCapacity() && formData.attendees_count > getSelectedHallCapacity())) &&
 								styles.submitButtonTextDisabled,
 						]}
 					>
@@ -1799,11 +1805,11 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 						</View>
 
 						{/* Attendees Validation Error */}
-						{formData.attendees_count > 100 && (
+						{getSelectedHallCapacity() && formData.attendees_count > getSelectedHallCapacity() && (
 							<View style={styles.validationError}>
 								<Ionicons name="warning" size={16} color={theme.colors.error} />
 								<Text style={styles.validationErrorText}>
-									Attendees exceed hall capacity (max 100)
+									Attendees exceed hall capacity (max {getSelectedHallCapacity()})
 								</Text>
 							</View>
 						)}
