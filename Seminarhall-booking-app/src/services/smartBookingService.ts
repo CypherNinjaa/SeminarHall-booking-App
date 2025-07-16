@@ -1155,6 +1155,77 @@ class SmartBookingService {
       throw error;
     }
   }
+
+  /**
+   * Enhanced availability check for multiple dates and booking types
+   */
+  async checkMultiDateAvailability(
+    hallId: string,
+    dates: string[],
+    startTime: string,
+    endTime: string,
+    bookingType: 'single' | 'whole_day' | 'multi_date' | 'recurring' = 'single',
+    excludeBookingId?: string
+  ): Promise<AvailabilityCheck & { 
+    multi_date_results: Array<{date: string} & AvailabilityCheck>,
+    dates_checked: string[],
+    booking_type: string 
+  }> {
+    try {
+      console.log(`🔍 Multi-date availability check for ${hallId}:`, {
+        dates: dates.length,
+        timeSlot: `${startTime}-${endTime}`,
+        bookingType
+      });
+
+      // Check availability for each date
+      const results = await Promise.all(
+        dates.map(async (date) => {
+          const result = await this.checkAvailability(
+            hallId,
+            date,
+            startTime,
+            endTime,
+            excludeBookingId
+          );
+          return { date, ...result };
+        })
+      );
+
+      // Aggregate results
+      const allAvailable = results.every(result => result.is_available);
+      const allConflicts = results.flatMap(result => 
+        result.conflicting_bookings.map(booking => ({
+          ...booking,
+          booking_date: result.date // Add date context to conflicts
+        }))
+      );
+
+      // Get the best suggested slots (from the first available date)
+      const suggestedSlots = results.find(r => r.suggested_slots.length > 0)?.suggested_slots || [];
+      const nextAvailableSlot = results.find(r => r.next_available_slot)?.next_available_slot;
+
+      console.log(`✅ Multi-date check complete:`, {
+        totalDates: dates.length,
+        availableDates: results.filter(r => r.is_available).length,
+        conflictDates: results.filter(r => !r.is_available).length,
+        totalConflicts: allConflicts.length
+      });
+
+      return {
+        is_available: allAvailable,
+        conflicting_bookings: allConflicts,
+        suggested_slots: suggestedSlots,
+        next_available_slot: nextAvailableSlot,
+        multi_date_results: results,
+        dates_checked: dates,
+        booking_type: bookingType
+      };
+    } catch (error) {
+      console.error('Error in multi-date availability check:', error);
+      throw error;
+    }
+  }
 }
 
 export const smartBookingService = new SmartBookingService();

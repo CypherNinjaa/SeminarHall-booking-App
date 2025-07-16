@@ -166,9 +166,13 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 	const [isMultiDateBooking, setIsMultiDateBooking] = useState(false);
 	const [selectedDates, setSelectedDates] = useState<string[]>([]);
 	const [isWholeDayBooking, setIsWholeDayBooking] = useState(false);
-	const [bookingMode, setBookingMode] = useState<'single' | 'multiple' | 'recurring'>('single');
+	const [bookingMode, setBookingMode] = useState<
+		"single" | "multiple" | "recurring"
+	>("single");
 	const [recurringDays, setRecurringDays] = useState(3);
-	const [recurringStartDate, setRecurringStartDate] = useState<Date | null>(null);
+	const [recurringStartDate, setRecurringStartDate] = useState<Date | null>(
+		null
+	);
 
 	// Date picker state
 	const [showDatePicker, setShowDatePicker] = useState(false);
@@ -246,12 +250,12 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 	// Multi-date booking helpers
 	const addSelectedDate = (dateString: string) => {
 		if (!selectedDates.includes(dateString)) {
-			setSelectedDates(prev => [...prev, dateString].sort());
+			setSelectedDates((prev) => [...prev, dateString].sort());
 		}
 	};
 
 	const removeSelectedDate = (dateString: string) => {
-		setSelectedDates(prev => prev.filter(date => date !== dateString));
+		setSelectedDates((prev) => prev.filter((date) => date !== dateString));
 	};
 
 	const generateRecurringDates = (startDate: Date, days: number): string[] => {
@@ -286,7 +290,11 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 		let progress = 0;
 		const fields = [
 			formData.hall_id,
-			isMultiDateBooking ? (selectedDates.length > 0 ? 'dates' : '') : formData.booking_date,
+			isMultiDateBooking
+				? selectedDates.length > 0
+					? "dates"
+					: ""
+				: formData.booking_date,
 			formData.start_time,
 			formData.end_time,
 			formData.purpose,
@@ -364,28 +372,124 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 	}, [editingBooking]);
 
 	const checkAvailability = async () => {
-		if (
-			!formData.hall_id ||
-			!formData.booking_date ||
-			!formData.start_time ||
-			!formData.end_time
-		) {
+		// Enhanced availability check for all booking types
+		if (!formData.hall_id) {
+			Alert.alert("Error", "Please select a hall first");
+			return;
+		}
+
+		// Determine what to check based on booking mode
+		let datesToCheck: string[] = [];
+		let timeToCheck = {
+			start_time: formData.start_time,
+			end_time: formData.end_time,
+		};
+
+		// Handle different booking modes
+		if (bookingMode === "multiple" || isMultiDateBooking) {
+			if (selectedDates.length === 0) {
+				Alert.alert(
+					"Error",
+					"Please select at least one date for multi-date booking"
+				);
+				return;
+			}
+			datesToCheck = selectedDates;
+		} else if (bookingMode === "recurring") {
+			if (!recurringStartDate) {
+				Alert.alert("Error", "Please select start date for recurring booking");
+				return;
+			}
+			datesToCheck = generateRecurringDates(recurringStartDate, recurringDays);
+		} else {
+			// Single date booking
+			if (!formData.booking_date) {
+				Alert.alert("Error", "Please select a booking date");
+				return;
+			}
+			datesToCheck = [formData.booking_date];
+		}
+
+		// Handle whole day booking
+		if (isWholeDayBooking) {
+			timeToCheck = getWholeDay();
+		}
+
+		if (!timeToCheck.start_time || !timeToCheck.end_time) {
+			Alert.alert("Error", "Please select start and end times");
 			return;
 		}
 
 		try {
 			setCheckingAvailability(true);
-			const result = await smartBookingService.checkAvailability(
-				formData.hall_id,
-				formData.booking_date,
-				formData.start_time,
-				formData.end_time,
-				editingBooking?.id
-			);
-			setAvailabilityCheck(result);
+
+			// Determine booking type for better service handling
+			const bookingType = isWholeDayBooking
+				? "whole_day"
+				: bookingMode === "multiple"
+				? "multi_date"
+				: bookingMode === "recurring"
+				? "recurring"
+				: "single";
+
+			// Use enhanced multi-date availability check
+			if (datesToCheck.length > 1) {
+				const result = await smartBookingService.checkMultiDateAvailability(
+					formData.hall_id,
+					datesToCheck,
+					timeToCheck.start_time,
+					timeToCheck.end_time,
+					bookingType,
+					editingBooking?.id
+				);
+				setAvailabilityCheck(result);
+			} else {
+				// Single date - use regular availability check
+				const result = await smartBookingService.checkAvailability(
+					formData.hall_id,
+					datesToCheck[0],
+					timeToCheck.start_time,
+					timeToCheck.end_time,
+					editingBooking?.id
+				);
+
+				// Enhance single result with additional info
+				const enhancedResult = {
+					...result,
+					multi_date_results: [{ date: datesToCheck[0], ...result }],
+					dates_checked: datesToCheck,
+					booking_type: bookingType,
+				};
+				setAvailabilityCheck(enhancedResult);
+			}
+
+			// Show detailed results
+			if (datesToCheck.length > 1) {
+				const result = availabilityCheck as any;
+				const availableDates =
+					result.multi_date_results?.filter((r: any) => r.is_available)
+						.length || 0;
+				const conflictDates =
+					result.multi_date_results?.filter((r: any) => !r.is_available)
+						.length || 0;
+
+				Alert.alert(
+					"Availability Check Results",
+					`📅 Dates checked: ${
+						datesToCheck.length
+					}\n✅ Available: ${availableDates}\n❌ Conflicts: ${conflictDates}\n\n${
+						isWholeDayBooking ? "🌅 Whole day booking (9 AM - 6 PM)\n" : ""
+					}${
+						result.is_available
+							? "🎉 All selected dates are available!"
+							: "⚠️ Some dates have conflicts. Check details below."
+					}`,
+					[{ text: "OK" }]
+				);
+			}
 		} catch (error) {
 			console.error("Error checking availability:", error);
-			Alert.alert("Error", "Failed to check availability");
+			Alert.alert("Error", "Failed to check availability. Please try again.");
 		} finally {
 			setCheckingAvailability(false);
 		}
@@ -434,18 +538,25 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 		if (!user) return;
 
 		// Validate required fields
-		const datesToBook = isMultiDateBooking ? selectedDates : [formData.booking_date];
+		const datesToBook = isMultiDateBooking
+			? selectedDates
+			: [formData.booking_date];
 		if (!formData.hall_id || datesToBook.length === 0 || !formData.purpose) {
 			Alert.alert("Error", "Please fill in all required fields");
 			return;
 		}
 
 		// Check for past time
-		const currentTimes = isWholeDayBooking ? getWholeDay() : { start_time: formData.start_time, end_time: formData.end_time };
-		
+		const currentTimes = isWholeDayBooking
+			? getWholeDay()
+			: { start_time: formData.start_time, end_time: formData.end_time };
+
 		for (const date of datesToBook) {
 			if (isPastTime(date, currentTimes.start_time)) {
-				Alert.alert("Error", `Cannot book past dates or times for ${formatDate(date)}`);
+				Alert.alert(
+					"Error",
+					`Cannot book past dates or times for ${formatDate(date)}`
+				);
 				return;
 			}
 		}
@@ -464,9 +575,9 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 				Alert.alert("Success", "Booking updated successfully!");
 			} else {
 				setCreating(true);
-				
+
 				// Create multiple bookings
-				const bookingPromises = datesToBook.map(date => 
+				const bookingPromises = datesToBook.map((date) =>
 					smartBookingService.createBooking(
 						{
 							...formData,
@@ -478,10 +589,11 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 				);
 
 				await Promise.all(bookingPromises);
-				
-				const successMessage = datesToBook.length > 1 
-					? `${datesToBook.length} bookings created successfully!`
-					: "Booking created successfully!";
+
+				const successMessage =
+					datesToBook.length > 1
+						? `${datesToBook.length} bookings created successfully!`
+						: "Booking created successfully!";
 				Alert.alert("Success", successMessage);
 			}
 
@@ -540,7 +652,9 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 						creating ||
 						updating ||
 						!formData.hall_id ||
-						(isMultiDateBooking ? selectedDates.length === 0 : !formData.booking_date) ||
+						(isMultiDateBooking
+							? selectedDates.length === 0
+							: !formData.booking_date) ||
 						!formData.purpose ||
 						formData.attendees_count > 100
 					}
@@ -549,7 +663,9 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 						(creating ||
 							updating ||
 							!formData.hall_id ||
-							(isMultiDateBooking ? selectedDates.length === 0 : !formData.booking_date) ||
+							(isMultiDateBooking
+								? selectedDates.length === 0
+								: !formData.booking_date) ||
 							!formData.purpose ||
 							formData.attendees_count > 100) &&
 							styles.submitButtonDisabled,
@@ -561,7 +677,9 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 							(creating ||
 								updating ||
 								!formData.hall_id ||
-								(isMultiDateBooking ? selectedDates.length === 0 : !formData.booking_date) ||
+								(isMultiDateBooking
+									? selectedDates.length === 0
+									: !formData.booking_date) ||
 								!formData.purpose ||
 								formData.attendees_count > 100) &&
 								styles.submitButtonTextDisabled,
@@ -789,11 +907,7 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 							]}
 							style={styles.sectionIconContainer}
 						>
-							<Ionicons
-								name="options"
-								size={20}
-								color={theme.colors.warning}
-							/>
+							<Ionicons name="options" size={20} color={theme.colors.warning} />
 						</LinearGradient>
 						<Text style={styles.sectionTitle}>Booking Mode</Text>
 					</View>
@@ -802,10 +916,10 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 						<TouchableOpacity
 							style={[
 								styles.bookingModeButton,
-								bookingMode === 'single' && styles.bookingModeButtonActive
+								bookingMode === "single" && styles.bookingModeButtonActive,
 							]}
 							onPress={() => {
-								setBookingMode('single');
+								setBookingMode("single");
 								setIsMultiDateBooking(false);
 								setSelectedDates([]);
 								Haptics.selectionAsync();
@@ -814,12 +928,18 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 							<Ionicons
 								name="calendar-outline"
 								size={20}
-								color={bookingMode === 'single' ? '#FFFFFF' : theme.colors.text.secondary}
+								color={
+									bookingMode === "single"
+										? "#FFFFFF"
+										: theme.colors.text.secondary
+								}
 							/>
-							<Text style={[
-								styles.bookingModeText,
-								bookingMode === 'single' && styles.bookingModeTextActive
-							]}>
+							<Text
+								style={[
+									styles.bookingModeText,
+									bookingMode === "single" && styles.bookingModeTextActive,
+								]}
+							>
 								Single Date
 							</Text>
 						</TouchableOpacity>
@@ -827,24 +947,30 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 						<TouchableOpacity
 							style={[
 								styles.bookingModeButton,
-								bookingMode === 'multiple' && styles.bookingModeButtonActive
+								bookingMode === "multiple" && styles.bookingModeButtonActive,
 							]}
 							onPress={() => {
-								setBookingMode('multiple');
+								setBookingMode("multiple");
 								setIsMultiDateBooking(true);
-								setFormData(prev => ({ ...prev, booking_date: '' }));
+								setFormData((prev) => ({ ...prev, booking_date: "" }));
 								Haptics.selectionAsync();
 							}}
 						>
 							<Ionicons
 								name="calendar"
 								size={20}
-								color={bookingMode === 'multiple' ? '#FFFFFF' : theme.colors.text.secondary}
+								color={
+									bookingMode === "multiple"
+										? "#FFFFFF"
+										: theme.colors.text.secondary
+								}
 							/>
-							<Text style={[
-								styles.bookingModeText,
-								bookingMode === 'multiple' && styles.bookingModeTextActive
-							]}>
+							<Text
+								style={[
+									styles.bookingModeText,
+									bookingMode === "multiple" && styles.bookingModeTextActive,
+								]}
+							>
 								Multiple Dates
 							</Text>
 						</TouchableOpacity>
@@ -852,24 +978,30 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 						<TouchableOpacity
 							style={[
 								styles.bookingModeButton,
-								bookingMode === 'recurring' && styles.bookingModeButtonActive
+								bookingMode === "recurring" && styles.bookingModeButtonActive,
 							]}
 							onPress={() => {
-								setBookingMode('recurring');
+								setBookingMode("recurring");
 								setIsMultiDateBooking(true);
-								setFormData(prev => ({ ...prev, booking_date: '' }));
+								setFormData((prev) => ({ ...prev, booking_date: "" }));
 								Haptics.selectionAsync();
 							}}
 						>
 							<Ionicons
 								name="repeat"
 								size={20}
-								color={bookingMode === 'recurring' ? '#FFFFFF' : theme.colors.text.secondary}
+								color={
+									bookingMode === "recurring"
+										? "#FFFFFF"
+										: theme.colors.text.secondary
+								}
 							/>
-							<Text style={[
-								styles.bookingModeText,
-								bookingMode === 'recurring' && styles.bookingModeTextActive
-							]}>
+							<Text
+								style={[
+									styles.bookingModeText,
+									bookingMode === "recurring" && styles.bookingModeTextActive,
+								]}
+							>
 								Recurring
 							</Text>
 						</TouchableOpacity>
@@ -893,8 +1025,8 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 							/>
 						</LinearGradient>
 						<Text style={styles.sectionTitle}>Date & Time *</Text>
-						{((isMultiDateBooking && selectedDates.length > 0) || 
-						  (!isMultiDateBooking && formData.booking_date)) &&
+						{((isMultiDateBooking && selectedDates.length > 0) ||
+							(!isMultiDateBooking && formData.booking_date)) &&
 						formData.start_time &&
 						formData.end_time ? (
 							<View style={styles.completedIndicator}>
@@ -922,7 +1054,7 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 							setIsWholeDayBooking(!isWholeDayBooking);
 							if (!isWholeDayBooking) {
 								const wholeDay = getWholeDay();
-								setFormData(prev => ({
+								setFormData((prev) => ({
 									...prev,
 									start_time: wholeDay.start_time,
 									end_time: wholeDay.end_time,
@@ -934,7 +1066,9 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 						<View>
 							<Text style={styles.wholeDayToggleText}>Book for Whole Day</Text>
 							<Text style={styles.wholeDayToggleSubtext}>
-								{isWholeDayBooking ? "9:00 AM - 6:00 PM" : "Select custom times"}
+								{isWholeDayBooking
+									? "9:00 AM - 6:00 PM"
+									: "Select custom times"}
 							</Text>
 						</View>
 						<Switch
@@ -943,7 +1077,7 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 								setIsWholeDayBooking(value);
 								if (value) {
 									const wholeDay = getWholeDay();
-									setFormData(prev => ({
+									setFormData((prev) => ({
 										...prev,
 										start_time: wholeDay.start_time,
 										end_time: wholeDay.end_time,
@@ -951,13 +1085,20 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 								}
 								Haptics.selectionAsync();
 							}}
-							trackColor={{ false: theme.colors.border, true: theme.colors.primary + "40" }}
-							thumbColor={isWholeDayBooking ? theme.colors.primary : theme.colors.text.tertiary}
+							trackColor={{
+								false: theme.colors.border,
+								true: theme.colors.primary + "40",
+							}}
+							thumbColor={
+								isWholeDayBooking
+									? theme.colors.primary
+									: theme.colors.text.tertiary
+							}
 						/>
 					</TouchableOpacity>
 
 					{/* Single Date Selection */}
-					{bookingMode === 'single' && (
+					{bookingMode === "single" && (
 						<TouchableOpacity
 							style={styles.enhancedInput}
 							onPress={() => {
@@ -1001,7 +1142,7 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 					)}
 
 					{/* Multiple Date Selection */}
-					{bookingMode === 'multiple' && (
+					{bookingMode === "multiple" && (
 						<View style={styles.multiDateSelector}>
 							<TouchableOpacity
 								style={styles.enhancedInput}
@@ -1021,7 +1162,9 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 									</View>
 									<View style={styles.inputTextContainer}>
 										<Text style={styles.inputLabel}>Add Date</Text>
-										<Text style={[styles.enhancedInputText, styles.placeholderText]}>
+										<Text
+											style={[styles.enhancedInputText, styles.placeholderText]}
+										>
 											Select dates to book
 										</Text>
 									</View>
@@ -1061,7 +1204,7 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 					)}
 
 					{/* Recurring Date Selection */}
-					{bookingMode === 'recurring' && (
+					{bookingMode === "recurring" && (
 						<View style={styles.recurringControls}>
 							<TouchableOpacity
 								style={styles.enhancedInput}
@@ -1108,10 +1251,13 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 									onChangeText={(text) => {
 										const days = parseInt(text) || 1;
 										setRecurringDays(Math.max(1, Math.min(30, days)));
-										
+
 										// Update selected dates
 										if (recurringStartDate) {
-											const dates = generateRecurringDates(recurringStartDate, days);
+											const dates = generateRecurringDates(
+												recurringStartDate,
+												days
+											);
 											setSelectedDates(dates);
 										}
 									}}
@@ -1123,7 +1269,10 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 							{/* Generated Dates Preview */}
 							{recurringStartDate && (
 								<View style={styles.selectedDatesContainer}>
-									{generateRecurringDates(recurringStartDate, recurringDays).map((date, index) => (
+									{generateRecurringDates(
+										recurringStartDate,
+										recurringDays
+									).map((date, index) => (
 										<View key={index} style={styles.selectedDateChip}>
 											<Text style={styles.selectedDateText}>
 												{formatDate(date)}
@@ -1162,20 +1311,28 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 										<Ionicons
 											name="time-outline"
 											size={16}
-											color={isWholeDayBooking ? theme.colors.text.tertiary : theme.colors.primary}
+											color={
+												isWholeDayBooking
+													? theme.colors.text.tertiary
+													: theme.colors.primary
+											}
 										/>
 									</View>
 									<View style={styles.timeTextContainer}>
-										<Text style={[
-											styles.timeLabel,
-											isWholeDayBooking && styles.disabledText,
-										]}>
+										<Text
+											style={[
+												styles.timeLabel,
+												isWholeDayBooking && styles.disabledText,
+											]}
+										>
 											Start Time
 										</Text>
-										<Text style={[
-											styles.timeText,
-											isWholeDayBooking && styles.disabledText,
-										]}>
+										<Text
+											style={[
+												styles.timeText,
+												isWholeDayBooking && styles.disabledText,
+											]}
+										>
 											{formData.start_time}
 										</Text>
 									</View>
@@ -1188,7 +1345,11 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 							<Ionicons
 								name="arrow-forward"
 								size={16}
-								color={isWholeDayBooking ? theme.colors.text.tertiary : theme.colors.primary}
+								color={
+									isWholeDayBooking
+										? theme.colors.text.tertiary
+										: theme.colors.primary
+								}
 							/>
 							<View style={styles.timeSeparatorLine} />
 						</View>
@@ -1218,20 +1379,28 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 										<Ionicons
 											name="time-outline"
 											size={16}
-											color={isWholeDayBooking ? theme.colors.text.tertiary : theme.colors.primary}
+											color={
+												isWholeDayBooking
+													? theme.colors.text.tertiary
+													: theme.colors.primary
+											}
 										/>
 									</View>
 									<View style={styles.timeTextContainer}>
-										<Text style={[
-											styles.timeLabel,
-											isWholeDayBooking && styles.disabledText,
-										]}>
+										<Text
+											style={[
+												styles.timeLabel,
+												isWholeDayBooking && styles.disabledText,
+											]}
+										>
 											End Time
 										</Text>
-										<Text style={[
-											styles.timeText,
-											isWholeDayBooking && styles.disabledText,
-										]}>
+										<Text
+											style={[
+												styles.timeText,
+												isWholeDayBooking && styles.disabledText,
+											]}
+										>
 											{formData.end_time}
 										</Text>
 									</View>
@@ -1255,11 +1424,33 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 
 				{/* Availability Check */}
 				{formData.hall_id &&
-					((bookingMode === 'single' && formData.booking_date) || 
-					 (bookingMode !== 'single' && selectedDates.length > 0)) &&
+					((bookingMode === "single" && formData.booking_date) ||
+						(bookingMode !== "single" && selectedDates.length > 0)) &&
 					formData.start_time &&
 					formData.end_time && (
 						<View style={styles.formSection}>
+							{/* Availability Check Info */}
+							<View style={styles.availabilityCheckInfo}>
+								<Ionicons
+									name="information-circle"
+									size={16}
+									color={theme.colors.primary}
+								/>
+								<Text style={styles.availabilityCheckInfoText}>
+									{isWholeDayBooking &&
+										"🌅 Checking whole day availability (9 AM - 6 PM)"}
+									{!isWholeDayBooking &&
+										bookingMode === "single" &&
+										"📅 Checking single date availability"}
+									{!isWholeDayBooking &&
+										bookingMode === "multiple" &&
+										`📅 Checking ${selectedDates.length} selected dates`}
+									{!isWholeDayBooking &&
+										bookingMode === "recurring" &&
+										`🔄 Checking ${recurringDays} recurring dates`}
+								</Text>
+							</View>
+
 							<TouchableOpacity
 								style={[
 									styles.checkAvailabilityButton,
@@ -1302,6 +1493,7 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 										},
 									]}
 								>
+									{/* Enhanced Availability Header */}
 									<View style={styles.availabilityHeader}>
 										<Ionicons
 											name={
@@ -1316,26 +1508,99 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 													: theme.colors.error
 											}
 										/>
-										<Text
-											style={[
-												styles.availabilityText,
-												{
-													color: availabilityCheck.is_available
-														? theme.colors.success
-														: theme.colors.error,
-												},
-											]}
-										>
-											{availabilityCheck.is_available
-												? "Slot Available!"
-												: "Slot Not Available"}
-										</Text>
+										<View style={styles.availabilityHeaderText}>
+											<Text
+												style={[
+													styles.availabilityText,
+													{
+														color: availabilityCheck.is_available
+															? theme.colors.success
+															: theme.colors.error,
+													},
+												]}
+											>
+												{availabilityCheck.is_available
+													? "✅ Available!"
+													: "❌ Not Available"}
+											</Text>
+											{/* Show booking type and date info */}
+											{(availabilityCheck as any).booking_type && (
+												<Text style={styles.availabilitySubText}>
+													{(availabilityCheck as any).booking_type ===
+														"whole_day" && "🌅 Whole Day Booking (9 AM - 6 PM)"}
+													{(availabilityCheck as any).booking_type ===
+														"multi_date" &&
+														`📅 ${
+															(availabilityCheck as any).dates_checked?.length
+														} dates checked`}
+													{(availabilityCheck as any).booking_type ===
+														"recurring" &&
+														`🔄 ${
+															(availabilityCheck as any).dates_checked?.length
+														} recurring dates`}
+													{(availabilityCheck as any).booking_type ===
+														"single" && "📅 Single date booking"}
+												</Text>
+											)}
+										</View>
 									</View>
 
+									{/* Multi-date Results Summary */}
+									{(availabilityCheck as any).multi_date_results &&
+										(availabilityCheck as any).multi_date_results.length >
+											1 && (
+											<View style={styles.multiDateSummary}>
+												<Text style={styles.multiDateTitle}>
+													📊 Date-by-Date Results:
+												</Text>
+												{(availabilityCheck as any).multi_date_results.map(
+													(result: any, index: number) => (
+														<View key={index} style={styles.dateResultRow}>
+															<Text style={styles.dateResultDate}>
+																{formatDate(result.date)}
+															</Text>
+															<View style={styles.dateResultStatus}>
+																<Ionicons
+																	name={
+																		result.is_available
+																			? "checkmark-circle"
+																			: "close-circle"
+																	}
+																	size={16}
+																	color={
+																		result.is_available
+																			? theme.colors.success
+																			: theme.colors.error
+																	}
+																/>
+																<Text
+																	style={[
+																		styles.dateResultText,
+																		{
+																			color: result.is_available
+																				? theme.colors.success
+																				: theme.colors.error,
+																		},
+																	]}
+																>
+																	{result.is_available
+																		? "Available"
+																		: `${result.conflicting_bookings.length} conflict(s)`}
+																</Text>
+															</View>
+														</View>
+													)
+												)}
+											</View>
+										)}
+
+									{/* Conflict Details */}
 									{!availabilityCheck.is_available &&
 										availabilityCheck.conflicting_bookings.length > 0 && (
 											<View style={styles.conflictInfo}>
-												<Text style={styles.conflictTitle}>Conflicts:</Text>
+												<Text style={styles.conflictTitle}>
+													⚠️ Booking Conflicts:
+												</Text>
 												{availabilityCheck.conflicting_bookings.map(
 													(conflict, index) => (
 														<Text key={index} style={styles.conflictText}>
@@ -1503,7 +1768,7 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 									value={formData.attendees_count.toString()}
 									onChangeText={(text) => {
 										// Remove any non-numeric characters
-										const numericText = text.replace(/[^0-9]/g, '');
+										const numericText = text.replace(/[^0-9]/g, "");
 										const count = parseInt(numericText) || 1;
 										// Ensure minimum of 1
 										const finalCount = Math.max(1, count);
@@ -1679,15 +1944,15 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 						setShowDatePicker(false);
 						if (selectedDate) {
 							const dateString = formatDateToString(selectedDate);
-							
-							if (bookingMode === 'single') {
+
+							if (bookingMode === "single") {
 								setFormData((prev) => ({ ...prev, booking_date: dateString }));
-								
+
 								// Fetch booked slots for new date
 								if (formData.hall_id) {
 									fetchBookedSlots(formData.hall_id, dateString);
 								}
-								
+
 								// Check availability if all fields are filled
 								if (
 									formData.hall_id &&
@@ -1696,13 +1961,16 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 								) {
 									setTimeout(checkAvailability, 100);
 								}
-							} else if (bookingMode === 'multiple') {
+							} else if (bookingMode === "multiple") {
 								if (!selectedDates.includes(dateString)) {
-									setSelectedDates(prev => [...prev, dateString]);
+									setSelectedDates((prev) => [...prev, dateString]);
 								}
-							} else if (bookingMode === 'recurring') {
+							} else if (bookingMode === "recurring") {
 								setRecurringStartDate(selectedDate);
-								const dates = generateRecurringDates(selectedDate, recurringDays);
+								const dates = generateRecurringDates(
+									selectedDate,
+									recurringDays
+								);
 								setSelectedDates(dates);
 							}
 						}
@@ -2084,10 +2352,68 @@ const createStyles = (theme: any, insets: any) =>
 			alignItems: "center",
 			marginBottom: theme.spacing.sm,
 		},
+		availabilityHeaderText: {
+			flex: 1,
+			marginLeft: theme.spacing.sm,
+		},
 		availabilityText: {
 			fontSize: 16,
 			fontWeight: "600",
-			marginLeft: theme.spacing.sm,
+		},
+		availabilitySubText: {
+			fontSize: 12,
+			fontWeight: "400",
+			marginTop: 2,
+			opacity: 0.8,
+		},
+		multiDateSummary: {
+			marginTop: theme.spacing.md,
+			padding: theme.spacing.sm,
+			backgroundColor: "rgba(0,0,0,0.05)",
+			borderRadius: theme.borderRadius.sm,
+		},
+		multiDateTitle: {
+			fontSize: 14,
+			fontWeight: "600",
+			color: theme.colors.text.primary,
+			marginBottom: theme.spacing.sm,
+		},
+		dateResultRow: {
+			flexDirection: "row",
+			justifyContent: "space-between",
+			alignItems: "center",
+			paddingVertical: theme.spacing.xs,
+			borderBottomWidth: 1,
+			borderBottomColor: "rgba(0,0,0,0.1)",
+		},
+		dateResultDate: {
+			fontSize: 14,
+			fontWeight: "500",
+			color: theme.colors.text.primary,
+		},
+		dateResultStatus: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: theme.spacing.xs,
+		},
+		dateResultText: {
+			fontSize: 12,
+			fontWeight: "500",
+		},
+		availabilityCheckInfo: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: theme.spacing.xs,
+			padding: theme.spacing.sm,
+			backgroundColor: theme.colors.primary + "10",
+			borderRadius: theme.borderRadius.sm,
+			marginBottom: theme.spacing.sm,
+		},
+		availabilityCheckInfoText: {
+			fontSize: 13,
+			color: theme.colors.primary,
+			fontWeight: "500",
+			flex: 1,
 		},
 		conflictInfo: {
 			marginTop: theme.spacing.sm,
