@@ -304,9 +304,10 @@ const BookingScreen: React.FC<BookingScreenProps> = ({ navigation }) => {
 		try {
 			setLoading(true);
 			const [bookingsData, hallsData] = await Promise.all([
-				smartBookingService.getUserBookingsWithRealTimeStatus(user.id), // Use real-time status checking
+				smartBookingService.getUserBookingsWithRealTimeStatus(user.id),
 				hallManagementService.getAllHalls(),
 			]);
+
 			setBookings(bookingsData);
 			setHalls(hallsData);
 		} catch (error) {
@@ -632,6 +633,66 @@ const BookingScreen: React.FC<BookingScreenProps> = ({ navigation }) => {
 									{booking.purpose}
 								</Text>
 							</View>
+
+							{/* Admin Action Details */}
+							{(booking.status === "approved" ||
+								booking.status === "rejected" ||
+								booking.status === "cancelled") && (
+								<View style={styles.adminActionSection}>
+									{booking.status === "approved" && booking.approved_at && (
+										<View style={styles.adminDetailRow}>
+											<Ionicons
+												name="checkmark-circle"
+												size={14}
+												color={theme.colors.success}
+											/>
+											<Text style={styles.adminActionText}>
+												Approved{" "}
+												{new Date(booking.approved_at).toLocaleDateString()}
+											</Text>
+										</View>
+									)}
+									{booking.status === "rejected" && booking.rejected_reason && (
+										<View style={styles.adminDetailRow}>
+											<Ionicons
+												name="close-circle"
+												size={14}
+												color={theme.colors.error}
+											/>
+											<Text style={styles.adminActionText}>
+												Rejected: {booking.rejected_reason}
+											</Text>
+										</View>
+									)}
+									{booking.status === "cancelled" && (
+										<View style={styles.adminDetailRow}>
+											<Ionicons
+												name="ban"
+												size={14}
+												color={theme.colors.error}
+											/>
+											<Text style={styles.adminActionText}>
+												Cancelled{" "}
+												{booking.rejected_reason
+													? `: ${booking.rejected_reason}`
+													: ""}
+											</Text>
+										</View>
+									)}
+									{booking.admin_notes && (
+										<View style={styles.adminDetailRow}>
+											<Ionicons
+												name="chatbox"
+												size={14}
+												color={theme.colors.text.secondary}
+											/>
+											<Text style={styles.adminNotesText} numberOfLines={2}>
+												Note: {booking.admin_notes}
+											</Text>
+										</View>
+									)}
+								</View>
+							)}
 						</View>
 
 						{booking.status === "pending" || booking.status === "approved" ? (
@@ -2508,6 +2569,32 @@ const createStyles = (dynamicTheme: any, insets: any) =>
 			color: dynamicTheme.colors.success,
 			fontWeight: "500",
 			flex: 1,
+		},
+		// Admin Action Styles
+		adminActionSection: {
+			marginTop: dynamicTheme.spacing.sm,
+			paddingTop: dynamicTheme.spacing.sm,
+			borderTopWidth: 1,
+			borderTopColor: dynamicTheme.colors.text.secondary + "20",
+		},
+		adminDetailRow: {
+			flexDirection: "row",
+			alignItems: "flex-start",
+			gap: dynamicTheme.spacing.xs,
+			marginBottom: dynamicTheme.spacing.xs / 2,
+		},
+		adminActionText: {
+			fontSize: 12,
+			color: dynamicTheme.colors.text.secondary,
+			fontWeight: "500",
+			flex: 1,
+		},
+		adminNotesText: {
+			fontSize: 12,
+			color: dynamicTheme.colors.text.secondary,
+			fontStyle: "italic",
+			flex: 1,
+			lineHeight: 16,
 		},
 	});
 

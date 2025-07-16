@@ -101,7 +101,7 @@ export default function EditProfileScreen({ navigation }: Props) {
 		const newErrors: Partial<ProfileData> = {};
 
 		// Name validation
-		if (!profileData.name.trim()) {
+		if (!profileData.name || !profileData.name.trim()) {
 			newErrors.name = "Name is required";
 		} else if (profileData.name.trim().length < 2) {
 			newErrors.name = "Name must be at least 2 characters";
@@ -109,22 +109,23 @@ export default function EditProfileScreen({ navigation }: Props) {
 
 		// Email validation
 		const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-		if (!profileData.email.trim()) {
+		if (!profileData.email || !profileData.email.trim()) {
 			newErrors.email = "Email is required";
-		} else if (!emailRegex.test(profileData.email)) {
+		} else if (!emailRegex.test(profileData.email.trim())) {
 			newErrors.email = "Please enter a valid email address";
 		}
 
 		// Phone validation (optional but if provided, should be valid)
-		if (profileData.phone.trim()) {
+		if (profileData.phone && profileData.phone.trim()) {
 			const phoneRegex = /^[+]?[\d\s\-\(\)]{10,}$/;
-			if (!phoneRegex.test(profileData.phone)) {
+			if (!phoneRegex.test(profileData.phone.trim())) {
 				newErrors.phone = "Please enter a valid phone number";
 			}
 		}
 
 		// Employee ID validation (optional but if provided, should not be empty)
 		if (
+			profileData.employee_id &&
 			profileData.employee_id.trim() &&
 			profileData.employee_id.trim().length < 3
 		) {
@@ -150,33 +151,50 @@ export default function EditProfileScreen({ navigation }: Props) {
 
 			// Prepare update data (only include fields that changed)
 			const updates: any = {};
-			if (profileData.name !== user.name) updates.name = profileData.name;
-			if (profileData.phone !== user.phone) updates.phone = profileData.phone;
-			if (profileData.department !== user.department)
-				updates.department = profileData.department;
-			if (profileData.employee_id !== user.employeeId)
-				updates.employee_id = profileData.employee_id;
+			if (profileData.name.trim() !== (user.name || "").trim()) {
+				updates.name = profileData.name.trim();
+			}
+			if (profileData.phone.trim() !== (user.phone || "").trim()) {
+				updates.phone = profileData.phone.trim();
+			}
+			if (profileData.department.trim() !== (user.department || "").trim()) {
+				updates.department = profileData.department.trim();
+			}
+			if (profileData.employee_id.trim() !== (user.employeeId || "").trim()) {
+				updates.employee_id = profileData.employee_id.trim();
+			}
 
 			// If no changes, just go back
 			if (Object.keys(updates).length === 0) {
-				handleGoBack();
+				Alert.alert("No Changes", "No changes were made to your profile.", [
+					{
+						text: "OK",
+						onPress: () => handleGoBack(),
+					},
+				]);
 				return;
 			}
 
+			console.log("Updating user with:", updates);
+
 			// Update via user management service
-			await userManagementService.updateUser(user.id, updates);
+			const result = await userManagementService.updateUser(user.id, updates);
+			console.log("Update result:", result);
 
 			// Update local auth store
 			const profileUpdateData: any = {
 				...user,
-				...updates,
+				name: updates.name !== undefined ? updates.name : user.name,
+				phone: updates.phone !== undefined ? updates.phone : user.phone,
+				department:
+					updates.department !== undefined
+						? updates.department
+						: user.department,
+				employeeId:
+					updates.employee_id !== undefined
+						? updates.employee_id
+						: user.employeeId,
 			};
-
-			// Map employee_id to employeeId for auth store
-			if (updates.employee_id !== undefined) {
-				profileUpdateData.employeeId = updates.employee_id;
-				delete profileUpdateData.employee_id;
-			}
 
 			await updateProfile(profileUpdateData);
 
@@ -188,7 +206,11 @@ export default function EditProfileScreen({ navigation }: Props) {
 			]);
 		} catch (error) {
 			console.error("Error updating profile:", error);
-			Alert.alert("Error", "Failed to update profile. Please try again.");
+			const errorMessage =
+				error instanceof Error
+					? error.message
+					: "Failed to update profile. Please try again.";
+			Alert.alert("Error", errorMessage);
 		} finally {
 			setIsLoading(false);
 		}
@@ -197,10 +219,10 @@ export default function EditProfileScreen({ navigation }: Props) {
 	const handleCancel = () => {
 		// Check if there are unsaved changes
 		const hasChanges =
-			profileData.name !== (user?.name || "") ||
-			profileData.phone !== (user?.phone || "") ||
-			profileData.department !== (user?.department || "") ||
-			profileData.employee_id !== (user?.employeeId || "");
+			profileData.name.trim() !== (user?.name || "").trim() ||
+			profileData.phone.trim() !== (user?.phone || "").trim() ||
+			profileData.department.trim() !== (user?.department || "").trim() ||
+			profileData.employee_id.trim() !== (user?.employeeId || "").trim();
 
 		if (hasChanges) {
 			Alert.alert(
@@ -244,17 +266,7 @@ export default function EditProfileScreen({ navigation }: Props) {
 				<Text style={[styles.headerTitle, isDark && styles.headerTitleDark]}>
 					Edit Profile
 				</Text>
-				<TouchableOpacity
-					style={[styles.saveButton, isDark && styles.saveButtonDark]}
-					onPress={handleSave}
-					disabled={isLoading}
-				>
-					{isLoading ? (
-						<ActivityIndicator size="small" color={Colors.background.primary} />
-					) : (
-						<Text style={styles.saveButtonText}>Save</Text>
-					)}
-				</TouchableOpacity>
+				<View style={styles.headerSpacer} />
 			</View>
 
 			<ScrollView
@@ -414,6 +426,63 @@ export default function EditProfileScreen({ navigation }: Props) {
 						certain fields.
 					</Text>
 				</View>
+
+				{/* Bottom Save Button */}
+				<View style={styles.bottomButtonContainer}>
+					<TouchableOpacity
+						style={[
+							styles.bottomSaveButton,
+							isDark && styles.bottomSaveButtonDark,
+							isLoading && styles.disabledButton,
+						]}
+						onPress={handleSave}
+						disabled={isLoading}
+						activeOpacity={0.8}
+					>
+						{isLoading ? (
+							<ActivityIndicator
+								size="small"
+								color={Colors.background.primary}
+							/>
+						) : (
+							<>
+								<Ionicons
+									name="checkmark-circle-outline"
+									size={20}
+									color={Colors.background.primary}
+									style={styles.buttonIcon}
+								/>
+								<Text style={styles.bottomSaveButtonText}>Save Changes</Text>
+							</>
+						)}
+					</TouchableOpacity>
+
+					<TouchableOpacity
+						style={[
+							styles.bottomCancelButton,
+							isDark && styles.bottomCancelButtonDark,
+						]}
+						onPress={handleCancel}
+						activeOpacity={0.8}
+					>
+						<Ionicons
+							name="close-circle-outline"
+							size={20}
+							color={
+								isDark ? Colors.dark.text.secondary : Colors.text.secondary
+							}
+							style={styles.buttonIcon}
+						/>
+						<Text
+							style={[
+								styles.bottomCancelButtonText,
+								isDark && styles.bottomCancelButtonTextDark,
+							]}
+						>
+							Cancel
+						</Text>
+					</TouchableOpacity>
+				</View>
 			</ScrollView>
 		</View>
 	);
@@ -455,21 +524,8 @@ const styles = StyleSheet.create({
 	headerTitleDark: {
 		color: Colors.dark.text.primary,
 	},
-	saveButton: {
-		backgroundColor: Colors.primary[500],
-		paddingHorizontal: Spacing[4], // 16px
-		paddingVertical: Spacing[2], // 8px
-		borderRadius: BorderRadius.md,
-		minWidth: 60,
-		alignItems: "center",
-	},
-	saveButtonDark: {
-		backgroundColor: Colors.primary[600],
-	},
-	saveButtonText: {
-		color: Colors.background.primary,
-		fontSize: Typography.fontSize.sm,
-		fontWeight: Typography.fontWeight.semibold as any,
+	headerSpacer: {
+		width: 60, // Same width as the removed save button for consistent spacing
 	},
 	content: {
 		flex: 1,
@@ -566,5 +622,59 @@ const styles = StyleSheet.create({
 	},
 	infoTextDark: {
 		color: Colors.dark.text.secondary,
+	},
+	bottomButtonContainer: {
+		marginTop: Spacing[4], // 16px
+		marginBottom: Spacing[6], // 24px
+		gap: Spacing[3], // 12px
+	},
+	bottomSaveButton: {
+		backgroundColor: Colors.primary[500],
+		flexDirection: "row",
+		alignItems: "center",
+		justifyContent: "center",
+		paddingVertical: Spacing[4], // 16px
+		paddingHorizontal: Spacing[6], // 24px
+		borderRadius: BorderRadius.lg,
+		...Shadows.md,
+	},
+	bottomSaveButtonDark: {
+		backgroundColor: Colors.primary[600],
+	},
+	bottomSaveButtonText: {
+		color: Colors.background.primary,
+		fontSize: Typography.fontSize.base,
+		fontWeight: Typography.fontWeight.semibold as any,
+		marginLeft: Spacing[2], // 8px
+	},
+	bottomCancelButton: {
+		backgroundColor: Colors.background.secondary,
+		flexDirection: "row",
+		alignItems: "center",
+		justifyContent: "center",
+		paddingVertical: Spacing[4], // 16px
+		paddingHorizontal: Spacing[6], // 24px
+		borderRadius: BorderRadius.lg,
+		borderWidth: 1,
+		borderColor: Colors.border.main,
+	},
+	bottomCancelButtonDark: {
+		backgroundColor: Colors.dark.background.tertiary,
+		borderColor: Colors.dark.border.main,
+	},
+	bottomCancelButtonText: {
+		color: Colors.text.secondary,
+		fontSize: Typography.fontSize.base,
+		fontWeight: Typography.fontWeight.medium as any,
+		marginLeft: Spacing[2], // 8px
+	},
+	bottomCancelButtonTextDark: {
+		color: Colors.dark.text.secondary,
+	},
+	buttonIcon: {
+		marginRight: Spacing[1], // 4px
+	},
+	disabledButton: {
+		opacity: 0.6,
 	},
 });
