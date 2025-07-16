@@ -19,6 +19,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { LinearGradient } from "expo-linear-gradient";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 
 import {
@@ -164,6 +165,7 @@ const BookingScreen: React.FC<BookingScreenProps> = ({ navigation }) => {
 	const { user } = useAuthStore();
 	const { isDark } = useTheme();
 	const themeColors = getThemeColors(isDark);
+	const insets = useSafeAreaInsets();
 
 	// Dynamic theme based on dark mode
 	const dynamicTheme = {
@@ -249,7 +251,7 @@ const BookingScreen: React.FC<BookingScreenProps> = ({ navigation }) => {
 	};
 
 	// Create styles with dynamic theme
-	const styles = createStyles(dynamicTheme);
+	const styles = createStyles(dynamicTheme, insets);
 
 	const [bookings, setBookings] = useState<SmartBooking[]>([]);
 	const [halls, setHalls] = useState<any[]>([]);
@@ -525,18 +527,18 @@ const BookingScreen: React.FC<BookingScreenProps> = ({ navigation }) => {
 
 	if (loading) {
 		return (
-			<SafeAreaView style={styles.container}>
+			<View style={styles.container}>
 				<StatusBar style="auto" />
 				<View style={styles.loadingContainer}>
 					<ActivityIndicator size="large" color={theme.colors.primary} />
 					<Text style={styles.loadingText}>Loading bookings...</Text>
 				</View>
-			</SafeAreaView>
+			</View>
 		);
 	}
 
 	return (
-		<SafeAreaView style={styles.container}>
+		<View style={styles.container}>
 			<StatusBar style="auto" />
 			<View style={styles.header}>
 				<Text style={styles.headerTitle}>My Bookings</Text>
@@ -686,7 +688,7 @@ const BookingScreen: React.FC<BookingScreenProps> = ({ navigation }) => {
 				animationType="slide"
 				presentationStyle="pageSheet"
 			>
-				<SafeAreaView style={styles.modalContainer}>
+				<View style={styles.modalContainer}>
 					<View style={styles.modalHeader}>
 						<TouchableOpacity
 							onPress={() => {
@@ -1496,7 +1498,7 @@ const BookingScreen: React.FC<BookingScreenProps> = ({ navigation }) => {
 							</LinearGradient>
 						</TouchableOpacity>
 					</View>
-				</SafeAreaView>
+				</View>
 			</Modal>
 
 			{/* Date Picker */}
@@ -1600,12 +1602,12 @@ const BookingScreen: React.FC<BookingScreenProps> = ({ navigation }) => {
 					</LinearGradient>
 				</TouchableOpacity>
 			</Animated.View>
-		</SafeAreaView>
+		</View>
 	);
 };
 
 // Styles
-const createStyles = (dynamicTheme: any) =>
+const createStyles = (dynamicTheme: any, insets: any) =>
 	StyleSheet.create({
 		container: {
 			flex: 1,
@@ -1624,7 +1626,8 @@ const createStyles = (dynamicTheme: any) =>
 		},
 		header: {
 			paddingHorizontal: dynamicTheme.spacing.md,
-			paddingVertical: dynamicTheme.spacing.md,
+			paddingTop: insets.top + dynamicTheme.spacing.md,
+			paddingBottom: dynamicTheme.spacing.md,
 			backgroundColor: dynamicTheme.colors.surface,
 			borderBottomWidth: 1,
 			borderBottomColor: dynamicTheme.colors.text.secondary + "20",
@@ -1780,6 +1783,7 @@ const createStyles = (dynamicTheme: any) =>
 		modalContainer: {
 			flex: 1,
 			backgroundColor: dynamicTheme.colors.background,
+			paddingTop: insets.top,
 		},
 		modalHeader: {
 			flexDirection: "row",

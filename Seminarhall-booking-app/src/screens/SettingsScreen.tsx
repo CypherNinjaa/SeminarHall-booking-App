@@ -380,7 +380,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = () => {
 				{
 					id: "contact_developer",
 					title: "Contact Developer",
-					description: "Reach out to vikashkelly@gmail.com",
+					description: "Reach out to the development team",
 					type: "navigation",
 					icon: "code-outline",
 					onPress: handleContactDeveloper,
@@ -567,7 +567,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = () => {
 					<Text style={styles.versionSubtext}>
 						© 2024 Amity University Patna
 					</Text>
-					<Text style={styles.versionSubtext}>Developed by Vikash Kelly</Text>
+					<Text style={styles.versionSubtext}>Developed by{"\n"}Vikash Kelly{"\n"}Nikhil Anand</Text>
 				</View>
 
 				{/* Bottom Spacing */}

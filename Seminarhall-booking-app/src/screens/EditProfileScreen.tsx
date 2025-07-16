@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { RouteProp, CommonActions } from "@react-navigation/native";
 import { RootStackParamList } from "../navigation/AppNavigator";
@@ -49,6 +50,7 @@ interface ProfileData {
 export default function EditProfileScreen({ navigation }: Props) {
 	const { user, updateProfile } = useAuthStore();
 	const { isDark } = useTheme();
+	const insets = useSafeAreaInsets();
 
 	const [profileData, setProfileData] = useState<ProfileData>({
 		name: user?.name || "",
@@ -227,11 +229,11 @@ export default function EditProfileScreen({ navigation }: Props) {
 	};
 
 	return (
-		<SafeAreaView style={[styles.container, isDark && styles.containerDark]}>
+		<View style={[styles.container, isDark && styles.containerDark]}>
 			<StatusBar style={isDark ? "light" : "dark"} />
 
 			{/* Header */}
-			<View style={[styles.header, isDark && styles.headerDark]}>
+			<View style={[styles.header, isDark && styles.headerDark, { paddingTop: insets.top + 12 }]}>
 				<TouchableOpacity style={styles.backButton} onPress={handleCancel}>
 					<Ionicons
 						name="arrow-back"
@@ -413,7 +415,7 @@ export default function EditProfileScreen({ navigation }: Props) {
 					</Text>
 				</View>
 			</ScrollView>
-		</SafeAreaView>
+		</View>
 	);
 }
 
@@ -430,7 +432,7 @@ const styles = StyleSheet.create({
 		alignItems: "center",
 		justifyContent: "space-between",
 		paddingHorizontal: Spacing[4], // 16px
-		paddingVertical: Spacing[3], // 12px
+		paddingBottom: Spacing[3], // 12px
 		backgroundColor: Colors.background.primary,
 		borderBottomWidth: 1,
 		borderBottomColor: Colors.border.light,
