@@ -3,7 +3,6 @@ import {
 	View,
 	Text,
 	StyleSheet,
-	SafeAreaView,
 	FlatList,
 	TouchableOpacity,
 	TextInput,
@@ -13,6 +12,7 @@ import {
 	Dimensions,
 	Image,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
@@ -589,7 +589,7 @@ export default function HallManagementScreen({
 	);
 
 	return (
-		<SafeAreaView style={[styles.container, isDark && styles.containerDark]}>
+		<SafeAreaView style={[styles.container, isDark && styles.containerDark]} edges={['top']}>
 			<StatusBar style={isDark ? "light" : "dark"} />
 
 			{/* Header */}

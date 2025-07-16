@@ -2,7 +2,6 @@ import React, { useState, useCallback, useEffect } from "react";
 import {
 	View,
 	Text,
-	SafeAreaView,
 	ScrollView,
 	TouchableOpacity,
 	ActivityIndicator,
@@ -10,6 +9,7 @@ import {
 	Alert,
 	Dimensions,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
@@ -250,7 +250,7 @@ const BookedCalendarScreen: React.FC<BookedCalendarScreenProps> = ({
 
 	if (loading) {
 		return (
-			<SafeAreaView style={styles.container}>
+			<SafeAreaView style={styles.container} edges={['top']}>
 				<StatusBar style="auto" />
 				<View style={styles.loadingContainer}>
 					<ActivityIndicator size="large" color={theme.colors.primary} />
@@ -261,7 +261,7 @@ const BookedCalendarScreen: React.FC<BookedCalendarScreenProps> = ({
 	}
 
 	return (
-		<SafeAreaView style={styles.container}>
+		<SafeAreaView style={styles.container} edges={['top']}>
 			<StatusBar style="auto" />
 
 			{/* Header */}
