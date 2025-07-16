@@ -26,7 +26,9 @@ import {
 import { hallManagementService } from "../services/hallManagementService";
 
 interface BookedCalendarScreenProps {
-	navigation: any;
+	navigation: {
+		goBack: () => void;
+	};
 }
 
 interface BookingWithHall extends SmartBooking {
@@ -113,6 +115,80 @@ const BookedCalendarScreen: React.FC<BookedCalendarScreenProps> = ({
 		}
 	};
 
+	// Check if all slots from 9 AM to 6 PM are filled for a specific date
+	const checkIfAllSlotsFilledForDate = (
+		date: string,
+		allBookings: BookingWithHall[]
+	): boolean => {
+		const dayBookings = allBookings.filter((booking) => {
+			const bookingDate = formatDateToCalendarFormat(booking.booking_date);
+			return (
+				bookingDate === date &&
+				(booking.status === "approved" || booking.status === "pending")
+			);
+		});
+
+		if (dayBookings.length === 0) return false;
+
+		// Define 9 AM to 6 PM working hours (in minutes from midnight)
+		const workingHoursStart = 9 * 60; // 9 AM in minutes (540)
+		const workingHoursEnd = 18 * 60; // 6 PM in minutes (1080)
+		
+		// Convert booking times to minutes and merge overlapping bookings
+		const bookedSlots = dayBookings.map((booking) => {
+			const [startHour, startMin] = booking.start_time.split(":").map(Number);
+			const [endHour, endMin] = booking.end_time.split(":").map(Number);
+			return {
+				start: startHour * 60 + startMin,
+				end: endHour * 60 + endMin
+			};
+		}).filter((slot) => {
+			// Only consider slots that overlap with working hours
+			return slot.end > workingHoursStart && slot.start < workingHoursEnd;
+		}).map((slot) => {
+			// Trim slots to working hours boundary
+			return {
+				start: Math.max(slot.start, workingHoursStart),
+				end: Math.min(slot.end, workingHoursEnd)
+			};
+		});
+
+		if (bookedSlots.length === 0) return false;
+
+		// Sort slots by start time and merge overlapping ones
+		bookedSlots.sort((a, b) => a.start - b.start);
+		
+		const mergedSlots = [];
+		let currentSlot = bookedSlots[0];
+		
+		for (let i = 1; i < bookedSlots.length; i++) {
+			const nextSlot = bookedSlots[i];
+			
+			// If current slot overlaps or is adjacent to next slot, merge them
+			if (currentSlot.end >= nextSlot.start) {
+				currentSlot.end = Math.max(currentSlot.end, nextSlot.end);
+			} else {
+				// No overlap, add current slot to merged list and start new one
+				mergedSlots.push(currentSlot);
+				currentSlot = nextSlot;
+			}
+		}
+		mergedSlots.push(currentSlot);
+
+		// Check if merged slots cover entire working hours
+		// Calculate total coverage
+		let totalCoverage = 0;
+		for (const slot of mergedSlots) {
+			totalCoverage += (slot.end - slot.start);
+		}
+		
+		// Check if total coverage equals working hours duration (9 hours = 540 minutes)
+		const workingHoursDuration = workingHoursEnd - workingHoursStart;
+		return totalCoverage >= workingHoursDuration;
+	};
+
+	// ...existing code...
+
 	const formatDate = (dateString: string) => {
 		if (!dateString) return "-";
 		let year, month, day;
@@ -150,31 +226,22 @@ const BookedCalendarScreen: React.FC<BookedCalendarScreenProps> = ({
 		try {
 			setLoading(true);
 			const [bookingsData, hallsData] = await Promise.all([
-				smartBookingService.getAllBookingsForCalendar(), // We'll create this method
+				smartBookingService.getAllBookingsForCalendar(), // Get all bookings from all users
 				hallManagementService.getAllHalls(),
 			]);
 
-			// Filter out past bookings and only show future/current bookings
-			const now = new Date();
-			const futureBookings = bookingsData.filter((booking: SmartBooking) => {
-				const bookingDate = new Date(
-					parseInt(booking.booking_date.substring(4, 8)), // year
-					parseInt(booking.booking_date.substring(2, 4)) - 1, // month (0-indexed)
-					parseInt(booking.booking_date.substring(0, 2)) // day
-				);
-				return (
-					bookingDate >= now ||
-					booking.status === "approved" ||
-					booking.status === "pending"
-				);
+			// Show all bookings (including past ones) - users can see all bookings from all users
+			// Only filter out cancelled and rejected bookings
+			const visibleBookings = bookingsData.filter((booking: SmartBooking) => {
+				return booking.status !== "cancelled" && booking.status !== "rejected";
 			});
 
-			setAllBookings(futureBookings);
+			setAllBookings(visibleBookings);
 			setHalls(hallsData);
 
-			// Group bookings by date
+			// Group ALL bookings by date (not just current user's)
 			const grouped: DayBookings = {};
-			futureBookings.forEach((booking: SmartBooking) => {
+			visibleBookings.forEach((booking: SmartBooking) => {
 				const calendarDate = formatDateToCalendarFormat(booking.booking_date);
 				if (!grouped[calendarDate]) {
 					grouped[calendarDate] = [];
@@ -216,19 +283,33 @@ const BookedCalendarScreen: React.FC<BookedCalendarScreenProps> = ({
 	const markedDates = Object.keys(dayBookings).reduce((acc, date) => {
 		const bookingsCount = dayBookings[date].length;
 		const isSelected = date === selectedDate;
+		const isFullyBooked = checkIfAllSlotsFilledForDate(date, allBookings);
+
+		// Determine text color based on booking status
+		let textColor = theme.colors.text.primary;
+		if (isFullyBooked) {
+			textColor = "#FF69B4"; // Pink for fully booked
+		} else if (bookingsCount > 3) {
+			textColor = theme.colors.error; // Red for 4+ bookings
+		} else if (bookingsCount > 1) {
+			textColor = theme.colors.warning; // Orange for 2-3 bookings
+		} else if (bookingsCount === 1) {
+			textColor = theme.colors.success; // Green for 1 booking
+		}
 
 		acc[date] = {
-			marked: true,
-			dotColor: isSelected
-				? "#FFFFFF"
-				: bookingsCount > 3
-				? theme.colors.error
-				: bookingsCount > 1
-				? theme.colors.warning
-				: theme.colors.success,
 			selected: isSelected,
-			selectedColor: theme.colors.primary,
+			selectedColor: isFullyBooked ? "#FF69B4" : theme.colors.primary,
 			selectedTextColor: "#FFFFFF",
+			customStyles: {
+				text: {
+					color: isSelected ? "#FFFFFF" : textColor,
+					fontWeight: bookingsCount > 0 ? "600" : "400",
+				},
+				container: {
+					backgroundColor: isSelected ? (isFullyBooked ? "#FF69B4" : theme.colors.primary) : "transparent",
+				},
+			},
 		};
 		return acc;
 	}, {} as any);
@@ -239,12 +320,31 @@ const BookedCalendarScreen: React.FC<BookedCalendarScreenProps> = ({
 			selected: true,
 			selectedColor: theme.colors.primary,
 			selectedTextColor: "#FFFFFF",
+			customStyles: {
+				text: {
+					color: "#FFFFFF",
+					fontWeight: "400",
+				},
+				container: {
+					backgroundColor: theme.colors.primary,
+				},
+			},
 		};
 	}
 
+	// Get all bookings for the selected date (from all users)
 	const selectedDayBookings = selectedDate
 		? dayBookings[selectedDate] || []
 		: [];
+
+	// Always show all bookings for the selected date (no need for separate loading)
+	const [loadingAllBookings, setLoadingAllBookings] = useState(false);
+
+	// Check if selected date is fully booked
+	const isSelectedDateFullyBooked = selectedDate ? checkIfAllSlotsFilledForDate(selectedDate, allBookings) : false;
+
+	// All bookings are already loaded, so we use the same data
+	const bookingsToShow = selectedDayBookings;
 
 	const styles = createStyles(dynamicTheme);
 
@@ -276,7 +376,7 @@ const BookedCalendarScreen: React.FC<BookedCalendarScreenProps> = ({
 						color={dynamicTheme.colors.text.primary}
 					/>
 				</TouchableOpacity>
-				<Text style={styles.headerTitle}>Booking History</Text>
+				<Text style={styles.headerTitle}>All Bookings Calendar</Text>
 				<TouchableOpacity onPress={handleRefresh} style={styles.refreshButton}>
 					<Ionicons name="refresh" size={24} color={theme.colors.primary} />
 				</TouchableOpacity>
@@ -293,7 +393,7 @@ const BookedCalendarScreen: React.FC<BookedCalendarScreenProps> = ({
 						<Text style={styles.statNumber}>
 							{Object.keys(dayBookings).length}
 						</Text>
-						<Text style={styles.statLabel}>Days with Bookings</Text>
+						<Text style={styles.statLabel}>Total Days</Text>
 					</LinearGradient>
 				</View>
 				<View style={styles.statCard}>
@@ -307,9 +407,9 @@ const BookedCalendarScreen: React.FC<BookedCalendarScreenProps> = ({
 							color={theme.colors.success}
 						/>
 						<Text style={styles.statNumber}>
-							{allBookings.filter((b) => b.status === "approved").length}
+							{allBookings.filter((b: BookingWithHall) => b.status === "approved").length}
 						</Text>
-						<Text style={styles.statLabel}>Approved</Text>
+						<Text style={styles.statLabel}>Total Approved</Text>
 					</LinearGradient>
 				</View>
 				<View style={styles.statCard}>
@@ -319,9 +419,9 @@ const BookedCalendarScreen: React.FC<BookedCalendarScreenProps> = ({
 					>
 						<Ionicons name="time" size={24} color={theme.colors.warning} />
 						<Text style={styles.statNumber}>
-							{allBookings.filter((b) => b.status === "pending").length}
+							{allBookings.filter((b: BookingWithHall) => b.status === "pending").length}
 						</Text>
-						<Text style={styles.statLabel}>Pending</Text>
+						<Text style={styles.statLabel}>Total Pending</Text>
 					</LinearGradient>
 				</View>
 			</View>
@@ -338,6 +438,7 @@ const BookedCalendarScreen: React.FC<BookedCalendarScreenProps> = ({
 					<Calendar
 						onDayPress={onDayPress}
 						markedDates={markedDates}
+						markingType="custom"
 						theme={{
 							backgroundColor: dynamicTheme.colors.surface,
 							calendarBackground: dynamicTheme.colors.surface,
@@ -375,33 +476,25 @@ const BookedCalendarScreen: React.FC<BookedCalendarScreenProps> = ({
 				{/* Legend */}
 				<View style={styles.legendContainer}>
 					<Text style={styles.legendTitle}>Legend</Text>
+					<Text style={[styles.legendText, { marginBottom: 8, fontStyle: 'italic' }]}>
+						📍 Showing all bookings from all users
+					</Text>
 					<View style={styles.legendItems}>
 						<View style={styles.legendItem}>
-							<View
-								style={[
-									styles.legendDot,
-									{ backgroundColor: theme.colors.success },
-								]}
-							/>
+							<View style={[styles.legendDot, { backgroundColor: theme.colors.success }]} />
 							<Text style={styles.legendText}>1 booking</Text>
 						</View>
 						<View style={styles.legendItem}>
-							<View
-								style={[
-									styles.legendDot,
-									{ backgroundColor: theme.colors.warning },
-								]}
-							/>
+							<View style={[styles.legendDot, { backgroundColor: theme.colors.warning }]} />
 							<Text style={styles.legendText}>2-3 bookings</Text>
 						</View>
 						<View style={styles.legendItem}>
-							<View
-								style={[
-									styles.legendDot,
-									{ backgroundColor: theme.colors.error },
-								]}
-							/>
+							<View style={[styles.legendDot, { backgroundColor: theme.colors.error }]} />
 							<Text style={styles.legendText}>4+ bookings</Text>
+						</View>
+						<View style={styles.legendItem}>
+							<View style={[styles.legendDot, { backgroundColor: "#FF69B4" }]} />
+							<Text style={styles.legendText}>Fully booked (9AM-6PM)</Text>
 						</View>
 					</View>
 				</View>
@@ -410,16 +503,26 @@ const BookedCalendarScreen: React.FC<BookedCalendarScreenProps> = ({
 				{selectedDate && (
 					<View style={styles.selectedDayContainer}>
 						<Text style={styles.selectedDayTitle}>
-							Bookings for{" "}
+							{isSelectedDateFullyBooked ? "All Bookings" : "All Bookings"} for{" "}
 							{new Date(selectedDate).toLocaleDateString("en-US", {
 								weekday: "long",
 								year: "numeric",
 								month: "long",
 								day: "numeric",
 							})}
+							{isSelectedDateFullyBooked && (
+								<Text style={[styles.selectedDayTitle, { color: "#FF69B4", fontSize: 16 }]}>
+									{" "}(Fully Booked 9AM-6PM)
+								</Text>
+							)}
 						</Text>
 
-						{selectedDayBookings.length === 0 ? (
+						{loadingAllBookings ? (
+							<View style={styles.loadingContainer}>
+								<ActivityIndicator size="small" color={theme.colors.primary} />
+								<Text style={styles.loadingText}>Loading bookings...</Text>
+							</View>
+						) : bookingsToShow.length === 0 ? (
 							<View style={styles.noBookingsContainer}>
 								<Ionicons
 									name="calendar-outline"
@@ -433,9 +536,9 @@ const BookedCalendarScreen: React.FC<BookedCalendarScreenProps> = ({
 							</View>
 						) : (
 							<View style={styles.bookingsList}>
-								{selectedDayBookings
-									.sort((a, b) => a.start_time.localeCompare(b.start_time))
-									.map((booking, index) => (
+								{bookingsToShow
+									.sort((a: BookingWithHall, b: BookingWithHall) => a.start_time.localeCompare(b.start_time))
+									.map((booking: BookingWithHall, index: number) => (
 										<View key={booking.id || index} style={styles.bookingCard}>
 											<View style={styles.bookingHeader}>
 												<View style={styles.bookingTitleRow}>
@@ -501,7 +604,7 @@ const BookedCalendarScreen: React.FC<BookedCalendarScreenProps> = ({
 															color={dynamicTheme.colors.text.secondary}
 														/>
 														<Text style={styles.detailText} numberOfLines={1}>
-															Booked by: {booking.user_name}
+															👤 {booking.user_name}
 														</Text>
 													</View>
 												)}
@@ -625,21 +728,25 @@ const createStyles = (theme: any) =>
 		},
 		legendItems: {
 			flexDirection: "row",
+			flexWrap: "wrap",
 			justifyContent: "space-around",
+			gap: theme.spacing.sm,
 		},
 		legendItem: {
 			flexDirection: "row",
 			alignItems: "center",
+			gap: theme.spacing.xs,
 		},
 		legendDot: {
-			width: 8,
-			height: 8,
-			borderRadius: 4,
+			width: 12,
+			height: 12,
+			borderRadius: 6,
 			marginRight: theme.spacing.xs,
 		},
 		legendText: {
-			fontSize: 12,
+			fontSize: 11,
 			color: theme.colors.text.secondary,
+			textAlign: "center",
 		},
 		selectedDayContainer: {
 			marginHorizontal: theme.spacing.md,
