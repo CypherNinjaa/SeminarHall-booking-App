@@ -366,6 +366,7 @@ interface DashboardStats extends AdminDashboardStats {
 	pending_conflicts: number;
 	least_booked_hall: string;
 	peak_booking_day: string;
+	pending_user_approvals: number;
 }
 
 interface RecentActivity {
@@ -948,6 +949,7 @@ export default function AdminDashboardScreen({
 		bookingSuccessRate: 0,
 		averageApprovalTime: 0,
 		systemUptime: 99.9,
+		pending_user_approvals: 0,
 	});
 	const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
 	const [realTimeUpdates, setRealTimeUpdates] = useState(0);
@@ -1382,6 +1384,7 @@ export default function AdminDashboardScreen({
 							: 0,
 					averageApprovalTime: 2,
 					systemUptime: 99.9,
+					pending_user_approvals: 0, // TODO: Calculate from actual data
 				};
 
 				console.log("📊 Final stats:", newStats);
@@ -1891,7 +1894,22 @@ export default function AdminDashboardScreen({
 			icon: "add-circle-outline",
 			color: Colors.primary[500],
 			onPress: () => {
-				navigation.navigate("AddEditHall");
+				Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+				navigation.navigate("AdminTabs");
+			},
+		},
+		{
+			id: "pending-approvals",
+			title: "User Approvals",
+			description: "Review pending user approvals",
+			icon: "person-add-outline",
+			color: Colors.primary[400],
+			badge: stats.pending_user_approvals || 0,
+			onPress: () => {
+				Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+				console.log("🔘 User Approvals button pressed - Available for both admin and superadmin");
+				// TODO: Navigate to pending user approvals screen
+				Alert.alert("User Approvals", "User approval management is coming soon!\n\nThis button is visible to both admin and superadmin users.");
 			},
 		},
 		{
@@ -1902,6 +1920,7 @@ export default function AdminDashboardScreen({
 			color: Colors.warning.main,
 			badge: stats.pending_bookings,
 			onPress: () => {
+				Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 				navigation.navigate("AdminTabs");
 			},
 		},
@@ -2455,13 +2474,19 @@ export default function AdminDashboardScreen({
 								⚡ Quick Actions
 							</Text>
 							<View style={styles.quickActionsGrid}>
-								{quickActions.map((action, index) => (
-									<QuickActionButton
-										key={action.id}
-										action={action}
-										index={index}
-									/>
-								))}
+								{quickActions.map((action, index) => {
+									// Debug logging for quick actions
+									if (action.id === "pending-approvals") {
+										console.log("🔘 Rendering User Approvals button - visible to both admin and superadmin");
+									}
+									return (
+										<QuickActionButton
+											key={action.id}
+											action={action}
+											index={index}
+										/>
+									);
+								})}
 							</View>
 						</Animated.View>
 

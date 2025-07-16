@@ -617,4 +617,85 @@ export const userManagementService = {
 			throw error;
 		}
 	},
+
+	/**
+	 * Get pending user approvals
+	 */
+	getPendingApprovals: async () => {
+		try {
+			const { data, error } = await supabase
+				.from("profiles")
+				.select("*")
+				.eq("role", "faculty")
+				.eq("approved_by_admin", false)
+				.eq("is_active", true)
+				.order("created_at", { ascending: false });
+
+			if (error) throw error;
+
+			return data || [];
+		} catch (error) {
+			console.error("Error fetching pending approvals:", error);
+			throw error;
+		}
+	},
+
+	/**
+	 * Approve a user
+	 */
+	approveUser: async (userEmail: string, approvedByAdminId: string) => {
+		try {
+			const { data, error } = await supabase.rpc("approve_user", {
+				user_email: userEmail,
+				approved_by_admin_id: approvedByAdminId,
+			});
+
+			if (error) throw error;
+
+			return data;
+		} catch (error) {
+			console.error("Error approving user:", error);
+			throw error;
+		}
+	},
+
+	/**
+	 * Reject a user approval
+	 */
+	rejectUser: async (userEmail: string, rejectedByAdminId: string) => {
+		try {
+			const { data, error } = await supabase.rpc("reject_user", {
+				user_email: userEmail,
+				rejected_by_admin_id: rejectedByAdminId,
+			});
+
+			if (error) throw error;
+
+			return data;
+		} catch (error) {
+			console.error("Error rejecting user:", error);
+			throw error;
+		}
+	},
+
+	/**
+	 * Get count of pending approvals
+	 */
+	getPendingApprovalsCount: async () => {
+		try {
+			const { count, error } = await supabase
+				.from("profiles")
+				.select("*", { count: "exact", head: true })
+				.eq("role", "faculty")
+				.eq("approved_by_admin", false)
+				.eq("is_active", true);
+
+			if (error) throw error;
+
+			return count || 0;
+		} catch (error) {
+			console.error("Error fetching pending approvals count:", error);
+			return 0;
+		}
+	},
 };
