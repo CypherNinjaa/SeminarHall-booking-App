@@ -22,6 +22,8 @@ import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { StackNavigationProp } from "@react-navigation/stack";
+import { CompositeNavigationProp } from "@react-navigation/native";
+import { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import * as Haptics from "expo-haptics";
 
 import {
@@ -34,6 +36,7 @@ import {
 import { useAuthStore } from "../../stores/authStore";
 import { useTheme } from "../../contexts/ThemeContext";
 import { AdminTabParamList } from "../../navigation/AdminTabNavigator";
+import { RootStackParamList } from "../../navigation/AppNavigator";
 import { hallManagementService } from "../../services/hallManagementService";
 import { bookingOversightService } from "../../services/bookingOversightService";
 import { userManagementService } from "../../services/userManagementService";
@@ -82,6 +85,7 @@ interface DashboardStats {
 	super_admins: number;
 	admins: number;
 	faculty: number;
+	pending_approvals: number;
 }
 
 interface RecentActivity {
@@ -110,9 +114,9 @@ interface UserManagementModalProps {
 	onSave: (updates: Partial<User>) => Promise<void>;
 }
 
-type UnifiedAdminDashboardScreenNavigationProp = StackNavigationProp<
-	AdminTabParamList,
-	"AdminDashboard"
+type UnifiedAdminDashboardScreenNavigationProp = CompositeNavigationProp<
+	BottomTabNavigationProp<AdminTabParamList, "AdminDashboard">,
+	StackNavigationProp<RootStackParamList>
 >;
 
 interface UnifiedAdminDashboardScreenProps {
@@ -770,6 +774,8 @@ const UserManagementModal: React.FC<UserManagementModalProps> = ({
 	);
 };
 
+
+
 // Main Unified Admin Dashboard Screen
 export default function UnifiedAdminDashboardScreen({
 	navigation,
@@ -803,6 +809,7 @@ export default function UnifiedAdminDashboardScreen({
 		super_admins: 0,
 		admins: 0,
 		faculty: 0,
+		pending_approvals: 0,
 	});
 	const [recentActivities, setRecentActivities] = useState<RecentActivity[]>(
 		[]
@@ -817,9 +824,10 @@ export default function UnifiedAdminDashboardScreen({
 	// Load dashboard data
 	const loadDashboardData = useCallback(async () => {
 		try {
-			const [bookingsResponse, hallsResponse] = await Promise.all([
+			const [bookingsResponse, hallsResponse, pendingApprovalsCount] = await Promise.all([
 				bookingOversightService.getBookings({ status: "all" }),
 				hallManagementService.getAllHalls(),
+				userManagementService.getPendingApprovalsCount(),
 			]);
 
 			const bookingStats = calculateBookingStats(bookingsResponse);
@@ -836,6 +844,7 @@ export default function UnifiedAdminDashboardScreen({
 				super_admins: 0,
 				admins: 0,
 				faculty: 0,
+				pending_approvals: pendingApprovalsCount,
 			} as DashboardStats);
 
 			// Load recent activities
@@ -854,7 +863,11 @@ export default function UnifiedAdminDashboardScreen({
 	// Load user data (for super admin)
 	const loadUserData = useCallback(async () => {
 		try {
-			const usersResponse = await userManagementService.getAllUsers();
+			const [usersResponse, pendingApprovalsCount] = await Promise.all([
+				userManagementService.getAllUsers(),
+				userManagementService.getPendingApprovalsCount(),
+			]);
+			
 			setUsers(usersResponse.users);
 
 			// Calculate user stats
@@ -877,6 +890,7 @@ export default function UnifiedAdminDashboardScreen({
 			setDashboardStats((prev) => ({
 				...prev,
 				...userStats,
+				pending_approvals: pendingApprovalsCount,
 			}));
 		} catch (error) {
 			console.error("Error loading user data:", error);
@@ -1066,6 +1080,16 @@ export default function UnifiedAdminDashboardScreen({
 						icon="checkbox-outline"
 						color={Colors.success.main}
 						onPress={() => navigation.navigate("HallManagement")}
+					/>
+					<StatsCard
+						title="User Approvals"
+						value={dashboardStats.pending_approvals}
+						icon="person-add-outline"
+						color={Colors.primary[400]}
+						onPress={() => {
+							Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+							navigation.navigate("UserApprovals");
+						}}
 					/>
 					<StatsCard
 						title="Peak Hour"
@@ -1366,6 +1390,7 @@ export default function UnifiedAdminDashboardScreen({
 				}}
 				onSave={handleSaveUser}
 			/>
+
 		</SafeAreaView>
 	);
 }
@@ -1831,5 +1856,121 @@ const styles = StyleSheet.create({
 		fontSize: Typography.fontSize.base,
 		fontWeight: Typography.fontWeight.semibold,
 		color: Colors.text.inverse,
+	},
+	// User Approvals Modal styles
+	approvalsModalContainer: {
+		backgroundColor: Colors.background.primary,
+		borderRadius: BorderRadius.xl,
+		overflow: "hidden",
+		width: Math.min(screenWidth * 0.95, 600),
+		maxHeight: screenHeight * 0.8,
+		...Shadows.lg,
+	},
+	approvalsModalContent: {
+		flex: 1,
+		padding: Spacing[3],
+		minHeight: 200,
+		maxHeight: screenHeight * 0.6,
+	},
+	pendingUserCard: {
+		backgroundColor: Colors.background.secondary,
+		borderRadius: BorderRadius.lg,
+		padding: Spacing[3],
+		marginBottom: Spacing[2],
+		...Shadows.sm,
+	},
+	pendingUserCardDark: {
+		backgroundColor: Colors.dark.background.tertiary,
+	},
+	pendingUserInfo: {
+		marginBottom: Spacing[2],
+	},
+	pendingUserName: {
+		fontSize: Typography.fontSize.lg,
+		fontWeight: Typography.fontWeight.semibold,
+		color: Colors.text.primary,
+		marginBottom: Spacing[1],
+	},
+	pendingUserNameDark: {
+		color: Colors.dark.text.primary,
+	},
+	pendingUserEmail: {
+		fontSize: Typography.fontSize.base,
+		color: Colors.text.secondary,
+		marginBottom: Spacing[1],
+	},
+	pendingUserEmailDark: {
+		color: Colors.dark.text.secondary,
+	},
+	pendingUserDepartment: {
+		fontSize: Typography.fontSize.sm,
+		color: Colors.text.secondary,
+		marginBottom: Spacing[1],
+	},
+	pendingUserDepartmentDark: {
+		color: Colors.dark.text.secondary,
+	},
+	pendingUserDate: {
+		fontSize: Typography.fontSize.xs,
+		color: Colors.text.tertiary,
+	},
+	pendingUserDateDark: {
+		color: Colors.dark.text.tertiary,
+	},
+	pendingUserActions: {
+		flexDirection: "row",
+		justifyContent: "space-between",
+		gap: Spacing[2],
+	},
+	pendingActionButton: {
+		flex: 1,
+		flexDirection: "row",
+		alignItems: "center",
+		justifyContent: "center",
+		paddingVertical: Spacing[2],
+		paddingHorizontal: Spacing[3],
+		borderRadius: BorderRadius.md,
+		gap: Spacing[1],
+	},
+	approveButton: {
+		backgroundColor: Colors.success.main,
+	},
+	rejectButton: {
+		backgroundColor: Colors.error.main,
+	},
+	approveButtonText: {
+		fontSize: Typography.fontSize.base,
+		fontWeight: Typography.fontWeight.medium,
+		color: Colors.text.inverse,
+	},
+	rejectButtonText: {
+		fontSize: Typography.fontSize.base,
+		fontWeight: Typography.fontWeight.medium,
+		color: Colors.text.inverse,
+	},
+	emptyApprovalsState: {
+		flex: 1,
+		justifyContent: "center",
+		alignItems: "center",
+		padding: Spacing[5],
+	},
+	emptyApprovalsTitle: {
+		fontSize: Typography.fontSize.xl,
+		fontWeight: Typography.fontWeight.semibold,
+		color: Colors.text.primary,
+		marginTop: Spacing[3],
+		marginBottom: Spacing[2],
+	},
+	emptyApprovalsTitleDark: {
+		color: Colors.dark.text.primary,
+	},
+	emptyApprovalsDescription: {
+		fontSize: Typography.fontSize.base,
+		color: Colors.text.secondary,
+		textAlign: "center",
+		lineHeight: 24,
+	},
+	emptyApprovalsDescriptionDark: {
+		color: Colors.dark.text.secondary,
 	},
 });

@@ -26,6 +26,7 @@ import AddEditHallScreen from "../screens/admin/AddEditHallScreen";
 import HallDetailsScreen from "../screens/admin/HallDetailsScreen";
 import HelpSupportScreen from "../screens/HelpSupportScreen";
 import SettingsScreen from "../screens/SettingsScreen";
+import UserApprovalsScreen from "../screens/admin/UserApprovalsScreen";
 
 // Import admin navigation
 import AdminTabNavigator from "./AdminTabNavigator";
@@ -47,6 +48,7 @@ export type RootStackParamList = {
 	BookedCalendar: undefined;
 	HelpSupport: undefined;
 	Settings: undefined;
+	UserApprovals: undefined;
 	"auth/email-verified": undefined;
 	"auth/password-reset-success": undefined;
 	"auth/login": undefined;
@@ -178,10 +180,17 @@ export default function AppNavigator() {
 								/>
 								{(user?.role === "super_admin" || user?.role === "admin") && (
 									// Both Super Admin and Admin get access to unified admin tabs
-									<Stack.Screen
-										name="AdminTabs"
-										component={AdminTabNavigator}
-									/>
+									<>
+										<Stack.Screen
+											name="AdminTabs"
+											component={AdminTabNavigator}
+										/>
+										<Stack.Screen
+											name="UserApprovals"
+											component={UserApprovalsScreen}
+											options={{ title: "User Approvals" }}
+										/>
+									</>
 								)}
 							</>
 						) : (
