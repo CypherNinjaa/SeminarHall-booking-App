@@ -163,18 +163,11 @@ export default function SignupScreen({ navigation }: Props) {
 			return { isValid: false, message: "Please enter a valid email address" };
 		}
 
-		// Check for university domain (optional - can be customized)
-		const universityDomains = [
-			"amity.edu",
-			"student.amity.edu",
-			"faculty.amity.edu",
-		];
-		const domain = email.split("@")[1]?.toLowerCase();
-
-		// For now, we'll allow any valid email but could restrict to university domains
-		// if (domain && !universityDomains.some(uniDomain => domain.includes(uniDomain))) {
-		//     return { isValid: false, message: "Please use your university email address" };
-		// }
+		// Check for required university domain
+		const requiredDomain = "@ptn.amity.edu";
+		if (!email.toLowerCase().includes(requiredDomain)) {
+			return { isValid: false, message: "Please use your university email address (@ptn.amity.edu)" };
+		}
 
 		return { isValid: true, message: "" };
 	};
