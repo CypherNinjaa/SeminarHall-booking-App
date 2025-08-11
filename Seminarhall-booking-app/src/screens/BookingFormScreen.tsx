@@ -41,6 +41,276 @@ interface BookingFormScreenProps {
 	};
 }
 
+// Web-only Radial Time Picker Component
+const WebRadialTimePicker = ({ 
+	value, 
+	onChange, 
+	onConfirm,
+	onCancel,
+	theme, 
+	themeColors 
+}: {
+	value: string;
+	onChange: (time: string) => void;
+	onConfirm: () => void;
+	onCancel: () => void;
+	theme: any;
+	themeColors: any;
+}) => {
+	const [selectedTime, setSelectedTime] = useState(value);
+	const [hours, minutes] = selectedTime.split(':').map(Number);
+	
+	const innerHourItems = Array.from({ length: 12 }, (_, i) => i + 1); // 1-12
+	const outerHourItems = [0, ...Array.from({ length: 11 }, (_, i) => i + 13)]; // 0 (midnight), 13-23
+	const minuteItems = Array.from({ length: 12 }, (_, i) => i * 5); // 5-minute intervals
+
+	const handleHourClick = (hour: number) => {
+		// Convert display hour to 24-hour format
+		const actualHour = hour === 24 ? 0 : hour;
+		const newTime = `${String(actualHour).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+		setSelectedTime(newTime);
+	};
+
+	const handleMinuteClick = (minute: number) => {
+		const newTime = `${String(hours).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+		setSelectedTime(newTime);
+	};
+
+	const handleConfirm = () => {
+		onChange(selectedTime);
+		onConfirm();
+	};
+
+	// Convert 24-hour format to display format
+	const displayHour = hours === 0 ? 24 : hours;
+
+	return (
+		<div style={{ 
+			display: 'flex', 
+			flexDirection: 'column', 
+			alignItems: 'center', 
+			gap: '20px',
+			padding: '20px'
+		}}>
+			{/* Current Time Display */}
+			<div style={{
+				fontSize: '32px',
+				fontWeight: '600',
+				color: themeColors.text.primary,
+				marginBottom: '20px'
+			}}>
+				{selectedTime}
+			</div>
+
+			{/* Hour Selector with Concentric Circles */}
+			<div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+				<div style={{ 
+					fontSize: '16px', 
+					fontWeight: '600', 
+					marginBottom: '10px',
+					color: themeColors.text.primary 
+				}}>
+					Hours
+				</div>
+				<div style={{ 
+					position: 'relative', 
+					width: '240px', 
+					height: '240px',
+					border: `2px solid ${theme.colors.border}`,
+					borderRadius: '50%',
+					display: 'flex',
+					alignItems: 'center',
+					justifyContent: 'center'
+				}}>
+					{/* Outer Circle (0, 13-23) */}
+					{outerHourItems.map((hour, index) => {
+						const displayHourOuter = hour === 0 ? 0 : hour; // Show 00, 13-23
+						const actualHour = hour;
+						// Position 0 (midnight) at 12 o'clock position, then 13-23 clockwise
+						const angle = index === 0 ? -90 : ((hour - 12) * 30) - 90; // First item (0) at top, others positioned by hour
+						const radian = (angle * Math.PI) / 180;
+						const radius = 95; // Outer radius
+						const x = Math.cos(radian) * radius;
+						const y = Math.sin(radian) * radius;
+						
+						return (
+							<button
+								key={`outer-${hour}`}
+								onClick={() => handleHourClick(actualHour)}
+								style={{
+									position: 'absolute',
+									left: `calc(50% + ${x}px - 18px)`,
+									top: `calc(50% + ${y}px - 18px)`,
+									width: '36px',
+									height: '36px',
+									border: hours === actualHour ? `2px solid ${theme.colors.primary}` : `1px solid ${theme.colors.border}`,
+									borderRadius: '50%',
+									backgroundColor: hours === actualHour ? theme.colors.primary : theme.colors.surface,
+									color: hours === actualHour ? '#FFFFFF' : themeColors.text.primary,
+									fontSize: '12px',
+									fontWeight: '500',
+									cursor: 'pointer',
+									display: 'flex',
+									alignItems: 'center',
+									justifyContent: 'center'
+								}}
+							>
+								{displayHourOuter === 0 ? '00' : displayHourOuter}
+							</button>
+						);
+					})}
+
+					{/* Inner Circle (1-12) */}
+					{innerHourItems.map((hour) => {
+						const angle = (hour * 30) - 90; // 360/12 = 30 degrees per hour, starting from 12
+						const radian = (angle * Math.PI) / 180;
+						const radius = 60; // Inner radius
+						const x = Math.cos(radian) * radius;
+						const y = Math.sin(radian) * radius;
+						
+						return (
+							<button
+								key={`inner-${hour}`}
+								onClick={() => handleHourClick(hour)}
+								style={{
+									position: 'absolute',
+									left: `calc(50% + ${x}px - 18px)`,
+									top: `calc(50% + ${y}px - 18px)`,
+									width: '36px',
+									height: '36px',
+									border: hours === hour ? `2px solid ${theme.colors.primary}` : `1px solid ${theme.colors.border}`,
+									borderRadius: '50%',
+									backgroundColor: hours === hour ? theme.colors.primary : theme.colors.surface,
+									color: hours === hour ? '#FFFFFF' : themeColors.text.primary,
+									fontSize: '12px',
+									fontWeight: '500',
+									cursor: 'pointer',
+									display: 'flex',
+									alignItems: 'center',
+									justifyContent: 'center'
+								}}
+							>
+								{hour}
+							</button>
+						);
+					})}
+
+					{/* Center dot */}
+					<div style={{
+						width: '8px',
+						height: '8px',
+						borderRadius: '50%',
+						backgroundColor: theme.colors.primary,
+						position: 'absolute'
+					}} />
+				</div>
+			</div>
+
+			{/* Minute Selector */}
+			<div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+				<div style={{ 
+					fontSize: '16px', 
+					fontWeight: '600', 
+					marginBottom: '10px',
+					color: themeColors.text.primary 
+				}}>
+					Minutes
+				</div>
+				<div style={{ 
+					position: 'relative', 
+					width: '200px', 
+					height: '200px',
+					border: `2px solid ${theme.colors.border}`,
+					borderRadius: '50%',
+					display: 'flex',
+					alignItems: 'center',
+					justifyContent: 'center'
+				}}>
+					{minuteItems.map((minute) => {
+						const angle = (minute * 6) - 90; // 360/60 = 6 degrees per minute
+						const radian = (angle * Math.PI) / 180;
+						const radius = 75;
+						const x = Math.cos(radian) * radius;
+						const y = Math.sin(radian) * radius;
+						
+						return (
+							<button
+								key={minute}
+								onClick={() => handleMinuteClick(minute)}
+								style={{
+									position: 'absolute',
+									left: `calc(50% + ${x}px - 20px)`,
+									top: `calc(50% + ${y}px - 20px)`,
+									width: '40px',
+									height: '40px',
+									border: minutes === minute ? `2px solid ${theme.colors.primary}` : `1px solid ${theme.colors.border}`,
+									borderRadius: '50%',
+									backgroundColor: minutes === minute ? theme.colors.primary : theme.colors.surface,
+									color: minutes === minute ? '#FFFFFF' : themeColors.text.primary,
+									fontSize: minute % 15 === 0 ? '14px' : '12px',
+									fontWeight: minute % 15 === 0 ? '600' : '400',
+									cursor: 'pointer',
+									display: 'flex',
+									alignItems: 'center',
+									justifyContent: 'center'
+								}}
+							>
+								{String(minute).padStart(2, '0')}
+							</button>
+						);
+					})}
+					{/* Center dot */}
+					<div style={{
+						width: '8px',
+						height: '8px',
+						borderRadius: '50%',
+						backgroundColor: theme.colors.primary,
+						position: 'absolute'
+					}} />
+				</div>
+			</div>
+
+			{/* Action Buttons */}
+			<div style={{
+				display: 'flex',
+				gap: '12px',
+				marginTop: '20px'
+			}}>
+				<button
+					onClick={onCancel}
+					style={{
+						padding: '12px 24px',
+						border: `1px solid ${theme.colors.border}`,
+						borderRadius: '8px',
+						backgroundColor: theme.colors.surface,
+						color: themeColors.text.primary,
+						fontSize: '16px',
+						fontWeight: '500',
+						cursor: 'pointer'
+					}}
+				>
+					Cancel
+				</button>
+				<button
+					onClick={handleConfirm}
+					style={{
+						padding: '12px 24px',
+						border: 'none',
+						borderRadius: '8px',
+						backgroundColor: theme.colors.primary,
+						color: '#FFFFFF',
+						fontSize: '16px',
+						fontWeight: '600',
+						cursor: 'pointer'
+					}}
+				>
+					Confirm
+				</button>
+			</div>
+		</div>
+	);
+};
+
 const { width } = Dimensions.get("window");
 
 // Enhanced modern theme
@@ -176,6 +446,7 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 
 	// Date picker state
 	const [showDatePicker, setShowDatePicker] = useState(false);
+	const [showWebCalendar, setShowWebCalendar] = useState(false);
 	const [showStartTimePicker, setShowStartTimePicker] = useState(false);
 	const [showEndTimePicker, setShowEndTimePicker] = useState(false);
 	const [tempDate, setTempDate] = useState(new Date());
@@ -289,6 +560,29 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 			minutes
 		);
 		return bookingDateTime <= now;
+	};
+
+	// Check if end time is before start time
+	const isEndTimeBeforeStartTime = (startTime: string, endTime: string): boolean => {
+		if (!startTime || !endTime) return false;
+		
+		const [startHours, startMinutes] = startTime.split(":").map(Number);
+		const [endHours, endMinutes] = endTime.split(":").map(Number);
+		
+		const startTotalMinutes = startHours * 60 + startMinutes;
+		const endTotalMinutes = endHours * 60 + endMinutes;
+		
+		return endTotalMinutes <= startTotalMinutes;
+	};
+
+	// Check if time is outside allowed hours (06:00 - 23:00)
+	const isTimeOutsideAllowedHours = (timeString: string): boolean => {
+		if (!timeString) return false;
+		
+		const [hours] = timeString.split(":").map(Number);
+		
+		// Allowed hours: 06:00 to 23:00 (6 AM to 11 PM)
+		return hours < 6 || hours > 23;
 	};
 
 	// Calculate form progress
@@ -655,7 +949,17 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 							: !formData.booking_date) ||
 						!formData.purpose ||
 						(getSelectedHallCapacity() &&
-							formData.attendees_count > getSelectedHallCapacity())
+							formData.attendees_count > getSelectedHallCapacity()) ||
+						(formData.booking_date &&
+							formData.start_time &&
+							isPastTime(formData.booking_date, formData.start_time)) ||
+						(formData.start_time &&
+							formData.end_time &&
+							isEndTimeBeforeStartTime(formData.start_time, formData.end_time)) ||
+						(formData.start_time &&
+							isTimeOutsideAllowedHours(formData.start_time)) ||
+						(formData.end_time &&
+							isTimeOutsideAllowedHours(formData.end_time))
 					}
 					style={[
 						styles.submitButton,
@@ -667,7 +971,17 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 								: !formData.booking_date) ||
 							!formData.purpose ||
 							(getSelectedHallCapacity() &&
-								formData.attendees_count > getSelectedHallCapacity())) &&
+								formData.attendees_count > getSelectedHallCapacity()) ||
+							(formData.booking_date &&
+								formData.start_time &&
+								isPastTime(formData.booking_date, formData.start_time)) ||
+							(formData.start_time &&
+								formData.end_time &&
+								isEndTimeBeforeStartTime(formData.start_time, formData.end_time)) ||
+							(formData.start_time &&
+								isTimeOutsideAllowedHours(formData.start_time)) ||
+							(formData.end_time &&
+								isTimeOutsideAllowedHours(formData.end_time))) &&
 							styles.submitButtonDisabled,
 					]}
 				>
@@ -682,7 +996,17 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 									: !formData.booking_date) ||
 								!formData.purpose ||
 								(getSelectedHallCapacity() &&
-									formData.attendees_count > getSelectedHallCapacity())) &&
+									formData.attendees_count > getSelectedHallCapacity()) ||
+								(formData.booking_date &&
+									formData.start_time &&
+									isPastTime(formData.booking_date, formData.start_time)) ||
+								(formData.start_time &&
+									formData.end_time &&
+									isEndTimeBeforeStartTime(formData.start_time, formData.end_time)) ||
+								(formData.start_time &&
+									isTimeOutsideAllowedHours(formData.start_time)) ||
+								(formData.end_time &&
+									isTimeOutsideAllowedHours(formData.end_time))) &&
 								styles.submitButtonTextDisabled,
 						]}
 					>
@@ -709,7 +1033,9 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 				<ScrollView
 					style={styles.scrollView}
 					contentContainerStyle={styles.scrollContent}
-					showsVerticalScrollIndicator={false}
+					showsVerticalScrollIndicator={Platform.OS !== 'web'}
+					nestedScrollEnabled={true}
+					keyboardShouldPersistTaps="handled"
 				>
 					{/* Hall Selection */}
 					<View style={styles.formSection}>
@@ -1106,7 +1432,11 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 											? formatDateForInput(formData.booking_date)
 											: new Date()
 									);
-									setShowDatePicker(true);
+									if (Platform.OS === "web") {
+										setShowWebCalendar(true);
+									} else {
+										setShowDatePicker(true);
+									}
 									Haptics.selectionAsync();
 								}}
 							>
@@ -1147,7 +1477,11 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 									style={styles.enhancedInput}
 									onPress={() => {
 										setTempDate(new Date());
-										setShowDatePicker(true);
+										if (Platform.OS === "web") {
+											setShowWebCalendar(true);
+										} else {
+											setShowDatePicker(true);
+										}
 										Haptics.selectionAsync();
 									}}
 								>
@@ -1212,7 +1546,11 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 									style={styles.enhancedInput}
 									onPress={() => {
 										setTempDate(recurringStartDate || new Date());
-										setShowDatePicker(true);
+										if (Platform.OS === "web") {
+											setShowWebCalendar(true);
+										} else {
+											setShowDatePicker(true);
+										}
 										Haptics.selectionAsync();
 									}}
 								>
@@ -1420,6 +1758,37 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 									/>
 									<Text style={styles.validationErrorText}>
 										Cannot book past dates or times
+									</Text>
+								</View>
+							)}
+
+						{/* End Time Before Start Time Validation */}
+						{formData.start_time &&
+							formData.end_time &&
+							isEndTimeBeforeStartTime(formData.start_time, formData.end_time) && (
+								<View style={styles.validationError}>
+									<Ionicons
+										name="warning"
+										size={16}
+										color={theme.colors.error}
+									/>
+									<Text style={styles.validationErrorText}>
+										End time must be after start time
+									</Text>
+								</View>
+							)}
+
+						{/* Time Outside Allowed Hours Validation */}
+						{((formData.start_time && isTimeOutsideAllowedHours(formData.start_time)) ||
+							(formData.end_time && isTimeOutsideAllowedHours(formData.end_time))) && (
+								<View style={styles.validationError}>
+									<Ionicons
+										name="warning"
+										size={16}
+										color={theme.colors.error}
+									/>
+									<Text style={styles.validationErrorText}>
+										Bookings are allowed only between 06:00 and 23:00
 									</Text>
 								</View>
 							)}
@@ -1996,58 +2365,205 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 				/>
 			)}
 
+			{/* Web Calendar Modal */}
+			{showWebCalendar && Platform.OS === "web" && (
+				<View style={styles.calendarOverlay}>
+					<View style={styles.calendarModal}>
+						<View style={styles.calendarHeader}>
+							<Text style={styles.calendarTitle}>Select Date</Text>
+							<TouchableOpacity 
+								onPress={() => setShowWebCalendar(false)}
+								style={styles.calendarCloseButton}
+							>
+								<Ionicons name="close" size={24} color={themeColors.text.primary} />
+							</TouchableOpacity>
+						</View>
+						<View style={styles.webDateInputContainer}>
+							<input
+								type="date"
+								style={{
+									width: '100%',
+									maxWidth: '100%',
+									padding: '12px',
+									fontSize: '16px',
+									border: `1px solid ${theme.colors.border}`,
+									borderRadius: '8px',
+									backgroundColor: theme.colors.surface,
+									color: theme.colors.text.primary,
+									outline: 'none',
+									fontFamily: 'inherit',
+									boxSizing: 'border-box',
+								}}
+								min={new Date().toISOString().split('T')[0]}
+								onChange={(e) => {
+									const selectedDate = new Date(e.target.value);
+									const dateString = formatDateToString(selectedDate);
+
+									if (bookingMode === "single") {
+										setFormData((prev) => ({ ...prev, booking_date: dateString }));
+
+										// Fetch booked slots for new date
+										if (formData.hall_id) {
+											fetchBookedSlots(formData.hall_id, dateString);
+										}
+
+										// Check availability if all fields are filled
+										if (
+											formData.hall_id &&
+											formData.start_time &&
+											formData.end_time
+										) {
+											setTimeout(checkAvailability, 100);
+										}
+									} else if (bookingMode === "multiple") {
+										if (!selectedDates.includes(dateString)) {
+											setSelectedDates((prev) => [...prev, dateString]);
+										}
+									} else if (bookingMode === "recurring") {
+										setRecurringStartDate(selectedDate);
+										const dates = generateRecurringDates(
+											selectedDate,
+											recurringDays
+										);
+										setSelectedDates(dates);
+									}
+
+									setShowWebCalendar(false);
+								}}
+							/>
+						</View>
+					</View>
+				</View>
+			)}
+
 			{/* Start Time Picker */}
 			{showStartTimePicker && (
-				<DateTimePicker
-					value={tempDate}
-					mode="time"
-					is24Hour={true}
-					display={Platform.OS === "ios" ? "spinner" : "default"}
-					onChange={(event, selectedTime) => {
-						setShowStartTimePicker(false);
-						if (selectedTime) {
-							const timeString = formatTimeToString(selectedTime);
-							setFormData((prev) => ({ ...prev, start_time: timeString }));
+				<View style={styles.calendarOverlay}>
+					<View style={styles.calendarModal}>
+						<View style={styles.calendarHeader}>
+							<Text style={styles.calendarTitle}>Select Start Time</Text>
+							<TouchableOpacity 
+								onPress={() => setShowStartTimePicker(false)}
+								style={styles.calendarCloseButton}
+							>
+								<Ionicons name="close" size={24} color={themeColors.text.primary} />
+							</TouchableOpacity>
+						</View>
+						<View style={styles.webDateInputContainer}>
+							{Platform.OS === "web" ? (
+								<WebRadialTimePicker
+									value={formData.start_time || "09:00"}
+									onChange={(timeString) => {
+										setFormData((prev) => ({ ...prev, start_time: timeString }));
 
-							// Auto-adjust end time to be 2 hours later
-							const endTime = new Date(selectedTime);
-							endTime.setHours(endTime.getHours() + 2);
-							const endTimeString = formatTimeToString(endTime);
-							setFormData((prev) => ({ ...prev, end_time: endTimeString }));
+										// Auto-adjust end time to be 2 hours later with proper 24-hour wraparound
+										const [hours, minutes] = timeString.split(':').map(Number);
+										const endHours = (hours + 2) % 24; // Use modulo to handle 24-hour wraparound
+										const endTimeString = `${String(endHours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+										setFormData((prev) => ({ ...prev, end_time: endTimeString }));
 
-							// Check availability
-							if (formData.hall_id && formData.booking_date) {
-								setTimeout(checkAvailability, 100);
-							}
-						}
-					}}
-				/>
+										// Check availability
+										if (formData.hall_id && formData.booking_date) {
+											setTimeout(checkAvailability, 100);
+										}
+									}}
+									onConfirm={() => setShowStartTimePicker(false)}
+									onCancel={() => setShowStartTimePicker(false)}
+									theme={theme}
+									themeColors={themeColors}
+								/>
+							) : (
+								<DateTimePicker
+									value={tempDate}
+									mode="time"
+									is24Hour={true}
+									display="default"
+									onChange={(event, selectedTime) => {
+										setShowStartTimePicker(false);
+										if (selectedTime) {
+											const timeString = formatTimeToString(selectedTime);
+											setFormData((prev) => ({ ...prev, start_time: timeString }));
+
+											// Auto-adjust end time to be 2 hours later
+											const endTime = new Date(selectedTime);
+											endTime.setHours(endTime.getHours() + 2);
+											const endTimeString = formatTimeToString(endTime);
+											setFormData((prev) => ({ ...prev, end_time: endTimeString }));
+
+											// Check availability
+											if (formData.hall_id && formData.booking_date) {
+												setTimeout(checkAvailability, 100);
+											}
+										}
+									}}
+								/>
+							)}
+						</View>
+					</View>
+				</View>
 			)}
 
 			{/* End Time Picker */}
 			{showEndTimePicker && (
-				<DateTimePicker
-					value={tempDate}
-					mode="time"
-					is24Hour={true}
-					display={Platform.OS === "ios" ? "spinner" : "default"}
-					onChange={(event, selectedTime) => {
-						setShowEndTimePicker(false);
-						if (selectedTime) {
-							const timeString = formatTimeToString(selectedTime);
-							setFormData((prev) => ({ ...prev, end_time: timeString }));
+				<View style={styles.calendarOverlay}>
+					<View style={styles.calendarModal}>
+						<View style={styles.calendarHeader}>
+							<Text style={styles.calendarTitle}>Select End Time</Text>
+							<TouchableOpacity 
+								onPress={() => setShowEndTimePicker(false)}
+								style={styles.calendarCloseButton}
+							>
+								<Ionicons name="close" size={24} color={themeColors.text.primary} />
+							</TouchableOpacity>
+						</View>
+						<View style={styles.webDateInputContainer}>
+							{Platform.OS === "web" ? (
+								<WebRadialTimePicker
+									value={formData.end_time || "11:00"}
+									onChange={(timeString) => {
+										setFormData((prev) => ({ ...prev, end_time: timeString }));
 
-							// Check availability
-							if (
-								formData.hall_id &&
-								formData.booking_date &&
-								formData.start_time
-							) {
-								setTimeout(checkAvailability, 100);
-							}
-						}
-					}}
-				/>
+										// Check availability
+										if (
+											formData.hall_id &&
+											formData.booking_date &&
+											formData.start_time
+										) {
+											setTimeout(checkAvailability, 100);
+										}
+									}}
+									onConfirm={() => setShowEndTimePicker(false)}
+									onCancel={() => setShowEndTimePicker(false)}
+									theme={theme}
+									themeColors={themeColors}
+								/>
+							) : (
+								<DateTimePicker
+									value={tempDate}
+									mode="time"
+									is24Hour={true}
+									display="default"
+									onChange={(event, selectedTime) => {
+										setShowEndTimePicker(false);
+										if (selectedTime) {
+											const timeString = formatTimeToString(selectedTime);
+											setFormData((prev) => ({ ...prev, end_time: timeString }));
+
+											// Check availability
+											if (
+												formData.hall_id &&
+												formData.booking_date &&
+												formData.start_time
+											) {
+												setTimeout(checkAvailability, 100);
+											}
+										}
+									}}
+								/>
+							)}
+						</View>
+					</View>
+				</View>
 			)}
 		</View>
 	);
@@ -2058,6 +2574,10 @@ const createStyles = (theme: any, insets: any) =>
 		container: {
 			flex: 1,
 			backgroundColor: theme.colors.background,
+			...(Platform.OS === 'web' && {
+				height: Dimensions.get('window').height,
+				maxHeight: Dimensions.get('window').height,
+			}),
 		},
 		loadingContainer: {
 			flex: 1,
@@ -2135,13 +2655,19 @@ const createStyles = (theme: any, insets: any) =>
 		},
 		scrollView: {
 			flex: 1,
+			...(Platform.OS === 'web' && {
+				height: '100%',
+			} as any),
 		},
 		scrollViewWrapper: {
 			flex: 1,
+			minHeight: 0, // Important for flex scrolling
 		},
 		scrollContent: {
 			paddingHorizontal: theme.spacing.md,
 			paddingTop: theme.spacing.md,
+			paddingBottom: theme.spacing.xl, // Add bottom padding for better scrolling
+			flexGrow: 1,
 		},
 		formSection: {
 			marginBottom: theme.spacing.xl,
@@ -2181,7 +2707,7 @@ const createStyles = (theme: any, insets: any) =>
 			paddingRight: theme.spacing.md,
 		},
 		hallCard: {
-			width: width * 0.7,
+			width: Platform.OS === "web" ? 280 : width * 0.7,
 			marginRight: theme.spacing.sm,
 			borderRadius: theme.borderRadius.md,
 			overflow: "hidden",
@@ -2791,6 +3317,50 @@ const createStyles = (theme: any, insets: any) =>
 		bottomSpacing: {
 			height: 100,
 		},
-	});
-
-export default BookingFormScreen;
+		// Web Calendar Styles
+		calendarOverlay: {
+			position: "absolute",
+			top: 0,
+			left: 0,
+			right: 0,
+			bottom: 0,
+			backgroundColor: "rgba(0, 0, 0, 0.5)",
+			justifyContent: "center",
+			alignItems: "center",
+			zIndex: 1000,
+			paddingHorizontal: 20,
+			paddingVertical: 40,
+		},
+		calendarModal: {
+			backgroundColor: theme.colors.surface,
+			borderRadius: theme.borderRadius.lg,
+			padding: theme.spacing.lg,
+			maxWidth: 350,
+			minWidth: 320,
+			width: "90%",
+			alignSelf: "center",
+			marginHorizontal: "auto",
+			...theme.shadows.medium,
+		},
+		calendarHeader: {
+			flexDirection: "row",
+			justifyContent: "space-between",
+			alignItems: "center",
+			marginBottom: theme.spacing.md,
+			paddingBottom: theme.spacing.sm,
+			borderBottomWidth: 1,
+			borderBottomColor: theme.colors.border,
+		},
+		calendarTitle: {
+			fontSize: theme.fontSize.lg,
+			fontWeight: "600",
+			color: theme.colors.text.primary,
+		},
+		calendarCloseButton: {
+			padding: theme.spacing.xs,
+			borderRadius: theme.borderRadius.sm,
+		},
+	webDateInputContainer: {
+		marginTop: theme.spacing.md,
+	},
+});export default BookingFormScreen;

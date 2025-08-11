@@ -1,4 +1,7 @@
 /* Global web styles to remove outlines and improve appearance */
+/* RC Time Picker styles for web */
+@import '~rc-time-picker/assets/index.css';
+
 * {
   outline: none !important;
   -webkit-tap-highlight-color: transparent !important;
