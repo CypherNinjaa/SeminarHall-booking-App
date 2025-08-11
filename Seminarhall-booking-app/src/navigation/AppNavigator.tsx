@@ -113,9 +113,9 @@ export default function AppNavigator() {
 				AdminTabs: "admin",
 				SuperAdmin: "super-admin",
 				// Auth-related deep links from website
-				"auth/email-verified": "main",
-				"auth/password-reset-success": "login",
-				"auth/login": "login",
+				"auth/email-verified": "email-verified",
+				"auth/password-reset-success": "password-reset-success",
+				"auth/login": "auth-login",
 			},
 		},
 	};

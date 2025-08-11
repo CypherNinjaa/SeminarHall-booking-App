@@ -49,6 +49,7 @@
     "@babel/core": "^7.25.2",
     "@types/react": "~19.0.10",
     "babel-preset-expo": "~13.0.0",
+    "metro-react-native-babel-transformer": "^0.77.0",
     "typescript": "~5.8.3"
   },
   "expo": {

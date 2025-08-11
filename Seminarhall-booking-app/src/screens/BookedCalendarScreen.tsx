@@ -133,37 +133,40 @@ const BookedCalendarScreen: React.FC<BookedCalendarScreenProps> = ({
 		// Define 9 AM to 6 PM working hours (in minutes from midnight)
 		const workingHoursStart = 9 * 60; // 9 AM in minutes (540)
 		const workingHoursEnd = 18 * 60; // 6 PM in minutes (1080)
-		
+
 		// Convert booking times to minutes and merge overlapping bookings
-		const bookedSlots = dayBookings.map((booking) => {
-			const [startHour, startMin] = booking.start_time.split(":").map(Number);
-			const [endHour, endMin] = booking.end_time.split(":").map(Number);
-			return {
-				start: startHour * 60 + startMin,
-				end: endHour * 60 + endMin
-			};
-		}).filter((slot) => {
-			// Only consider slots that overlap with working hours
-			return slot.end > workingHoursStart && slot.start < workingHoursEnd;
-		}).map((slot) => {
-			// Trim slots to working hours boundary
-			return {
-				start: Math.max(slot.start, workingHoursStart),
-				end: Math.min(slot.end, workingHoursEnd)
-			};
-		});
+		const bookedSlots = dayBookings
+			.map((booking) => {
+				const [startHour, startMin] = booking.start_time.split(":").map(Number);
+				const [endHour, endMin] = booking.end_time.split(":").map(Number);
+				return {
+					start: startHour * 60 + startMin,
+					end: endHour * 60 + endMin,
+				};
+			})
+			.filter((slot) => {
+				// Only consider slots that overlap with working hours
+				return slot.end > workingHoursStart && slot.start < workingHoursEnd;
+			})
+			.map((slot) => {
+				// Trim slots to working hours boundary
+				return {
+					start: Math.max(slot.start, workingHoursStart),
+					end: Math.min(slot.end, workingHoursEnd),
+				};
+			});
 
 		if (bookedSlots.length === 0) return false;
 
 		// Sort slots by start time and merge overlapping ones
 		bookedSlots.sort((a, b) => a.start - b.start);
-		
+
 		const mergedSlots = [];
 		let currentSlot = bookedSlots[0];
-		
+
 		for (let i = 1; i < bookedSlots.length; i++) {
 			const nextSlot = bookedSlots[i];
-			
+
 			// If current slot overlaps or is adjacent to next slot, merge them
 			if (currentSlot.end >= nextSlot.start) {
 				currentSlot.end = Math.max(currentSlot.end, nextSlot.end);
@@ -179,9 +182,9 @@ const BookedCalendarScreen: React.FC<BookedCalendarScreenProps> = ({
 		// Calculate total coverage
 		let totalCoverage = 0;
 		for (const slot of mergedSlots) {
-			totalCoverage += (slot.end - slot.start);
+			totalCoverage += slot.end - slot.start;
 		}
-		
+
 		// Check if total coverage equals working hours duration (9 hours = 540 minutes)
 		const workingHoursDuration = workingHoursEnd - workingHoursStart;
 		return totalCoverage >= workingHoursDuration;
@@ -307,7 +310,11 @@ const BookedCalendarScreen: React.FC<BookedCalendarScreenProps> = ({
 					fontWeight: bookingsCount > 0 ? "600" : "400",
 				},
 				container: {
-					backgroundColor: isSelected ? (isFullyBooked ? "#FF69B4" : theme.colors.primary) : "transparent",
+					backgroundColor: isSelected
+						? isFullyBooked
+							? "#FF69B4"
+							: theme.colors.primary
+						: "transparent",
 				},
 			},
 		};
@@ -341,7 +348,9 @@ const BookedCalendarScreen: React.FC<BookedCalendarScreenProps> = ({
 	const [loadingAllBookings, setLoadingAllBookings] = useState(false);
 
 	// Check if selected date is fully booked
-	const isSelectedDateFullyBooked = selectedDate ? checkIfAllSlotsFilledForDate(selectedDate, allBookings) : false;
+	const isSelectedDateFullyBooked = selectedDate
+		? checkIfAllSlotsFilledForDate(selectedDate, allBookings)
+		: false;
 
 	// All bookings are already loaded, so we use the same data
 	const bookingsToShow = selectedDayBookings;
@@ -350,7 +359,7 @@ const BookedCalendarScreen: React.FC<BookedCalendarScreenProps> = ({
 
 	if (loading) {
 		return (
-			<SafeAreaView style={styles.container} edges={['top']}>
+			<SafeAreaView style={styles.container} edges={["top"]}>
 				<StatusBar style="auto" />
 				<View style={styles.loadingContainer}>
 					<ActivityIndicator size="large" color={theme.colors.primary} />
@@ -361,7 +370,7 @@ const BookedCalendarScreen: React.FC<BookedCalendarScreenProps> = ({
 	}
 
 	return (
-		<SafeAreaView style={styles.container} edges={['top']}>
+		<SafeAreaView style={styles.container} edges={["top"]}>
 			<StatusBar style="auto" />
 
 			{/* Header */}
@@ -407,7 +416,11 @@ const BookedCalendarScreen: React.FC<BookedCalendarScreenProps> = ({
 							color={theme.colors.success}
 						/>
 						<Text style={styles.statNumber}>
-							{allBookings.filter((b: BookingWithHall) => b.status === "approved").length}
+							{
+								allBookings.filter(
+									(b: BookingWithHall) => b.status === "approved"
+								).length
+							}
 						</Text>
 						<Text style={styles.statLabel}>Total Approved</Text>
 					</LinearGradient>
@@ -419,7 +432,11 @@ const BookedCalendarScreen: React.FC<BookedCalendarScreenProps> = ({
 					>
 						<Ionicons name="time" size={24} color={theme.colors.warning} />
 						<Text style={styles.statNumber}>
-							{allBookings.filter((b: BookingWithHall) => b.status === "pending").length}
+							{
+								allBookings.filter(
+									(b: BookingWithHall) => b.status === "pending"
+								).length
+							}
 						</Text>
 						<Text style={styles.statLabel}>Total Pending</Text>
 					</LinearGradient>
@@ -476,24 +493,46 @@ const BookedCalendarScreen: React.FC<BookedCalendarScreenProps> = ({
 				{/* Legend */}
 				<View style={styles.legendContainer}>
 					<Text style={styles.legendTitle}>Legend</Text>
-					<Text style={[styles.legendText, { marginBottom: 8, fontStyle: 'italic' }]}>
+					<Text
+						style={[
+							styles.legendText,
+							{ marginBottom: 8, fontStyle: "italic" },
+						]}
+					>
 						📍 Showing all bookings from all users
 					</Text>
 					<View style={styles.legendItems}>
 						<View style={styles.legendItem}>
-							<View style={[styles.legendDot, { backgroundColor: theme.colors.success }]} />
+							<View
+								style={[
+									styles.legendDot,
+									{ backgroundColor: theme.colors.success },
+								]}
+							/>
 							<Text style={styles.legendText}>1 booking</Text>
 						</View>
 						<View style={styles.legendItem}>
-							<View style={[styles.legendDot, { backgroundColor: theme.colors.warning }]} />
+							<View
+								style={[
+									styles.legendDot,
+									{ backgroundColor: theme.colors.warning },
+								]}
+							/>
 							<Text style={styles.legendText}>2-3 bookings</Text>
 						</View>
 						<View style={styles.legendItem}>
-							<View style={[styles.legendDot, { backgroundColor: theme.colors.error }]} />
+							<View
+								style={[
+									styles.legendDot,
+									{ backgroundColor: theme.colors.error },
+								]}
+							/>
 							<Text style={styles.legendText}>4+ bookings</Text>
 						</View>
 						<View style={styles.legendItem}>
-							<View style={[styles.legendDot, { backgroundColor: "#FF69B4" }]} />
+							<View
+								style={[styles.legendDot, { backgroundColor: "#FF69B4" }]}
+							/>
 							<Text style={styles.legendText}>Fully booked (9AM-6PM)</Text>
 						</View>
 					</View>
@@ -511,8 +550,14 @@ const BookedCalendarScreen: React.FC<BookedCalendarScreenProps> = ({
 								day: "numeric",
 							})}
 							{isSelectedDateFullyBooked && (
-								<Text style={[styles.selectedDayTitle, { color: "#FF69B4", fontSize: 16 }]}>
-									{" "}(Fully Booked 9AM-6PM)
+								<Text
+									style={[
+										styles.selectedDayTitle,
+										{ color: "#FF69B4", fontSize: 16 },
+									]}
+								>
+									{" "}
+									(Fully Booked 9AM-6PM)
 								</Text>
 							)}
 						</Text>
@@ -532,12 +577,13 @@ const BookedCalendarScreen: React.FC<BookedCalendarScreenProps> = ({
 								<Text style={styles.noBookingsText}>
 									No bookings for this day
 								</Text>
-								
 							</View>
 						) : (
 							<View style={styles.bookingsList}>
 								{bookingsToShow
-									.sort((a: BookingWithHall, b: BookingWithHall) => a.start_time.localeCompare(b.start_time))
+									.sort((a: BookingWithHall, b: BookingWithHall) =>
+										a.start_time.localeCompare(b.start_time)
+									)
 									.map((booking: BookingWithHall, index: number) => (
 										<View key={booking.id || index} style={styles.bookingCard}>
 											<View style={styles.bookingHeader}>

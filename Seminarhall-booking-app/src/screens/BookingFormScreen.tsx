@@ -207,7 +207,7 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 
 	const getSelectedHallCapacity = () => {
 		if (!formData.hall_id || halls.length === 0) return null;
-		const selectedHall = halls.find(hall => hall.id === formData.hall_id);
+		const selectedHall = halls.find((hall) => hall.id === formData.hall_id);
 		return selectedHall ? selectedHall.capacity : null;
 	};
 
@@ -630,15 +630,7 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 			<StatusBar style="auto" />
 
 			{/* Header */}
-			<Animated.View
-				style={[
-					styles.header,
-					{
-						opacity: fadeAnim,
-						transform: [{ translateY: slideAnim }],
-					},
-				]}
-			>
+			<View style={styles.header}>
 				<TouchableOpacity
 					onPress={() => navigation.goBack()}
 					style={styles.backButton}
@@ -662,7 +654,8 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 							? selectedDates.length === 0
 							: !formData.booking_date) ||
 						!formData.purpose ||
-						(getSelectedHallCapacity() && formData.attendees_count > getSelectedHallCapacity())
+						(getSelectedHallCapacity() &&
+							formData.attendees_count > getSelectedHallCapacity())
 					}
 					style={[
 						styles.submitButton,
@@ -673,7 +666,8 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 								? selectedDates.length === 0
 								: !formData.booking_date) ||
 							!formData.purpose ||
-							(getSelectedHallCapacity() && formData.attendees_count > getSelectedHallCapacity())) &&
+							(getSelectedHallCapacity() &&
+								formData.attendees_count > getSelectedHallCapacity())) &&
 							styles.submitButtonDisabled,
 					]}
 				>
@@ -687,401 +681,375 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 									? selectedDates.length === 0
 									: !formData.booking_date) ||
 								!formData.purpose ||
-								(getSelectedHallCapacity() && formData.attendees_count > getSelectedHallCapacity())) &&
+								(getSelectedHallCapacity() &&
+									formData.attendees_count > getSelectedHallCapacity())) &&
 								styles.submitButtonTextDisabled,
 						]}
 					>
 						{creating || updating ? "Saving..." : "Save"}
 					</Text>
 				</TouchableOpacity>
-			</Animated.View>
+			</View>
 
 			{/* Progress Bar */}
-			<Animated.View style={styles.progressContainer}>
+			<View style={styles.progressContainer}>
 				<View style={styles.progressBar}>
-					<Animated.View
+					<View
 						style={[
 							styles.progressFill,
 							{
-								width: progressAnim.interpolate({
-									inputRange: [0, 100],
-									outputRange: ["0%", "100%"],
-									extrapolate: "clamp",
-								}),
+								width: `${formProgress}%`,
 							},
 						]}
 					/>
 				</View>
 				<Text style={styles.progressText}>{formProgress}% Complete</Text>
-			</Animated.View>
-
-			<Animated.ScrollView
-				style={[
-					styles.scrollView,
-					{
-						opacity: fadeAnim,
-						transform: [{ translateY: slideAnim }],
-					},
-				]}
-				contentContainerStyle={styles.scrollContent}
-				showsVerticalScrollIndicator={false}
-			>
-				{/* Hall Selection */}
-				<View style={styles.formSection}>
-					<View style={styles.sectionHeader}>
-						<LinearGradient
-							colors={[
-								theme.colors.primary + "15",
-								theme.colors.primary + "05",
-							]}
-							style={styles.sectionIconContainer}
+			</View>
+			<View style={styles.scrollViewWrapper}>
+				<ScrollView
+					style={styles.scrollView}
+					contentContainerStyle={styles.scrollContent}
+					showsVerticalScrollIndicator={false}
+				>
+					{/* Hall Selection */}
+					<View style={styles.formSection}>
+						<View style={styles.sectionHeader}>
+							<LinearGradient
+								colors={[
+									theme.colors.primary + "15",
+									theme.colors.primary + "05",
+								]}
+								style={styles.sectionIconContainer}
+							>
+								<Ionicons
+									name="business"
+									size={20}
+									color={theme.colors.primary}
+								/>
+							</LinearGradient>
+							<Text style={styles.sectionTitle}>Select Hall *</Text>
+							{formData.hall_id ? (
+								<View style={styles.completedIndicator}>
+									<Ionicons
+										name="checkmark-circle"
+										size={16}
+										color={theme.colors.success}
+									/>
+								</View>
+							) : (
+								<View style={styles.completedIndicator}>
+									<Ionicons
+										name="close-circle"
+										size={16}
+										color={theme.colors.error}
+									/>
+								</View>
+							)}
+						</View>
+						<ScrollView
+							horizontal
+							showsHorizontalScrollIndicator={false}
+							style={styles.hallSelector}
+							contentContainerStyle={styles.hallSelectorContent}
 						>
-							<Ionicons
-								name="business"
-								size={20}
-								color={theme.colors.primary}
-							/>
-						</LinearGradient>
-						<Text style={styles.sectionTitle}>Select Hall *</Text>
-						{formData.hall_id ? (
-							<View style={styles.completedIndicator}>
-								<Ionicons
-									name="checkmark-circle"
-									size={16}
-									color={theme.colors.success}
-								/>
-							</View>
-						) : (
-							<View style={styles.completedIndicator}>
-								<Ionicons
-									name="close-circle"
-									size={16}
-									color={theme.colors.error}
-								/>
-							</View>
-						)}
-					</View>
-
-					<ScrollView
-						horizontal
-						showsHorizontalScrollIndicator={false}
-						style={styles.hallSelector}
-						contentContainerStyle={styles.hallSelectorContent}
-					>
-						{loading ? (
-							<View style={styles.hallLoadingContainer}>
-								<ActivityIndicator size="small" color={theme.colors.primary} />
-								<Text style={styles.hallLoadingText}>Loading halls...</Text>
-							</View>
-						) : halls.length === 0 ? (
-							<View style={styles.noHallsContainer}>
-								<Ionicons
-									name="business-outline"
-									size={32}
-									color={theme.colors.text.secondary}
-								/>
-								<Text style={styles.noHallsText}>No halls available</Text>
-								<TouchableOpacity
-									style={styles.refreshHallsButton}
-									onPress={() => {
-										setLoading(true);
-										const fetchHalls = async () => {
-											try {
-												const hallsData =
-													await hallManagementService.getAllHalls();
-												setHalls(hallsData);
-											} catch (error) {
-												console.error("Error fetching halls:", error);
-												Alert.alert("Error", "Failed to load halls");
-											} finally {
-												setLoading(false);
-											}
-										};
-										fetchHalls();
-									}}
-								>
-									<Text style={styles.refreshHallsText}>Refresh</Text>
-								</TouchableOpacity>
-							</View>
-						) : halls.filter((hall) => isHallAvailable(hall)).length === 0 ? (
-							<View style={styles.noHallsContainer}>
-								<Ionicons
-									name="construct-outline"
-									size={32}
-									color={theme.colors.warning}
-								/>
-								<Text style={styles.noHallsText}>
-									All halls are currently unavailable
-								</Text>
-								<Text style={styles.noHallsSubtext}>
-									Halls may be inactive or under maintenance
-								</Text>
-							</View>
-						) : (
-							halls
-								.filter((hall) => isHallAvailable(hall))
-								.map((hall) => (
+							{loading ? (
+								<View style={styles.hallLoadingContainer}>
+									<ActivityIndicator
+										size="small"
+										color={theme.colors.primary}
+									/>
+									<Text style={styles.hallLoadingText}>Loading halls...</Text>
+								</View>
+							) : halls.length === 0 ? (
+								<View style={styles.noHallsContainer}>
+									<Ionicons
+										name="business-outline"
+										size={32}
+										color={theme.colors.text.secondary}
+									/>
+									<Text style={styles.noHallsText}>No halls available</Text>
 									<TouchableOpacity
-										key={hall.id}
-										style={[
-											styles.hallCard,
-											formData.hall_id === hall.id && styles.hallCardSelected,
-										]}
+										style={styles.refreshHallsButton}
 										onPress={() => {
-											setFormData((prev) => ({ ...prev, hall_id: hall.id }));
-											Haptics.selectionAsync();
-
-											if (formData.booking_date) {
-												fetchBookedSlots(hall.id, formData.booking_date);
-											}
-
-											if (
-												formData.booking_date &&
-												formData.start_time &&
-												formData.end_time
-											) {
-												checkAvailability();
-											}
+											setLoading(true);
+											const fetchHalls = async () => {
+												try {
+													const hallsData =
+														await hallManagementService.getAllHalls();
+													setHalls(hallsData);
+												} catch (error) {
+													console.error("Error fetching halls:", error);
+													Alert.alert("Error", "Failed to load halls");
+												} finally {
+													setLoading(false);
+												}
+											};
+											fetchHalls();
 										}}
 									>
-										<LinearGradient
-											colors={
-												formData.hall_id === hall.id
-													? [theme.colors.primary, theme.colors.primary + "CC"]
-													: [
-															dynamicTheme.colors.surface,
-															dynamicTheme.colors.surface,
-													  ]
-											}
-											style={styles.hallCardGradient}
+										<Text style={styles.refreshHallsText}>Refresh</Text>
+									</TouchableOpacity>
+								</View>
+							) : halls.filter((hall) => isHallAvailable(hall)).length === 0 ? (
+								<View style={styles.noHallsContainer}>
+									<Ionicons
+										name="construct-outline"
+										size={32}
+										color={theme.colors.warning}
+									/>
+									<Text style={styles.noHallsText}>
+										All halls are currently unavailable
+									</Text>
+									<Text style={styles.noHallsSubtext}>
+										Halls may be inactive or under maintenance
+									</Text>
+								</View>
+							) : (
+								halls
+									.filter((hall) => isHallAvailable(hall))
+									.map((hall) => (
+										<TouchableOpacity
+											key={hall.id}
+											style={[
+												styles.hallCard,
+												formData.hall_id === hall.id && styles.hallCardSelected,
+											]}
+											onPress={() => {
+												setFormData((prev) => ({ ...prev, hall_id: hall.id }));
+												Haptics.selectionAsync();
+
+												if (formData.booking_date) {
+													fetchBookedSlots(hall.id, formData.booking_date);
+												}
+
+												if (
+													formData.booking_date &&
+													formData.start_time &&
+													formData.end_time
+												) {
+													checkAvailability();
+												}
+											}}
 										>
-											<View style={styles.hallCardContent}>
-												<Text
-													style={[
-														styles.hallCardName,
-														formData.hall_id === hall.id &&
-															styles.hallCardNameSelected,
-													]}
-													numberOfLines={1}
-												>
-													{hall.name}
-												</Text>
-												<View style={styles.hallCardCapacity}>
-													<Ionicons
-														name="people"
-														size={14}
-														color={
-															formData.hall_id === hall.id
-																? "#FFFFFF"
-																: dynamicTheme.colors.text.secondary
-														}
-													/>
+											<LinearGradient
+												colors={
+													formData.hall_id === hall.id
+														? [
+																theme.colors.primary,
+																theme.colors.primary + "CC",
+														  ]
+														: [
+																dynamicTheme.colors.surface,
+																dynamicTheme.colors.surface,
+														  ]
+												}
+												style={styles.hallCardGradient}
+											>
+												<View style={styles.hallCardContent}>
 													<Text
 														style={[
-															styles.hallCardCapacityText,
+															styles.hallCardName,
 															formData.hall_id === hall.id &&
-																styles.hallCardCapacityTextSelected,
+																styles.hallCardNameSelected,
 														]}
+														numberOfLines={1}
 													>
-														{hall.capacity}
+														{hall.name}
 													</Text>
-												</View>
-												{formData.hall_id === hall.id && (
-													<View style={styles.selectedIndicator}>
+													<View style={styles.hallCardCapacity}>
 														<Ionicons
-															name="checkmark-circle"
-															size={16}
-															color="#FFFFFF"
+															name="people"
+															size={14}
+															color={
+																formData.hall_id === hall.id
+																	? "#FFFFFF"
+																	: dynamicTheme.colors.text.secondary
+															}
 														/>
+														<Text
+															style={[
+																styles.hallCardCapacityText,
+																formData.hall_id === hall.id &&
+																	styles.hallCardCapacityTextSelected,
+															]}
+														>
+															{hall.capacity}
+														</Text>
 													</View>
-												)}
-											</View>
-										</LinearGradient>
-									</TouchableOpacity>
-								))
-						)}
-					</ScrollView>
-				</View>
-
-				{/* Booking Mode Selection */}
-				<View style={styles.formSection}>
-					<View style={styles.sectionHeader}>
-						<LinearGradient
-							colors={[
-								theme.colors.warning + "15",
-								theme.colors.warning + "05",
-							]}
-							style={styles.sectionIconContainer}
-						>
-							<Ionicons name="options" size={20} color={theme.colors.warning} />
-						</LinearGradient>
-						<Text style={styles.sectionTitle}>Booking Mode</Text>
+													{formData.hall_id === hall.id && (
+														<View style={styles.selectedIndicator}>
+															<Ionicons
+																name="checkmark-circle"
+																size={16}
+																color="#FFFFFF"
+															/>
+														</View>
+													)}
+												</View>
+											</LinearGradient>
+										</TouchableOpacity>
+									))
+							)}
+						</ScrollView>
 					</View>
 
-					<View style={styles.bookingModeContainer}>
-						<TouchableOpacity
-							style={[
-								styles.bookingModeButton,
-								bookingMode === "single" && styles.bookingModeButtonActive,
-							]}
-							onPress={() => {
-								setBookingMode("single");
-								setIsMultiDateBooking(false);
-								setSelectedDates([]);
-								Haptics.selectionAsync();
-							}}
-						>
-							<Ionicons
-								name="calendar-outline"
-								size={20}
-								color={
-									bookingMode === "single"
-										? "#FFFFFF"
-										: theme.colors.text.secondary
-								}
-							/>
-							<Text
-								style={[
-									styles.bookingModeText,
-									bookingMode === "single" && styles.bookingModeTextActive,
+					{/* Booking Mode Selection */}
+					<View style={styles.formSection}>
+						<View style={styles.sectionHeader}>
+							<LinearGradient
+								colors={[
+									theme.colors.warning + "15",
+									theme.colors.warning + "05",
 								]}
+								style={styles.sectionIconContainer}
 							>
-								Single Date
-							</Text>
-						</TouchableOpacity>
-
-						<TouchableOpacity
-							style={[
-								styles.bookingModeButton,
-								bookingMode === "multiple" && styles.bookingModeButtonActive,
-							]}
-							onPress={() => {
-								setBookingMode("multiple");
-								setIsMultiDateBooking(true);
-								setFormData((prev) => ({ ...prev, booking_date: "" }));
-								Haptics.selectionAsync();
-							}}
-						>
-							<Ionicons
-								name="calendar"
-								size={20}
-								color={
-									bookingMode === "multiple"
-										? "#FFFFFF"
-										: theme.colors.text.secondary
-								}
-							/>
-							<Text
-								style={[
-									styles.bookingModeText,
-									bookingMode === "multiple" && styles.bookingModeTextActive,
-								]}
-							>
-								Multiple Dates
-							</Text>
-						</TouchableOpacity>
-
-						<TouchableOpacity
-							style={[
-								styles.bookingModeButton,
-								bookingMode === "recurring" && styles.bookingModeButtonActive,
-							]}
-							onPress={() => {
-								setBookingMode("recurring");
-								setIsMultiDateBooking(true);
-								setFormData((prev) => ({ ...prev, booking_date: "" }));
-								Haptics.selectionAsync();
-							}}
-						>
-							<Ionicons
-								name="repeat"
-								size={20}
-								color={
-									bookingMode === "recurring"
-										? "#FFFFFF"
-										: theme.colors.text.secondary
-								}
-							/>
-							<Text
-								style={[
-									styles.bookingModeText,
-									bookingMode === "recurring" && styles.bookingModeTextActive,
-								]}
-							>
-								Recurring
-							</Text>
-						</TouchableOpacity>
-					</View>
-				</View>
-
-				{/* Date & Time Selection */}
-				<View style={styles.formSection}>
-					<View style={styles.sectionHeader}>
-						<LinearGradient
-							colors={[
-								theme.colors.secondary + "15",
-								theme.colors.secondary + "05",
-							]}
-							style={styles.sectionIconContainer}
-						>
-							<Ionicons
-								name="calendar"
-								size={20}
-								color={theme.colors.secondary}
-							/>
-						</LinearGradient>
-						<Text style={styles.sectionTitle}>Date & Time *</Text>
-						{((isMultiDateBooking && selectedDates.length > 0) ||
-							(!isMultiDateBooking && formData.booking_date)) &&
-						formData.start_time &&
-						formData.end_time ? (
-							<View style={styles.completedIndicator}>
 								<Ionicons
-									name="checkmark-circle"
-									size={16}
-									color={theme.colors.success}
+									name="options"
+									size={20}
+									color={theme.colors.warning}
 								/>
-							</View>
-						) : (
-							<View style={styles.completedIndicator}>
-								<Ionicons
-									name="close-circle"
-									size={16}
-									color={theme.colors.error}
-								/>
-							</View>
-						)}
-					</View>
-
-					{/* Whole Day Toggle */}
-					<TouchableOpacity
-						style={styles.wholeDayToggle}
-						onPress={() => {
-							setIsWholeDayBooking(!isWholeDayBooking);
-							if (!isWholeDayBooking) {
-								const wholeDay = getWholeDay();
-								setFormData((prev) => ({
-									...prev,
-									start_time: wholeDay.start_time,
-									end_time: wholeDay.end_time,
-								}));
-							}
-							Haptics.selectionAsync();
-						}}
-					>
-						<View>
-							<Text style={styles.wholeDayToggleText}>Book for Whole Day</Text>
-							<Text style={styles.wholeDayToggleSubtext}>
-								{isWholeDayBooking
-									? "9:00 AM - 6:00 PM"
-									: "Select custom times"}
-							</Text>
+							</LinearGradient>
+							<Text style={styles.sectionTitle}>Booking Mode</Text>
 						</View>
-						<Switch
-							value={isWholeDayBooking}
-							onValueChange={(value) => {
-								setIsWholeDayBooking(value);
-								if (value) {
+						<View style={styles.bookingModeContainer}>
+							<TouchableOpacity
+								style={[
+									styles.bookingModeButton,
+									bookingMode === "single" && styles.bookingModeButtonActive,
+								]}
+								onPress={() => {
+									setBookingMode("single");
+									setIsMultiDateBooking(false);
+									setSelectedDates([]);
+									Haptics.selectionAsync();
+								}}
+							>
+								<Ionicons
+									name="calendar-outline"
+									size={20}
+									color={
+										bookingMode === "single"
+											? "#FFFFFF"
+											: theme.colors.text.secondary
+									}
+								/>
+								<Text
+									style={[
+										styles.bookingModeText,
+										bookingMode === "single" && styles.bookingModeTextActive,
+									]}
+								>
+									Single Date
+								</Text>
+							</TouchableOpacity>
+							<TouchableOpacity
+								style={[
+									styles.bookingModeButton,
+									bookingMode === "multiple" && styles.bookingModeButtonActive,
+								]}
+								onPress={() => {
+									setBookingMode("multiple");
+									setIsMultiDateBooking(true);
+									setFormData((prev) => ({ ...prev, booking_date: "" }));
+									Haptics.selectionAsync();
+								}}
+							>
+								<Ionicons
+									name="calendar"
+									size={20}
+									color={
+										bookingMode === "multiple"
+											? "#FFFFFF"
+											: theme.colors.text.secondary
+									}
+								/>
+								<Text
+									style={[
+										styles.bookingModeText,
+										bookingMode === "multiple" && styles.bookingModeTextActive,
+									]}
+								>
+									Multiple Dates
+								</Text>
+							</TouchableOpacity>
+							<TouchableOpacity
+								style={[
+									styles.bookingModeButton,
+									bookingMode === "recurring" && styles.bookingModeButtonActive,
+								]}
+								onPress={() => {
+									setBookingMode("recurring");
+									setIsMultiDateBooking(true);
+									setFormData((prev) => ({ ...prev, booking_date: "" }));
+									Haptics.selectionAsync();
+								}}
+							>
+								<Ionicons
+									name="repeat"
+									size={20}
+									color={
+										bookingMode === "recurring"
+											? "#FFFFFF"
+											: theme.colors.text.secondary
+									}
+								/>
+								<Text
+									style={[
+										styles.bookingModeText,
+										bookingMode === "recurring" && styles.bookingModeTextActive,
+									]}
+								>
+									Recurring
+								</Text>
+							</TouchableOpacity>
+						</View>
+					</View>
+
+					{/* Date & Time Selection */}
+					<View style={styles.formSection}>
+						<View style={styles.sectionHeader}>
+							<LinearGradient
+								colors={[
+									theme.colors.secondary + "15",
+									theme.colors.secondary + "05",
+								]}
+								style={styles.sectionIconContainer}
+							>
+								<Ionicons
+									name="calendar"
+									size={20}
+									color={theme.colors.secondary}
+								/>
+							</LinearGradient>
+							<Text style={styles.sectionTitle}>Date & Time *</Text>
+							{((isMultiDateBooking && selectedDates.length > 0) ||
+								(!isMultiDateBooking && formData.booking_date)) &&
+							formData.start_time &&
+							formData.end_time ? (
+								<View style={styles.completedIndicator}>
+									<Ionicons
+										name="checkmark-circle"
+										size={16}
+										color={theme.colors.success}
+									/>
+								</View>
+							) : (
+								<View style={styles.completedIndicator}>
+									<Ionicons
+										name="close-circle"
+										size={16}
+										color={theme.colors.error}
+									/>
+								</View>
+							)}
+						</View>
+
+						{/* Whole Day Toggle */}
+						<TouchableOpacity
+							style={styles.wholeDayToggle}
+							onPress={() => {
+								setIsWholeDayBooking(!isWholeDayBooking);
+								if (!isWholeDayBooking) {
 									const wholeDay = getWholeDay();
 									setFormData((prev) => ({
 										...prev,
@@ -1091,131 +1059,53 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 								}
 								Haptics.selectionAsync();
 							}}
-							trackColor={{
-								false: theme.colors.border,
-								true: theme.colors.primary + "40",
-							}}
-							thumbColor={
-								isWholeDayBooking
-									? theme.colors.primary
-									: theme.colors.text.tertiary
-							}
-						/>
-					</TouchableOpacity>
-
-					{/* Single Date Selection */}
-					{bookingMode === "single" && (
-						<TouchableOpacity
-							style={styles.enhancedInput}
-							onPress={() => {
-								setTempDate(
-									formData.booking_date
-										? formatDateForInput(formData.booking_date)
-										: new Date()
-								);
-								setShowDatePicker(true);
-								Haptics.selectionAsync();
-							}}
 						>
-							<View style={styles.inputWithIcon}>
-								<View style={styles.inputIconContainer}>
-									<Ionicons
-										name="calendar-outline"
-										size={20}
-										color={theme.colors.primary}
-									/>
-								</View>
-								<View style={styles.inputTextContainer}>
-									<Text style={styles.inputLabel}>Date</Text>
-									<Text
-										style={[
-											styles.enhancedInputText,
-											!formData.booking_date && styles.placeholderText,
-										]}
-									>
-										{formData.booking_date
-											? formatDate(formData.booking_date)
-											: "Select date"}
-									</Text>
-								</View>
-								<Ionicons
-									name="chevron-forward"
-									size={16}
-									color={dynamicTheme.colors.text.secondary}
-								/>
+							<View>
+								<Text style={styles.wholeDayToggleText}>
+									Book for Whole Day
+								</Text>
+								<Text style={styles.wholeDayToggleSubtext}>
+									{isWholeDayBooking
+										? "9:00 AM - 6:00 PM"
+										: "Select custom times"}
+								</Text>
 							</View>
-						</TouchableOpacity>
-					)}
-
-					{/* Multiple Date Selection */}
-					{bookingMode === "multiple" && (
-						<View style={styles.multiDateSelector}>
-							<TouchableOpacity
-								style={styles.enhancedInput}
-								onPress={() => {
-									setTempDate(new Date());
-									setShowDatePicker(true);
+							<Switch
+								value={isWholeDayBooking}
+								onValueChange={(value) => {
+									setIsWholeDayBooking(value);
+									if (value) {
+										const wholeDay = getWholeDay();
+										setFormData((prev) => ({
+											...prev,
+											start_time: wholeDay.start_time,
+											end_time: wholeDay.end_time,
+										}));
+									}
 									Haptics.selectionAsync();
 								}}
-							>
-								<View style={styles.inputWithIcon}>
-									<View style={styles.inputIconContainer}>
-										<Ionicons
-											name="add-circle-outline"
-											size={20}
-											color={theme.colors.primary}
-										/>
-									</View>
-									<View style={styles.inputTextContainer}>
-										<Text style={styles.inputLabel}>Add Date</Text>
-										<Text
-											style={[styles.enhancedInputText, styles.placeholderText]}
-										>
-											Select dates to book
-										</Text>
-									</View>
-									<Ionicons
-										name="chevron-forward"
-										size={16}
-										color={dynamicTheme.colors.text.secondary}
-									/>
-								</View>
-							</TouchableOpacity>
+								trackColor={{
+									false: theme.colors.border,
+									true: theme.colors.primary + "40",
+								}}
+								thumbColor={
+									isWholeDayBooking
+										? theme.colors.primary
+										: theme.colors.text.tertiary
+								}
+							/>
+						</TouchableOpacity>
 
-							{/* Selected Dates */}
-							{selectedDates.length > 0 && (
-								<View style={styles.selectedDatesContainer}>
-									{selectedDates.map((date, index) => (
-										<View key={index} style={styles.selectedDateChip}>
-											<Text style={styles.selectedDateText}>
-												{formatDate(date)}
-											</Text>
-											<TouchableOpacity
-												onPress={() => {
-													removeSelectedDate(date);
-													Haptics.selectionAsync();
-												}}
-											>
-												<Ionicons
-													name="close-circle"
-													size={16}
-													color={theme.colors.primary}
-												/>
-											</TouchableOpacity>
-										</View>
-									))}
-								</View>
-							)}
-						</View>
-					)}
-
-					{/* Recurring Date Selection */}
-					{bookingMode === "recurring" && (
-						<View style={styles.recurringControls}>
+						{/* Single Date Selection */}
+						{bookingMode === "single" && (
 							<TouchableOpacity
 								style={styles.enhancedInput}
 								onPress={() => {
-									setTempDate(recurringStartDate || new Date());
+									setTempDate(
+										formData.booking_date
+											? formatDateForInput(formData.booking_date)
+											: new Date()
+									);
 									setShowDatePicker(true);
 									Haptics.selectionAsync();
 								}}
@@ -1229,16 +1119,16 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 										/>
 									</View>
 									<View style={styles.inputTextContainer}>
-										<Text style={styles.inputLabel}>Start Date</Text>
+										<Text style={styles.inputLabel}>Date</Text>
 										<Text
 											style={[
 												styles.enhancedInputText,
-												!recurringStartDate && styles.placeholderText,
+												!formData.booking_date && styles.placeholderText,
 											]}
 										>
-											{recurringStartDate
-												? formatDate(formatDateToString(recurringStartDate))
-												: "Select start date"}
+											{formData.booking_date
+												? formatDate(formData.booking_date)
+												: "Select date"}
 										</Text>
 									</View>
 									<Ionicons
@@ -1248,696 +1138,818 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 									/>
 								</View>
 							</TouchableOpacity>
+						)}
 
-							<View style={styles.recurringRow}>
-								<Text style={styles.inputLabel}>Number of days:</Text>
-								<TextInput
-									style={styles.recurringInput}
-									value={recurringDays.toString()}
-									onChangeText={(text) => {
-										const days = parseInt(text) || 1;
-										setRecurringDays(Math.max(1, Math.min(30, days)));
+						{/* Multiple Date Selection */}
+						{bookingMode === "multiple" && (
+							<View style={styles.multiDateSelector}>
+								<TouchableOpacity
+									style={styles.enhancedInput}
+									onPress={() => {
+										setTempDate(new Date());
+										setShowDatePicker(true);
+										Haptics.selectionAsync();
+									}}
+								>
+									<View style={styles.inputWithIcon}>
+										<View style={styles.inputIconContainer}>
+											<Ionicons
+												name="add-circle-outline"
+												size={20}
+												color={theme.colors.primary}
+											/>
+										</View>
+										<View style={styles.inputTextContainer}>
+											<Text style={styles.inputLabel}>Add Date</Text>
+											<Text
+												style={[
+													styles.enhancedInputText,
+													styles.placeholderText,
+												]}
+											>
+												Select dates to book
+											</Text>
+										</View>
+										<Ionicons
+											name="chevron-forward"
+											size={16}
+											color={dynamicTheme.colors.text.secondary}
+										/>
+									</View>
+								</TouchableOpacity>
 
-										// Update selected dates
-										if (recurringStartDate) {
-											const dates = generateRecurringDates(
-												recurringStartDate,
-												days
-											);
-											setSelectedDates(dates);
+								{/* Selected Dates */}
+								{selectedDates.length > 0 && (
+									<View style={styles.selectedDatesContainer}>
+										{selectedDates.map((date, index) => (
+											<View key={index} style={styles.selectedDateChip}>
+												<Text style={styles.selectedDateText}>
+													{formatDate(date)}
+												</Text>
+												<TouchableOpacity
+													onPress={() => {
+														removeSelectedDate(date);
+														Haptics.selectionAsync();
+													}}
+												>
+													<Ionicons
+														name="close-circle"
+														size={16}
+														color={theme.colors.primary}
+													/>
+												</TouchableOpacity>
+											</View>
+										))}
+									</View>
+								)}
+							</View>
+						)}
+
+						{/* Recurring Date Selection */}
+						{bookingMode === "recurring" && (
+							<View style={styles.recurringControls}>
+								<TouchableOpacity
+									style={styles.enhancedInput}
+									onPress={() => {
+										setTempDate(recurringStartDate || new Date());
+										setShowDatePicker(true);
+										Haptics.selectionAsync();
+									}}
+								>
+									<View style={styles.inputWithIcon}>
+										<View style={styles.inputIconContainer}>
+											<Ionicons
+												name="calendar-outline"
+												size={20}
+												color={theme.colors.primary}
+											/>
+										</View>
+										<View style={styles.inputTextContainer}>
+											<Text style={styles.inputLabel}>Start Date</Text>
+											<Text
+												style={[
+													styles.enhancedInputText,
+													!recurringStartDate && styles.placeholderText,
+												]}
+											>
+												{recurringStartDate
+													? formatDate(formatDateToString(recurringStartDate))
+													: "Select start date"}
+											</Text>
+										</View>
+										<Ionicons
+											name="chevron-forward"
+											size={16}
+											color={dynamicTheme.colors.text.secondary}
+										/>
+									</View>
+								</TouchableOpacity>
+								<View style={styles.recurringRow}>
+									<Text style={styles.inputLabel}>Number of days:</Text>
+									<TextInput
+										style={styles.recurringInput}
+										value={recurringDays.toString()}
+										onChangeText={(text) => {
+											const days = parseInt(text) || 1;
+											setRecurringDays(Math.max(1, Math.min(30, days)));
+
+											// Update selected dates
+											if (recurringStartDate) {
+												const dates = generateRecurringDates(
+													recurringStartDate,
+													days
+												);
+												setSelectedDates(dates);
+											}
+										}}
+										keyboardType="number-pad"
+										placeholder="3"
+									/>
+								</View>
+
+								{/* Generated Dates Preview */}
+								{recurringStartDate && (
+									<View style={styles.selectedDatesContainer}>
+										{generateRecurringDates(
+											recurringStartDate,
+											recurringDays
+										).map((date, index) => (
+											<View key={index} style={styles.selectedDateChip}>
+												<Text style={styles.selectedDateText}>
+													{formatDate(date)}
+												</Text>
+											</View>
+										))}
+									</View>
+								)}
+							</View>
+						)}
+
+						{/* Time Selection */}
+						<View style={styles.timeRow}>
+							<View style={styles.timeInputContainer}>
+								<TouchableOpacity
+									style={[
+										styles.enhancedTimeInput,
+										isWholeDayBooking && styles.disabledInput,
+									]}
+									onPress={() => {
+										if (!isWholeDayBooking) {
+											const [hours, minutes] = formData.start_time
+												.split(":")
+												.map(Number);
+											const date = new Date();
+											date.setHours(hours, minutes);
+											setTempDate(date);
+											setShowStartTimePicker(true);
+											Haptics.selectionAsync();
 										}
 									}}
-									keyboardType="number-pad"
-									placeholder="3"
+									disabled={isWholeDayBooking}
+								>
+									<View style={styles.inputWithIcon}>
+										<View style={styles.timeIconContainer}>
+											<Ionicons
+												name="time-outline"
+												size={16}
+												color={
+													isWholeDayBooking
+														? theme.colors.text.tertiary
+														: theme.colors.primary
+												}
+											/>
+										</View>
+										<View style={styles.timeTextContainer}>
+											<Text
+												style={[
+													styles.timeLabel,
+													isWholeDayBooking && styles.disabledText,
+												]}
+											>
+												Start Time
+											</Text>
+											<Text
+												style={[
+													styles.timeText,
+													isWholeDayBooking && styles.disabledText,
+												]}
+											>
+												{formData.start_time}
+											</Text>
+										</View>
+									</View>
+								</TouchableOpacity>
+							</View>
+							<View style={styles.timeSeparator}>
+								<View style={styles.timeSeparatorLine} />
+								<Ionicons
+									name="arrow-forward"
+									size={16}
+									color={
+										isWholeDayBooking
+											? theme.colors.text.tertiary
+											: theme.colors.primary
+									}
 								/>
+								<View style={styles.timeSeparatorLine} />
+							</View>
+							<View style={styles.timeInputContainer}>
+								<TouchableOpacity
+									style={[
+										styles.enhancedTimeInput,
+										isWholeDayBooking && styles.disabledInput,
+									]}
+									onPress={() => {
+										if (!isWholeDayBooking) {
+											const [hours, minutes] = formData.end_time
+												.split(":")
+												.map(Number);
+											const date = new Date();
+											date.setHours(hours, minutes);
+											setTempDate(date);
+											setShowEndTimePicker(true);
+											Haptics.selectionAsync();
+										}
+									}}
+									disabled={isWholeDayBooking}
+								>
+									<View style={styles.inputWithIcon}>
+										<View style={styles.timeIconContainer}>
+											<Ionicons
+												name="time-outline"
+												size={16}
+												color={
+													isWholeDayBooking
+														? theme.colors.text.tertiary
+														: theme.colors.primary
+												}
+											/>
+										</View>
+										<View style={styles.timeTextContainer}>
+											<Text
+												style={[
+													styles.timeLabel,
+													isWholeDayBooking && styles.disabledText,
+												]}
+											>
+												End Time
+											</Text>
+											<Text
+												style={[
+													styles.timeText,
+													isWholeDayBooking && styles.disabledText,
+												]}
+											>
+												{formData.end_time}
+											</Text>
+										</View>
+									</View>
+								</TouchableOpacity>
+							</View>
+						</View>
+
+						{/* Past Time Validation */}
+						{formData.booking_date &&
+							formData.start_time &&
+							isPastTime(formData.booking_date, formData.start_time) && (
+								<View style={styles.validationError}>
+									<Ionicons
+										name="warning"
+										size={16}
+										color={theme.colors.error}
+									/>
+									<Text style={styles.validationErrorText}>
+										Cannot book past dates or times
+									</Text>
+								</View>
+							)}
+					</View>
+
+					{/* Availability Check */}
+					{formData.hall_id &&
+						((bookingMode === "single" && formData.booking_date) ||
+							(bookingMode !== "single" && selectedDates.length > 0)) &&
+						formData.start_time &&
+						formData.end_time && (
+							<View style={styles.formSection}>
+								{/* Availability Check Info */}
+								<View style={styles.availabilityCheckInfo}>
+									<Ionicons
+										name="information-circle"
+										size={16}
+										color={theme.colors.primary}
+									/>
+									<Text style={styles.availabilityCheckInfoText}>
+										{isWholeDayBooking &&
+											"🌅 Checking whole day availability (9 AM - 6 PM)"}
+										{!isWholeDayBooking &&
+											bookingMode === "single" &&
+											"📅 Checking single date availability"}
+										{!isWholeDayBooking &&
+											bookingMode === "multiple" &&
+											`📅 Checking ${selectedDates.length} selected dates`}
+										{!isWholeDayBooking &&
+											bookingMode === "recurring" &&
+											`🔄 Checking ${recurringDays} recurring dates`}
+									</Text>
+								</View>
+								<TouchableOpacity
+									style={[
+										styles.checkAvailabilityButton,
+										checkingAvailability && styles.buttonDisabled,
+									]}
+									onPress={checkAvailability}
+									disabled={checkingAvailability}
+								>
+									<LinearGradient
+										colors={[
+											theme.colors.secondary,
+											theme.colors.secondary + "DD",
+										]}
+										style={styles.buttonGradient}
+									>
+										{checkingAvailability ? (
+											<ActivityIndicator size="small" color="#FFFFFF" />
+										) : (
+											<Ionicons name="search" size={20} color="#FFFFFF" />
+										)}
+										<Text style={styles.buttonText}>
+											{checkingAvailability
+												? "Checking..."
+												: "Check Availability"}
+										</Text>
+									</LinearGradient>
+								</TouchableOpacity>
+
+								{availabilityCheck && (
+									<View
+										style={[
+											styles.availabilityResult,
+											{
+												borderColor: availabilityCheck.is_available
+													? theme.colors.success
+													: theme.colors.error,
+												backgroundColor: availabilityCheck.is_available
+													? theme.colors.success + "10"
+													: theme.colors.error + "10",
+											},
+										]}
+									>
+										{/* Enhanced Availability Header */}
+										<View style={styles.availabilityHeader}>
+											<Ionicons
+												name={
+													availabilityCheck.is_available
+														? "checkmark-circle"
+														: "close-circle"
+												}
+												size={20}
+												color={
+													availabilityCheck.is_available
+														? theme.colors.success
+														: theme.colors.error
+												}
+											/>
+											<View style={styles.availabilityHeaderText}>
+												<Text
+													style={[
+														styles.availabilityText,
+														{
+															color: availabilityCheck.is_available
+																? theme.colors.success
+																: theme.colors.error,
+														},
+													]}
+												>
+													{availabilityCheck.is_available
+														? "✅ Available!"
+														: "❌ Not Available"}
+												</Text>
+												{/* Show booking type and date info */}
+												{(availabilityCheck as any).booking_type && (
+													<Text style={styles.availabilitySubText}>
+														{(availabilityCheck as any).booking_type ===
+															"whole_day" &&
+															"🌅 Whole Day Booking (9 AM - 6 PM)"}
+														{(availabilityCheck as any).booking_type ===
+															"multi_date" &&
+															`📅 ${
+																(availabilityCheck as any).dates_checked?.length
+															} dates checked`}
+														{(availabilityCheck as any).booking_type ===
+															"recurring" &&
+															`🔄 ${
+																(availabilityCheck as any).dates_checked?.length
+															} recurring dates`}
+														{(availabilityCheck as any).booking_type ===
+															"single" && "📅 Single date booking"}
+													</Text>
+												)}
+											</View>
+										</View>
+
+										{/* Multi-date Results Summary */}
+										{(availabilityCheck as any).multi_date_results &&
+											(availabilityCheck as any).multi_date_results.length >
+												1 && (
+												<View style={styles.multiDateSummary}>
+													<Text style={styles.multiDateTitle}>
+														📊 Date-by-Date Results:
+													</Text>
+													{(availabilityCheck as any).multi_date_results.map(
+														(result: any, index: number) => (
+															<View key={index} style={styles.dateResultRow}>
+																<Text style={styles.dateResultDate}>
+																	{formatDate(result.date)}
+																</Text>
+																<View style={styles.dateResultStatus}>
+																	<Ionicons
+																		name={
+																			result.is_available
+																				? "checkmark-circle"
+																				: "close-circle"
+																		}
+																		size={16}
+																		color={
+																			result.is_available
+																				? theme.colors.success
+																				: theme.colors.error
+																		}
+																	/>
+																	<Text
+																		style={[
+																			styles.dateResultText,
+																			{
+																				color: result.is_available
+																					? theme.colors.success
+																					: theme.colors.error,
+																			},
+																		]}
+																	>
+																		{result.is_available
+																			? "Available"
+																			: `${result.conflicting_bookings.length} conflict(s)`}
+																	</Text>
+																</View>
+															</View>
+														)
+													)}
+												</View>
+											)}
+
+										{/* Conflict Details */}
+										{!availabilityCheck.is_available &&
+											availabilityCheck.conflicting_bookings.length > 0 && (
+												<View style={styles.conflictInfo}>
+													<Text style={styles.conflictTitle}>
+														⚠️ Booking Conflicts:
+													</Text>
+													{availabilityCheck.conflicting_bookings.map(
+														(conflict, index) => (
+															<Text key={index} style={styles.conflictText}>
+																• {formatTime(conflict.start_time)} -{" "}
+																{formatTime(conflict.end_time)}
+															</Text>
+														)
+													)}
+												</View>
+											)}
+									</View>
+								)}
+							</View>
+						)}
+
+					{/* Booked Slots Preview */}
+					{formData.hall_id && formData.booking_date && (
+						<View style={styles.formSection}>
+							<View style={styles.sectionHeader}>
+								<LinearGradient
+									colors={[
+										theme.colors.warning + "15",
+										theme.colors.warning + "05",
+									]}
+									style={styles.sectionIconContainer}
+								>
+									<Ionicons
+										name="time"
+										size={20}
+										color={theme.colors.warning}
+									/>
+								</LinearGradient>
+								<Text style={styles.sectionTitle}>Today's Bookings</Text>
 							</View>
 
-							{/* Generated Dates Preview */}
-							{recurringStartDate && (
-								<View style={styles.selectedDatesContainer}>
-									{generateRecurringDates(
-										recurringStartDate,
-										recurringDays
-									).map((date, index) => (
-										<View key={index} style={styles.selectedDateChip}>
-											<Text style={styles.selectedDateText}>
-												{formatDate(date)}
+							{loadingBookedSlots ? (
+								<View style={styles.loadingSlots}>
+									<ActivityIndicator
+										size="small"
+										color={theme.colors.primary}
+									/>
+									<Text style={styles.loadingSlotsText}>
+										Loading bookings...
+									</Text>
+								</View>
+							) : bookedSlots.length > 0 ? (
+								<View style={styles.bookedSlotsList}>
+									{bookedSlots.map((slot, index) => (
+										<View key={index} style={styles.bookedSlotCard}>
+											<View style={styles.bookedSlotTime}>
+												<Ionicons
+													name="time-outline"
+													size={14}
+													color={theme.colors.warning}
+												/>
+												<Text style={styles.bookedSlotTimeText}>
+													{formatTime(slot.start_time)} -{" "}
+													{formatTime(slot.end_time)}
+												</Text>
+											</View>
+											<Text style={styles.bookedSlotPurpose} numberOfLines={1}>
+												{slot.purpose}
 											</Text>
 										</View>
 									))}
 								</View>
-							)}
-						</View>
-					)}
-
-					{/* Time Selection */}
-					<View style={styles.timeRow}>
-						<View style={styles.timeInputContainer}>
-							<TouchableOpacity
-								style={[
-									styles.enhancedTimeInput,
-									isWholeDayBooking && styles.disabledInput,
-								]}
-								onPress={() => {
-									if (!isWholeDayBooking) {
-										const [hours, minutes] = formData.start_time
-											.split(":")
-											.map(Number);
-										const date = new Date();
-										date.setHours(hours, minutes);
-										setTempDate(date);
-										setShowStartTimePicker(true);
-										Haptics.selectionAsync();
-									}
-								}}
-								disabled={isWholeDayBooking}
-							>
-								<View style={styles.inputWithIcon}>
-									<View style={styles.timeIconContainer}>
-										<Ionicons
-											name="time-outline"
-											size={16}
-											color={
-												isWholeDayBooking
-													? theme.colors.text.tertiary
-													: theme.colors.primary
-											}
-										/>
-									</View>
-									<View style={styles.timeTextContainer}>
-										<Text
-											style={[
-												styles.timeLabel,
-												isWholeDayBooking && styles.disabledText,
-											]}
-										>
-											Start Time
-										</Text>
-										<Text
-											style={[
-												styles.timeText,
-												isWholeDayBooking && styles.disabledText,
-											]}
-										>
-											{formData.start_time}
-										</Text>
-									</View>
-								</View>
-							</TouchableOpacity>
-						</View>
-
-						<View style={styles.timeSeparator}>
-							<View style={styles.timeSeparatorLine} />
-							<Ionicons
-								name="arrow-forward"
-								size={16}
-								color={
-									isWholeDayBooking
-										? theme.colors.text.tertiary
-										: theme.colors.primary
-								}
-							/>
-							<View style={styles.timeSeparatorLine} />
-						</View>
-
-						<View style={styles.timeInputContainer}>
-							<TouchableOpacity
-								style={[
-									styles.enhancedTimeInput,
-									isWholeDayBooking && styles.disabledInput,
-								]}
-								onPress={() => {
-									if (!isWholeDayBooking) {
-										const [hours, minutes] = formData.end_time
-											.split(":")
-											.map(Number);
-										const date = new Date();
-										date.setHours(hours, minutes);
-										setTempDate(date);
-										setShowEndTimePicker(true);
-										Haptics.selectionAsync();
-									}
-								}}
-								disabled={isWholeDayBooking}
-							>
-								<View style={styles.inputWithIcon}>
-									<View style={styles.timeIconContainer}>
-										<Ionicons
-											name="time-outline"
-											size={16}
-											color={
-												isWholeDayBooking
-													? theme.colors.text.tertiary
-													: theme.colors.primary
-											}
-										/>
-									</View>
-									<View style={styles.timeTextContainer}>
-										<Text
-											style={[
-												styles.timeLabel,
-												isWholeDayBooking && styles.disabledText,
-											]}
-										>
-											End Time
-										</Text>
-										<Text
-											style={[
-												styles.timeText,
-												isWholeDayBooking && styles.disabledText,
-											]}
-										>
-											{formData.end_time}
-										</Text>
-									</View>
-								</View>
-							</TouchableOpacity>
-						</View>
-					</View>
-
-					{/* Past Time Validation */}
-					{formData.booking_date &&
-						formData.start_time &&
-						isPastTime(formData.booking_date, formData.start_time) && (
-							<View style={styles.validationError}>
-								<Ionicons name="warning" size={16} color={theme.colors.error} />
-								<Text style={styles.validationErrorText}>
-									Cannot book past dates or times
-								</Text>
-							</View>
-						)}
-				</View>
-
-				{/* Availability Check */}
-				{formData.hall_id &&
-					((bookingMode === "single" && formData.booking_date) ||
-						(bookingMode !== "single" && selectedDates.length > 0)) &&
-					formData.start_time &&
-					formData.end_time && (
-						<View style={styles.formSection}>
-							{/* Availability Check Info */}
-							<View style={styles.availabilityCheckInfo}>
-								<Ionicons
-									name="information-circle"
-									size={16}
-									color={theme.colors.primary}
-								/>
-								<Text style={styles.availabilityCheckInfoText}>
-									{isWholeDayBooking &&
-										"🌅 Checking whole day availability (9 AM - 6 PM)"}
-									{!isWholeDayBooking &&
-										bookingMode === "single" &&
-										"📅 Checking single date availability"}
-									{!isWholeDayBooking &&
-										bookingMode === "multiple" &&
-										`📅 Checking ${selectedDates.length} selected dates`}
-									{!isWholeDayBooking &&
-										bookingMode === "recurring" &&
-										`🔄 Checking ${recurringDays} recurring dates`}
-								</Text>
-							</View>
-
-							<TouchableOpacity
-								style={[
-									styles.checkAvailabilityButton,
-									checkingAvailability && styles.buttonDisabled,
-								]}
-								onPress={checkAvailability}
-								disabled={checkingAvailability}
-							>
-								<LinearGradient
-									colors={[
-										theme.colors.secondary,
-										theme.colors.secondary + "DD",
-									]}
-									style={styles.buttonGradient}
-								>
-									{checkingAvailability ? (
-										<ActivityIndicator size="small" color="#FFFFFF" />
-									) : (
-										<Ionicons name="search" size={20} color="#FFFFFF" />
-									)}
-									<Text style={styles.buttonText}>
-										{checkingAvailability
-											? "Checking..."
-											: "Check Availability"}
+							) : (
+								<View style={styles.noBookingsContainer}>
+									<Ionicons
+										name="checkmark-circle-outline"
+										size={32}
+										color={theme.colors.success}
+									/>
+									<Text style={styles.noBookingsText}>
+										No bookings for this date
 									</Text>
-								</LinearGradient>
-							</TouchableOpacity>
-
-							{availabilityCheck && (
-								<View
-									style={[
-										styles.availabilityResult,
-										{
-											borderColor: availabilityCheck.is_available
-												? theme.colors.success
-												: theme.colors.error,
-											backgroundColor: availabilityCheck.is_available
-												? theme.colors.success + "10"
-												: theme.colors.error + "10",
-										},
-									]}
-								>
-									{/* Enhanced Availability Header */}
-									<View style={styles.availabilityHeader}>
-										<Ionicons
-											name={
-												availabilityCheck.is_available
-													? "checkmark-circle"
-													: "close-circle"
-											}
-											size={20}
-											color={
-												availabilityCheck.is_available
-													? theme.colors.success
-													: theme.colors.error
-											}
-										/>
-										<View style={styles.availabilityHeaderText}>
-											<Text
-												style={[
-													styles.availabilityText,
-													{
-														color: availabilityCheck.is_available
-															? theme.colors.success
-															: theme.colors.error,
-													},
-												]}
-											>
-												{availabilityCheck.is_available
-													? "✅ Available!"
-													: "❌ Not Available"}
-											</Text>
-											{/* Show booking type and date info */}
-											{(availabilityCheck as any).booking_type && (
-												<Text style={styles.availabilitySubText}>
-													{(availabilityCheck as any).booking_type ===
-														"whole_day" && "🌅 Whole Day Booking (9 AM - 6 PM)"}
-													{(availabilityCheck as any).booking_type ===
-														"multi_date" &&
-														`📅 ${
-															(availabilityCheck as any).dates_checked?.length
-														} dates checked`}
-													{(availabilityCheck as any).booking_type ===
-														"recurring" &&
-														`🔄 ${
-															(availabilityCheck as any).dates_checked?.length
-														} recurring dates`}
-													{(availabilityCheck as any).booking_type ===
-														"single" && "📅 Single date booking"}
-												</Text>
-											)}
-										</View>
-									</View>
-
-									{/* Multi-date Results Summary */}
-									{(availabilityCheck as any).multi_date_results &&
-										(availabilityCheck as any).multi_date_results.length >
-											1 && (
-											<View style={styles.multiDateSummary}>
-												<Text style={styles.multiDateTitle}>
-													📊 Date-by-Date Results:
-												</Text>
-												{(availabilityCheck as any).multi_date_results.map(
-													(result: any, index: number) => (
-														<View key={index} style={styles.dateResultRow}>
-															<Text style={styles.dateResultDate}>
-																{formatDate(result.date)}
-															</Text>
-															<View style={styles.dateResultStatus}>
-																<Ionicons
-																	name={
-																		result.is_available
-																			? "checkmark-circle"
-																			: "close-circle"
-																	}
-																	size={16}
-																	color={
-																		result.is_available
-																			? theme.colors.success
-																			: theme.colors.error
-																	}
-																/>
-																<Text
-																	style={[
-																		styles.dateResultText,
-																		{
-																			color: result.is_available
-																				? theme.colors.success
-																				: theme.colors.error,
-																		},
-																	]}
-																>
-																	{result.is_available
-																		? "Available"
-																		: `${result.conflicting_bookings.length} conflict(s)`}
-																</Text>
-															</View>
-														</View>
-													)
-												)}
-											</View>
-										)}
-
-									{/* Conflict Details */}
-									{!availabilityCheck.is_available &&
-										availabilityCheck.conflicting_bookings.length > 0 && (
-											<View style={styles.conflictInfo}>
-												<Text style={styles.conflictTitle}>
-													⚠️ Booking Conflicts:
-												</Text>
-												{availabilityCheck.conflicting_bookings.map(
-													(conflict, index) => (
-														<Text key={index} style={styles.conflictText}>
-															• {formatTime(conflict.start_time)} -{" "}
-															{formatTime(conflict.end_time)}
-														</Text>
-													)
-												)}
-											</View>
-										)}
 								</View>
 							)}
 						</View>
 					)}
 
-				{/* Booked Slots Preview */}
-				{formData.hall_id && formData.booking_date && (
+					{/* Purpose & Details */}
 					<View style={styles.formSection}>
 						<View style={styles.sectionHeader}>
 							<LinearGradient
 								colors={[
-									theme.colors.warning + "15",
-									theme.colors.warning + "05",
+									theme.colors.success + "15",
+									theme.colors.success + "05",
 								]}
 								style={styles.sectionIconContainer}
 							>
-								<Ionicons name="time" size={20} color={theme.colors.warning} />
+								<Ionicons
+									name="document-text"
+									size={20}
+									color={theme.colors.success}
+								/>
 							</LinearGradient>
-							<Text style={styles.sectionTitle}>Today's Bookings</Text>
+							<Text style={styles.sectionTitle}>Purpose & Details *</Text>
+							{formData.purpose ? (
+								<View style={styles.completedIndicator}>
+									<Ionicons
+										name="checkmark-circle"
+										size={16}
+										color={theme.colors.success}
+									/>
+								</View>
+							) : (
+								<View style={styles.completedIndicator}>
+									<Ionicons
+										name="close-circle"
+										size={16}
+										color={theme.colors.error}
+									/>
+								</View>
+							)}
 						</View>
 
-						{loadingBookedSlots ? (
-							<View style={styles.loadingSlots}>
-								<ActivityIndicator size="small" color={theme.colors.primary} />
-								<Text style={styles.loadingSlotsText}>Loading bookings...</Text>
+						{/* Purpose Input */}
+						<View style={styles.inputContainer}>
+							<Text style={styles.inputLabel}>Purpose *</Text>
+							<TextInput
+								style={styles.textInput}
+								value={formData.purpose}
+								onChangeText={(text) =>
+									setFormData((prev) => ({ ...prev, purpose: text }))
+								}
+								placeholder="e.g., Team Meeting, Workshop, Conference"
+								placeholderTextColor={dynamicTheme.colors.text.secondary}
+								multiline={false}
+							/>
+						</View>
+
+						{/* Description Input */}
+						<View style={styles.inputContainer}>
+							<Text style={styles.inputLabel}>Description (Optional)</Text>
+							<TextInput
+								style={[styles.textInput, styles.textAreaInput]}
+								value={formData.description}
+								onChangeText={(text) =>
+									setFormData((prev) => ({ ...prev, description: text }))
+								}
+								placeholder="Additional details about your booking..."
+								placeholderTextColor={dynamicTheme.colors.text.secondary}
+								multiline={true}
+								numberOfLines={3}
+							/>
+						</View>
+
+						{/* Attendees Count */}
+						<View style={styles.inputContainer}>
+							<Text style={styles.inputLabel}>Number of Attendees</Text>
+							<View style={styles.attendeesContainer}>
+								<Text style={styles.attendeesLabel}>Attendees</Text>
+								<View style={styles.attendeesControls}>
+									<TouchableOpacity
+										style={[
+											styles.attendeesButton,
+											formData.attendees_count <= 1 &&
+												styles.attendeesButtonDisabled,
+										]}
+										onPress={() => {
+											setFormData((prev) => ({
+												...prev,
+												attendees_count: Math.max(1, prev.attendees_count - 1),
+											}));
+											Haptics.selectionAsync();
+										}}
+										disabled={formData.attendees_count <= 1}
+									>
+										<Ionicons name="remove" size={20} color="#FFFFFF" />
+									</TouchableOpacity>
+									<TextInput
+										style={styles.attendeesCount}
+										value={formData.attendees_count.toString()}
+										onChangeText={(text) => {
+											// Remove any non-numeric characters
+											const numericText = text.replace(/[^0-9]/g, "");
+											const count = parseInt(numericText) || 1;
+											// Ensure minimum of 1
+											const finalCount = Math.max(1, count);
+											setFormData((prev) => ({
+												...prev,
+												attendees_count: finalCount,
+											}));
+										}}
+										keyboardType="numeric"
+										placeholder="1"
+										placeholderTextColor={dynamicTheme.colors.text.secondary}
+										maxLength={3}
+										selectTextOnFocus={true}
+									/>
+									<TouchableOpacity
+										style={styles.attendeesButton}
+										onPress={() => {
+											setFormData((prev) => ({
+												...prev,
+												attendees_count: prev.attendees_count + 1,
+											}));
+											Haptics.selectionAsync();
+										}}
+									>
+										<Ionicons name="add" size={20} color="#FFFFFF" />
+									</TouchableOpacity>
+								</View>
 							</View>
-						) : bookedSlots.length > 0 ? (
-							<View style={styles.bookedSlotsList}>
-								{bookedSlots.map((slot, index) => (
-									<View key={index} style={styles.bookedSlotCard}>
-										<View style={styles.bookedSlotTime}>
+
+							{/* Attendees Validation Error */}
+							{getSelectedHallCapacity() &&
+								formData.attendees_count > getSelectedHallCapacity() && (
+									<View style={styles.validationError}>
+										<Ionicons
+											name="warning"
+											size={16}
+											color={theme.colors.error}
+										/>
+										<Text style={styles.validationErrorText}>
+											Attendees exceed hall capacity (max{" "}
+											{getSelectedHallCapacity()})
+										</Text>
+									</View>
+								)}
+
+							{/* Quick increment buttons */}
+							<View style={styles.quickIncrementContainer}>
+								<Text style={styles.quickIncrementLabel}>Quick add:</Text>
+								<View style={styles.quickIncrementButtons}>
+									<TouchableOpacity
+										style={styles.quickIncrementButton}
+										onPress={() => {
+											setFormData((prev) => ({
+												...prev,
+												attendees_count: prev.attendees_count + 5,
+											}));
+											Haptics.selectionAsync();
+										}}
+									>
+										<Text style={styles.quickIncrementText}>+5</Text>
+									</TouchableOpacity>
+									<TouchableOpacity
+										style={styles.quickIncrementButton}
+										onPress={() => {
+											setFormData((prev) => ({
+												...prev,
+												attendees_count: prev.attendees_count + 10,
+											}));
+											Haptics.selectionAsync();
+										}}
+									>
+										<Text style={styles.quickIncrementText}>+10</Text>
+									</TouchableOpacity>
+									<TouchableOpacity
+										style={styles.quickIncrementButton}
+										onPress={() => {
+											setFormData((prev) => ({
+												...prev,
+												attendees_count: prev.attendees_count + 25,
+											}));
+											Haptics.selectionAsync();
+										}}
+									>
+										<Text style={styles.quickIncrementText}>+25</Text>
+									</TouchableOpacity>
+								</View>
+							</View>
+						</View>
+					</View>
+
+					{/* Priority Selection */}
+					<View style={styles.formSection}>
+						<View style={styles.sectionHeader}>
+							<LinearGradient
+								colors={[theme.colors.error + "15", theme.colors.error + "05"]}
+								style={styles.sectionIconContainer}
+							>
+								<Ionicons name="flag" size={20} color={theme.colors.error} />
+							</LinearGradient>
+							<Text style={styles.sectionTitle}>Priority Level</Text>
+						</View>
+						<View style={styles.priorityContainer}>
+							{[
+								{
+									value: "low",
+									label: "Standard",
+									description: "Regular booking",
+									icon: "arrow-down-circle",
+									color: theme.colors.success,
+								},
+								{
+									value: "medium",
+									label: "Important",
+									description: "Higher priority",
+									icon: "alert-circle",
+									color: theme.colors.warning,
+								},
+								{
+									value: "high",
+									label: "Urgent",
+									description: "Top priority",
+									icon: "warning",
+									color: theme.colors.error,
+								},
+							].map((priority) => (
+								<TouchableOpacity
+									key={priority.value}
+									style={styles.priorityCard}
+									onPress={() => {
+										setFormData((prev) => ({
+											...prev,
+											priority: priority.value as any,
+										}));
+										Haptics.selectionAsync();
+									}}
+								>
+									<View style={styles.priorityCardContent}>
+										<View style={styles.priorityIconSection}>
 											<Ionicons
-												name="time-outline"
-												size={14}
-												color={theme.colors.warning}
+												name={priority.icon as any}
+												size={24}
+												color={priority.color}
 											/>
-											<Text style={styles.bookedSlotTimeText}>
-												{formatTime(slot.start_time)} -{" "}
-												{formatTime(slot.end_time)}
+										</View>
+										<View style={styles.priorityInfo}>
+											<Text style={styles.priorityLabel}>{priority.label}</Text>
+											<Text style={styles.priorityDescription}>
+												{priority.description}
 											</Text>
 										</View>
-										<Text style={styles.bookedSlotPurpose} numberOfLines={1}>
-											{slot.purpose}
-										</Text>
+										{formData.priority === priority.value && (
+											<View style={styles.priorityCheckmark}>
+												<Ionicons
+													name="checkmark-circle"
+													size={20}
+													color={theme.colors.success}
+												/>
+											</View>
+										)}
 									</View>
-								))}
-							</View>
-						) : (
-							<View style={styles.noBookingsContainer}>
-								<Ionicons
-									name="checkmark-circle-outline"
-									size={32}
-									color={theme.colors.success}
-								/>
-								<Text style={styles.noBookingsText}>
-									No bookings for this date
-								</Text>
-							</View>
-						)}
-					</View>
-				)}
-
-				{/* Purpose & Details */}
-				<View style={styles.formSection}>
-					<View style={styles.sectionHeader}>
-						<LinearGradient
-							colors={[
-								theme.colors.success + "15",
-								theme.colors.success + "05",
-							]}
-							style={styles.sectionIconContainer}
-						>
-							<Ionicons
-								name="document-text"
-								size={20}
-								color={theme.colors.success}
-							/>
-						</LinearGradient>
-						<Text style={styles.sectionTitle}>Purpose & Details *</Text>
-						{formData.purpose ? (
-							<View style={styles.completedIndicator}>
-								<Ionicons
-									name="checkmark-circle"
-									size={16}
-									color={theme.colors.success}
-								/>
-							</View>
-						) : (
-							<View style={styles.completedIndicator}>
-								<Ionicons
-									name="close-circle"
-									size={16}
-									color={theme.colors.error}
-								/>
-							</View>
-						)}
-					</View>
-
-					{/* Purpose Input */}
-					<View style={styles.inputContainer}>
-						<Text style={styles.inputLabel}>Purpose *</Text>
-						<TextInput
-							style={styles.textInput}
-							value={formData.purpose}
-							onChangeText={(text) =>
-								setFormData((prev) => ({ ...prev, purpose: text }))
-							}
-							placeholder="e.g., Team Meeting, Workshop, Conference"
-							placeholderTextColor={dynamicTheme.colors.text.secondary}
-							multiline={false}
-						/>
-					</View>
-
-					{/* Description Input */}
-					<View style={styles.inputContainer}>
-						<Text style={styles.inputLabel}>Description (Optional)</Text>
-						<TextInput
-							style={[styles.textInput, styles.textAreaInput]}
-							value={formData.description}
-							onChangeText={(text) =>
-								setFormData((prev) => ({ ...prev, description: text }))
-							}
-							placeholder="Additional details about your booking..."
-							placeholderTextColor={dynamicTheme.colors.text.secondary}
-							multiline={true}
-							numberOfLines={3}
-						/>
-					</View>
-
-					{/* Attendees Count */}
-					<View style={styles.inputContainer}>
-						<Text style={styles.inputLabel}>Number of Attendees</Text>
-						<View style={styles.attendeesContainer}>
-							<Text style={styles.attendeesLabel}>Attendees</Text>
-							<View style={styles.attendeesControls}>
-								<TouchableOpacity
-									style={[
-										styles.attendeesButton,
-										formData.attendees_count <= 1 &&
-											styles.attendeesButtonDisabled,
-									]}
-									onPress={() => {
-										setFormData((prev) => ({
-											...prev,
-											attendees_count: Math.max(1, prev.attendees_count - 1),
-										}));
-										Haptics.selectionAsync();
-									}}
-									disabled={formData.attendees_count <= 1}
-								>
-									<Ionicons name="remove" size={20} color="#FFFFFF" />
 								</TouchableOpacity>
-								<TextInput
-									style={styles.attendeesCount}
-									value={formData.attendees_count.toString()}
-									onChangeText={(text) => {
-										// Remove any non-numeric characters
-										const numericText = text.replace(/[^0-9]/g, "");
-										const count = parseInt(numericText) || 1;
-										// Ensure minimum of 1
-										const finalCount = Math.max(1, count);
-										setFormData((prev) => ({
-											...prev,
-											attendees_count: finalCount,
-										}));
-									}}
-									keyboardType="numeric"
-									placeholder="1"
-									placeholderTextColor={dynamicTheme.colors.text.secondary}
-									maxLength={3}
-									selectTextOnFocus={true}
-								/>
-								<TouchableOpacity
-									style={styles.attendeesButton}
-									onPress={() => {
-										setFormData((prev) => ({
-											...prev,
-											attendees_count: prev.attendees_count + 1,
-										}));
-										Haptics.selectionAsync();
-									}}
-								>
-									<Ionicons name="add" size={20} color="#FFFFFF" />
-								</TouchableOpacity>
-							</View>
-						</View>
-
-						{/* Attendees Validation Error */}
-						{getSelectedHallCapacity() && formData.attendees_count > getSelectedHallCapacity() && (
-							<View style={styles.validationError}>
-								<Ionicons name="warning" size={16} color={theme.colors.error} />
-								<Text style={styles.validationErrorText}>
-									Attendees exceed hall capacity (max {getSelectedHallCapacity()})
-								</Text>
-							</View>
-						)}
-
-						{/* Quick increment buttons */}
-						<View style={styles.quickIncrementContainer}>
-							<Text style={styles.quickIncrementLabel}>Quick add:</Text>
-							<View style={styles.quickIncrementButtons}>
-								<TouchableOpacity
-									style={styles.quickIncrementButton}
-									onPress={() => {
-										setFormData((prev) => ({
-											...prev,
-											attendees_count: prev.attendees_count + 5,
-										}));
-										Haptics.selectionAsync();
-									}}
-								>
-									<Text style={styles.quickIncrementText}>+5</Text>
-								</TouchableOpacity>
-								<TouchableOpacity
-									style={styles.quickIncrementButton}
-									onPress={() => {
-										setFormData((prev) => ({
-											...prev,
-											attendees_count: prev.attendees_count + 10,
-										}));
-										Haptics.selectionAsync();
-									}}
-								>
-									<Text style={styles.quickIncrementText}>+10</Text>
-								</TouchableOpacity>
-								<TouchableOpacity
-									style={styles.quickIncrementButton}
-									onPress={() => {
-										setFormData((prev) => ({
-											...prev,
-											attendees_count: prev.attendees_count + 25,
-										}));
-										Haptics.selectionAsync();
-									}}
-								>
-									<Text style={styles.quickIncrementText}>+25</Text>
-								</TouchableOpacity>
-							</View>
+							))}
 						</View>
 					</View>
-				</View>
 
-				{/* Priority Selection */}
-				<View style={styles.formSection}>
-					<View style={styles.sectionHeader}>
-						<LinearGradient
-							colors={[theme.colors.error + "15", theme.colors.error + "05"]}
-							style={styles.sectionIconContainer}
-						>
-							<Ionicons name="flag" size={20} color={theme.colors.error} />
-						</LinearGradient>
-						<Text style={styles.sectionTitle}>Priority Level</Text>
-					</View>
-
-					<View style={styles.priorityContainer}>
-						{[
-							{
-								value: "low",
-								label: "Standard",
-								description: "Regular booking",
-								icon: "arrow-down-circle",
-								color: theme.colors.success,
-							},
-							{
-								value: "medium",
-								label: "Important",
-								description: "Higher priority",
-								icon: "alert-circle",
-								color: theme.colors.warning,
-							},
-							{
-								value: "high",
-								label: "Urgent",
-								description: "Top priority",
-								icon: "warning",
-								color: theme.colors.error,
-							},
-						].map((priority) => (
-							<TouchableOpacity
-								key={priority.value}
-								style={styles.priorityCard}
-								onPress={() => {
-									setFormData((prev) => ({
-										...prev,
-										priority: priority.value as any,
-									}));
-									Haptics.selectionAsync();
-								}}
-							>
-								<View style={styles.priorityCardContent}>
-									<View style={styles.priorityIconSection}>
-										<Ionicons
-											name={priority.icon as any}
-											size={24}
-											color={priority.color}
-										/>
-									</View>
-									<View style={styles.priorityInfo}>
-										<Text style={styles.priorityLabel}>{priority.label}</Text>
-										<Text style={styles.priorityDescription}>
-											{priority.description}
-										</Text>
-									</View>
-									{formData.priority === priority.value && (
-										<View style={styles.priorityCheckmark}>
-											<Ionicons
-												name="checkmark-circle"
-												size={20}
-												color={theme.colors.success}
-											/>
-										</View>
-									)}
-								</View>
-							</TouchableOpacity>
-						))}
-					</View>
-				</View>
-
-				{/* Bottom Spacing */}
-				<View style={styles.bottomSpacing} />
-			</Animated.ScrollView>
+					{/* Bottom Spacing */}
+					<View style={styles.bottomSpacing} />
+				</ScrollView>
+			</View>
 
 			{/* Date Picker */}
 			{showDatePicker && (
@@ -2122,6 +2134,9 @@ const createStyles = (theme: any, insets: any) =>
 			textAlign: "center",
 		},
 		scrollView: {
+			flex: 1,
+		},
+		scrollViewWrapper: {
 			flex: 1,
 		},
 		scrollContent: {
