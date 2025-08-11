@@ -577,6 +577,8 @@ const BookingScreen: React.FC<BookingScreenProps> = ({ navigation }) => {
 					showsVerticalScrollIndicator={Platform.OS !== 'web'}
 					nestedScrollEnabled={true}
 					keyboardShouldPersistTaps="handled"
+					scrollEnabled={true}
+					bounces={Platform.OS !== 'web'}
 				>
 				{bookings.map((booking) => (
 					<View key={booking.id} style={styles.bookingCard}>
@@ -1704,6 +1706,7 @@ const createStyles = (dynamicTheme: any, insets: any) =>
 		container: {
 			flex: 1,
 			backgroundColor: dynamicTheme.colors.background,
+			position: 'relative',
 		},
 		loadingContainer: {
 			flex: 1,
@@ -1723,6 +1726,11 @@ const createStyles = (dynamicTheme: any, insets: any) =>
 			backgroundColor: dynamicTheme.colors.surface,
 			borderBottomWidth: 1,
 			borderBottomColor: dynamicTheme.colors.text.secondary + "20",
+			...(Platform.OS === 'web' && {
+				position: 'sticky',
+				top: 0,
+				zIndex: 100,
+			} as any),
 		},
 		headerTitle: {
 			fontSize: 28,
@@ -1731,18 +1739,25 @@ const createStyles = (dynamicTheme: any, insets: any) =>
 		},
 		scrollViewWrapper: {
 			flex: 1,
-			minHeight: 0, // Important for flex scrolling
+			minHeight: 0,
+			...(Platform.OS === 'web' && {
+				overflow: 'auto',
+				height: '100%',
+			} as any),
 		},
 		scrollView: {
 			flex: 1,
 			...(Platform.OS === 'web' && {
-				height: '100%',
+				maxHeight: '100vh',
+				overflowY: 'scroll',
+				WebkitOverflowScrolling: 'touch',
 			} as any),
 		},
 		scrollContent: {
 			padding: dynamicTheme.spacing.md,
 			paddingBottom: 100,
 			flexGrow: 1,
+			minHeight: Platform.OS === 'web' ? 'auto' : undefined,
 		},
 		bookingCard: {
 			backgroundColor: dynamicTheme.colors.surface,
@@ -1754,6 +1769,9 @@ const createStyles = (dynamicTheme: any, insets: any) =>
 			shadowOpacity: 0.1,
 			shadowRadius: 4,
 			elevation: 3,
+			...(Platform.OS === 'web' && {
+				boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+			} as any),
 		},
 		bookingHeader: {
 			marginBottom: dynamicTheme.spacing.sm,
@@ -1943,15 +1961,17 @@ const createStyles = (dynamicTheme: any, insets: any) =>
 			padding: dynamicTheme.spacing.md,
 		},
 		fab: {
-			position: "absolute",
-			bottom: 20,
-			right: 20,
 			borderRadius: 30,
 			elevation: 8,
 			shadowColor: "#000",
 			shadowOffset: { width: 0, height: 4 },
 			shadowOpacity: 0.3,
 			shadowRadius: 8,
+			zIndex: 1001,
+			...(Platform.OS === 'web' && {
+				cursor: 'pointer',
+				boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+			} as any),
 		},
 		fabGradient: {
 			width: 60,
@@ -2217,6 +2237,11 @@ const createStyles = (dynamicTheme: any, insets: any) =>
 			position: "absolute",
 			bottom: 20,
 			right: 20,
+			zIndex: 1000,
+			elevation: 10,
+			...(Platform.OS === 'web' && {
+				position: 'fixed',
+			} as any),
 		},
 		// Enhanced Form Styles
 		progressIndicator: {
