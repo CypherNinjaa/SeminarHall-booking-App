@@ -456,26 +456,48 @@ const BookingScreen: React.FC<BookingScreenProps> = ({ navigation }) => {
 	};
 
 	const handleCancelBooking = (booking: SmartBooking) => {
-		Alert.alert(
-			"Cancel Booking",
-			"Are you sure you want to cancel this booking?",
-			[
-				{ text: "No", style: "cancel" },
-				{
-					text: "Yes",
-					style: "destructive",
-					onPress: async () => {
-						try {
-							await smartBookingService.cancelBooking(booking.id, user!.id);
-							Alert.alert("Success", "Booking cancelled successfully");
-							await fetchData();
-						} catch (error: any) {
-							Alert.alert("Error", error.message || "Failed to cancel booking");
-						}
+		// Web-compatible confirmation
+		if (Platform.OS === 'web') {
+			const confirmed = window.confirm("Are you sure you want to cancel this booking?");
+			if (confirmed) {
+				cancelBookingAsync(booking);
+			}
+		} else {
+			Alert.alert(
+				"Cancel Booking",
+				"Are you sure you want to cancel this booking?",
+				[
+					{ text: "No", style: "cancel" },
+					{
+						text: "Yes",
+						style: "destructive",
+						onPress: () => cancelBookingAsync(booking),
 					},
-				},
-			]
-		);
+				]
+			);
+		}
+	};
+
+	const cancelBookingAsync = async (booking: SmartBooking) => {
+		try {
+			await smartBookingService.cancelBooking(booking.id, user!.id);
+			
+			if (Platform.OS === 'web') {
+				window.alert("Booking cancelled successfully");
+			} else {
+				Alert.alert("Success", "Booking cancelled successfully");
+			}
+			
+			await fetchData();
+		} catch (error: any) {
+			console.error("Cancel booking error:", error);
+			
+			if (Platform.OS === 'web') {
+				window.alert("Error: " + (error.message || "Failed to cancel booking"));
+			} else {
+				Alert.alert("Error", error.message || "Failed to cancel booking");
+			}
+		}
 	};
 
 	const resetForm = () => {
@@ -545,13 +567,17 @@ const BookingScreen: React.FC<BookingScreenProps> = ({ navigation }) => {
 				<Text style={styles.headerTitle}>My Bookings</Text>
 			</View>
 
-			<ScrollView
-				style={styles.scrollView}
-				contentContainerStyle={styles.scrollContent}
-				refreshControl={
-					<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-				}
-			>
+			<View style={styles.scrollViewWrapper}>
+				<ScrollView
+					style={styles.scrollView}
+					contentContainerStyle={styles.scrollContent}
+					refreshControl={
+						<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+					}
+					showsVerticalScrollIndicator={Platform.OS !== 'web'}
+					nestedScrollEnabled={true}
+					keyboardShouldPersistTaps="handled"
+				>
 				{bookings.map((booking) => (
 					<View key={booking.id} style={styles.bookingCard}>
 						<View style={styles.bookingHeader}>
@@ -700,6 +726,8 @@ const BookingScreen: React.FC<BookingScreenProps> = ({ navigation }) => {
 								<TouchableOpacity
 									style={[styles.actionButton, styles.editButton]}
 									onPress={() => openEditModal(booking)}
+									activeOpacity={0.7}
+									disabled={false}
 								>
 									<Ionicons
 										name="pencil"
@@ -711,6 +739,8 @@ const BookingScreen: React.FC<BookingScreenProps> = ({ navigation }) => {
 								<TouchableOpacity
 									style={[styles.actionButton, styles.cancelButton]}
 									onPress={() => handleCancelBooking(booking)}
+									activeOpacity={0.7}
+									hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
 								>
 									<Ionicons name="close" size={16} color={theme.colors.error} />
 									<Text style={styles.cancelButtonText}>Cancel</Text>
@@ -742,6 +772,7 @@ const BookingScreen: React.FC<BookingScreenProps> = ({ navigation }) => {
 					</View>
 				)}
 			</ScrollView>
+			</View>
 
 			{/* Create/Edit Booking Modal */}
 			<Modal
@@ -1698,12 +1729,20 @@ const createStyles = (dynamicTheme: any, insets: any) =>
 			fontWeight: "bold",
 			color: dynamicTheme.colors.text.primary,
 		},
+		scrollViewWrapper: {
+			flex: 1,
+			minHeight: 0, // Important for flex scrolling
+		},
 		scrollView: {
 			flex: 1,
+			...(Platform.OS === 'web' && {
+				height: '100%',
+			} as any),
 		},
 		scrollContent: {
 			padding: dynamicTheme.spacing.md,
 			paddingBottom: 100,
+			flexGrow: 1,
 		},
 		bookingCard: {
 			backgroundColor: dynamicTheme.colors.surface,
@@ -1787,12 +1826,23 @@ const createStyles = (dynamicTheme: any, insets: any) =>
 			flexDirection: "row",
 			marginTop: dynamicTheme.spacing.md,
 			gap: dynamicTheme.spacing.sm,
+			...(Platform.OS === 'web' && {
+				pointerEvents: 'auto',
+			} as any),
 		},
 		actionButton: {
 			flex: 1,
 			paddingVertical: dynamicTheme.spacing.sm,
 			borderRadius: theme.borderRadius.sm,
 			alignItems: "center",
+			flexDirection: "row",
+			justifyContent: "center",
+			gap: dynamicTheme.spacing.xs,
+			minHeight: 40,
+			...(Platform.OS === 'web' && {
+				cursor: 'pointer',
+				userSelect: 'none',
+			} as any),
 		},
 		editButton: {
 			backgroundColor: theme.colors.primary,
@@ -1804,6 +1854,18 @@ const createStyles = (dynamicTheme: any, insets: any) =>
 		},
 		cancelButton: {
 			backgroundColor: theme.colors.error,
+			borderWidth: 1,
+			borderColor: theme.colors.error,
+			...(Platform.OS === 'web' && {
+				'&:hover': {
+					backgroundColor: theme.colors.error + 'DD',
+					transform: 'scale(1.05)',
+				},
+				'&:active': {
+					backgroundColor: theme.colors.error + 'BB',
+					transform: 'scale(0.95)',
+				},
+			} as any),
 		},
 		cancelButtonText: {
 			color: "white",
