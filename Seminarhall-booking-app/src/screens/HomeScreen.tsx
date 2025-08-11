@@ -508,20 +508,14 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
 
 		switch (action) {
 			case "halls":
-				navigation.navigate("Halls");
+				navigation.navigate("MainTabs", { screen: "Halls" });
 				break;
 			case "quick-book":
 				navigation.navigate("BookingForm", {}); // Navigate directly to the new booking form
 				break;
 			case "bookings":
-				// Navigate to the Bookings tab inside AdminTabs if admin, else to Bookings screen
-				if (user && ["admin", "super_admin"].includes(user.role)) {
-					navigation.navigate("AdminTabs", {
-						screen: "BookingOversightScreen",
-					});
-				} else {
-					navigation.navigate("Bookings");
-				}
+				// Always navigate to regular Bookings screen for personal bookings
+				navigation.navigate("MainTabs", { screen: "Bookings" });
 				break;
 			case "admin":
 				// Navigate to the AdminDashboard tab inside AdminTabs
@@ -903,7 +897,7 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
 									start={{ x: 0, y: 0 }}
 									end={{ x: 1, y: 1 }}
 								>
-									<Ionicons name="business" size={24} color="white" />
+									<Ionicons name="business" size={Platform.OS === 'web' ? 18 : 24} color="white" />
 									<Text style={styles.statNumber}>
 										{loading ? "..." : stats.availableHalls}
 									</Text>
@@ -924,7 +918,7 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
 									start={{ x: 0, y: 0 }}
 									end={{ x: 1, y: 1 }}
 								>
-									<Ionicons name="calendar" size={24} color="white" />
+									<Ionicons name="calendar" size={Platform.OS === 'web' ? 18 : 24} color="white" />
 									<Text style={styles.statNumber}>
 										{loading ? "..." : stats.thisMonthBookings}
 									</Text>
@@ -945,7 +939,7 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
 									start={{ x: 0, y: 0 }}
 									end={{ x: 1, y: 1 }}
 								>
-									<Ionicons name="time" size={24} color="white" />
+									<Ionicons name="time" size={Platform.OS === 'web' ? 18 : 24} color="white" />
 									<Text style={styles.statNumber}>
 										{loading ? "..." : stats.pendingBookings}
 									</Text>
@@ -999,7 +993,7 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
 										<View style={styles.actionIcon}>
 											<Ionicons
 												name={action.icon as any}
-												size={28}
+												size={Platform.OS === 'web' ? 20 : 28}
 												color={action.iconColor}
 											/>
 										</View>
@@ -1189,7 +1183,7 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
 						colors={["#007AFF", "#0056CC"]}
 						style={styles.fabGradient}
 					>
-						<Ionicons name="add" size={28} color="white" />
+						<Ionicons name="add" size={Platform.OS === 'web' ? 20 : 28} color="white" />
 					</LinearGradient>
 				</TouchableOpacity>
 			</Animated.View>

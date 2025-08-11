@@ -12,6 +12,7 @@ import {
 	ScrollView,
 	Image,
 	ActivityIndicator,
+	Dimensions,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { LinearGradient } from "expo-linear-gradient";
@@ -38,11 +39,14 @@ interface Props {
 	navigation: ForgotPasswordScreenNavigationProp;
 }
 
+const { width: screenWidth } = Dimensions.get("window");
+
 export default function ForgotPasswordScreen({ navigation }: Props) {
 	const [email, setEmail] = useState("");
 	const [isLoading, setIsLoading] = useState(false);
 	const [emailSent, setEmailSent] = useState(false);
 	const [emailError, setEmailError] = useState("");
+	const [emailFocused, setEmailFocused] = useState(false);
 
 	const { requestPasswordReset, error, clearError } = useAuthStore();
 
@@ -139,8 +143,10 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
 					showsVerticalScrollIndicator={false}
 					keyboardShouldPersistTaps="handled"
 				>
-					{/* Header */}
-					<View style={styles.header}>
+					{/* Responsive Container */}
+					<View style={styles.responsiveContainer}>
+						{/* Header */}
+						<View style={styles.header}>
 						<TouchableOpacity
 							style={styles.backButton}
 							onPress={goBackToLogin}
@@ -347,6 +353,7 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
 							<Text style={styles.signInText}>Sign In</Text>
 						</TouchableOpacity>
 					</View>
+					</View>
 				</ScrollView>
 			</KeyboardAvoidingView>
 		</SafeAreaView>
@@ -374,7 +381,14 @@ const styles = StyleSheet.create({
 	scrollContent: {
 		flexGrow: 1,
 		justifyContent: "center",
-		padding: Spacing[5],
+		paddingHorizontal: screenWidth > 768 ? Spacing[8] : Spacing[5],
+		paddingVertical: Spacing[5],
+	},
+
+	responsiveContainer: {
+		width: "100%",
+		maxWidth: screenWidth > 768 ? 480 : "100%",
+		alignSelf: "center",
 	},
 
 	header: {
@@ -491,6 +505,15 @@ const styles = StyleSheet.create({
 		paddingHorizontal: Spacing[4],
 		height: 56,
 		...Shadows.sm,
+		...(Platform.OS === "web" && {
+			outline: "none",
+			WebkitTapHighlightColor: "transparent",
+		}),
+	},
+
+	inputWrapperFocused: {
+		borderColor: Colors.primary[500],
+		borderWidth: 2,
 	},
 
 	inputWrapperError: {
@@ -507,6 +530,12 @@ const styles = StyleSheet.create({
 		fontSize: Typography.fontSize.base,
 		color: Colors.text.primary,
 		height: "100%",
+		...(Platform.OS === "web" && {
+			outline: "none", // Remove default web outline
+			WebkitAppearance: "none", // Remove webkit styling
+			border: "none", // Ensure no border
+			boxShadow: "none", // Remove any box shadow
+		}),
 	},
 
 	validationIcon: {

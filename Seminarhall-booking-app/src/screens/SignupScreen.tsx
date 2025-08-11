@@ -12,6 +12,7 @@ import {
 	ScrollView,
 	Image,
 	ActivityIndicator,
+	Dimensions,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { LinearGradient } from "expo-linear-gradient";
@@ -38,6 +39,8 @@ interface Props {
 	navigation: SignupScreenNavigationProp;
 }
 
+const { width: screenWidth } = Dimensions.get("window");
+
 export default function SignupScreen({ navigation }: Props) {
 	// Form state
 	const [name, setName] = useState("");
@@ -53,6 +56,9 @@ export default function SignupScreen({ navigation }: Props) {
 	const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 	const [isLoading, setIsLoading] = useState(false);
 	const [currentStep, setCurrentStep] = useState(1);
+
+	// Focus states
+	const [focusedField, setFocusedField] = useState<string | null>(null);
 
 	// Validation state for real-time feedback
 	const [validationErrors, setValidationErrors] = useState({
@@ -412,8 +418,10 @@ export default function SignupScreen({ navigation }: Props) {
 					showsVerticalScrollIndicator={false}
 					keyboardShouldPersistTaps="handled"
 				>
-					{/* University Header */}
-					<View style={styles.header}>
+					{/* Responsive Container */}
+					<View style={styles.responsiveContainer}>
+						{/* University Header */}
+						<View style={styles.header}>
 						<View style={styles.logoContainer}>
 							<LinearGradient
 								colors={["rgba(255,255,255,0.2)", "rgba(255,255,255,0.1)"]}
@@ -990,6 +998,7 @@ export default function SignupScreen({ navigation }: Props) {
 							<Text style={styles.signInText}>Sign In</Text>
 						</TouchableOpacity>
 					</View>
+					</View>
 				</ScrollView>
 			</KeyboardAvoidingView>
 		</SafeAreaView>
@@ -1017,7 +1026,14 @@ const styles = StyleSheet.create({
 	scrollContent: {
 		flexGrow: 1,
 		justifyContent: "center",
-		padding: Spacing[5],
+		paddingHorizontal: screenWidth > 768 ? Spacing[8] : Spacing[5],
+		paddingVertical: Spacing[5],
+	},
+
+	responsiveContainer: {
+		width: "100%",
+		maxWidth: screenWidth > 768 ? 480 : "100%",
+		alignSelf: "center",
 	},
 
 	header: {
@@ -1155,6 +1171,15 @@ const styles = StyleSheet.create({
 		paddingHorizontal: Spacing[4],
 		height: 56,
 		...Shadows.sm,
+		...(Platform.OS === "web" && {
+			outline: "none",
+			WebkitTapHighlightColor: "transparent",
+		}),
+	},
+
+	inputWrapperFocused: {
+		borderColor: Colors.primary[500],
+		borderWidth: 2,
 	},
 
 	inputWrapperError: {
@@ -1171,6 +1196,12 @@ const styles = StyleSheet.create({
 		fontSize: Typography.fontSize.base,
 		color: Colors.text.primary,
 		height: "100%",
+		...(Platform.OS === "web" && {
+			outline: "none", // Remove default web outline
+			WebkitAppearance: "none", // Remove webkit styling
+			border: "none", // Ensure no border
+			boxShadow: "none", // Remove any box shadow
+		}),
 	},
 
 	passwordInput: {

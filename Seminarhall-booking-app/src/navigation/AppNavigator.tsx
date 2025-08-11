@@ -1,9 +1,10 @@
 import React from "react";
-import { NavigationContainer } from "@react-navigation/native";
+import { NavigationContainer, useNavigation, NavigationProp } from "@react-navigation/native";
 import { createStackNavigator } from "@react-navigation/stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { Dimensions, Platform, View } from "react-native";
 import { ThemeProvider } from "../contexts/ThemeContext";
 import { useAuthStore } from "../stores/authStore";
 
@@ -27,6 +28,7 @@ import HallDetailsScreen from "../screens/admin/HallDetailsScreen";
 import HelpSupportScreen from "../screens/HelpSupportScreen";
 import SettingsScreen from "../screens/SettingsScreen";
 import UserApprovalsScreen from "../screens/admin/UserApprovalsScreen";
+import WebNavigationHeader from "../components/WebNavigationHeader";
 
 // Import admin navigation
 import AdminTabNavigator from "./AdminTabNavigator";
@@ -64,7 +66,78 @@ export type MainTabParamList = {
 const Stack = createStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
+const { width: screenWidth } = Dimensions.get("window");
+const isWeb = Platform.OS === "web";
+const isLargeScreen = screenWidth > 768;
+
+// Custom Web Navigator with top header
+function WebMainNavigator() {
+	const [activeTab, setActiveTab] = React.useState("Home");
+	const navigation = useNavigation();
+
+	const handleNotificationsPress = () => {
+		navigation.navigate("Notifications" as never);
+	};
+
+	const handleSettingsPress = () => {
+		navigation.navigate("Settings" as never);
+	};
+
+	// Create a custom navigation object that handles both tab switching and regular navigation
+	const customNavigation = {
+		...navigation,
+		navigate: (screen: string, params?: any) => {
+			// Handle tab navigation for web
+			if (screen === "MainTabs" && params?.screen) {
+				setActiveTab(params.screen);
+			} else if (["Home", "Halls", "Bookings", "Profile"].includes(screen)) {
+				setActiveTab(screen);
+			} else {
+				// For other screens, use regular navigation
+				(navigation as any).navigate(screen, params);
+			}
+		}
+	};
+
+	const renderScreen = () => {
+		switch (activeTab) {
+			case "Home":
+				return <HomeScreen navigation={customNavigation as any} />;
+			case "Halls":
+				return <HallListScreen navigation={customNavigation as any} />;
+			case "Bookings":
+				return <BookingScreen navigation={customNavigation as any} />;
+			case "Profile":
+				return <ProfileScreen navigation={customNavigation as any} />;
+			case "Notifications":
+				return <NotificationsScreen navigation={customNavigation as any} />;
+			case "Settings":
+				return <SettingsScreen />;
+			default:
+				return <HomeScreen navigation={customNavigation as any} />;
+		}
+	};
+
+	return (
+		<View style={{ flex: 1 }}>
+			<WebNavigationHeader 
+				activeTab={activeTab} 
+				onTabPress={setActiveTab}
+				onNotificationsPress={handleNotificationsPress}
+				onSettingsPress={handleSettingsPress}
+			/>
+			{renderScreen()}
+		</View>
+	);
+}
+
 function MainTabNavigator() {
+	// Use web navigator for large screens
+	if (isWeb && isLargeScreen) {
+		return <WebMainNavigator />;
+	}
+
+	// Use regular bottom tabs for mobile
 	return (
 		<Tab.Navigator
 			screenOptions={({ route }) => ({

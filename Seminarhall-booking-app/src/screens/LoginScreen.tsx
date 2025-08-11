@@ -11,6 +11,7 @@ import {
 	Platform,
 	ScrollView,
 	Image,
+	Dimensions,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { LinearGradient } from "expo-linear-gradient";
@@ -37,12 +38,16 @@ interface Props {
 	navigation: LoginScreenNavigationProp;
 }
 
+const { width: screenWidth } = Dimensions.get("window");
+
 export default function LoginScreen({ navigation }: Props) {
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
 	const [showPassword, setShowPassword] = useState(false);
 	const [rememberMe, setRememberMe] = useState(false);
 	const [isLoading, setIsLoading] = useState(false);
+	const [emailFocused, setEmailFocused] = useState(false);
+	const [passwordFocused, setPasswordFocused] = useState(false);
 
 	const { login, error, clearError } = useAuthStore();
 
@@ -105,8 +110,10 @@ export default function LoginScreen({ navigation }: Props) {
 					showsVerticalScrollIndicator={false}
 					keyboardShouldPersistTaps="handled"
 				>
-					{/* University Header */}
-					<View style={styles.header}>
+					{/* Responsive Container */}
+					<View style={styles.responsiveContainer}>
+						{/* University Header */}
+						<View style={styles.header}>
 						<View style={styles.logoContainer}>
 							<LinearGradient
 								colors={["rgba(255,255,255,0.2)", "rgba(255,255,255,0.1)"]}
@@ -130,7 +137,7 @@ export default function LoginScreen({ navigation }: Props) {
 							{/* Email Input */}
 							<View style={styles.inputContainer}>
 								<Text style={styles.inputLabel}>Email Address</Text>
-								<View style={styles.inputWrapper}>
+								<View style={[styles.inputWrapper, emailFocused && styles.inputWrapperFocused]}>
 									<Ionicons
 										name="mail-outline"
 										size={20}
@@ -141,6 +148,8 @@ export default function LoginScreen({ navigation }: Props) {
 										style={styles.textInput}
 										value={email}
 										onChangeText={setEmail}
+										onFocus={() => setEmailFocused(true)}
+										onBlur={() => setEmailFocused(false)}
 										placeholder="Enter your university email"
 										placeholderTextColor={Colors.gray[400]}
 										keyboardType="email-address"
@@ -154,7 +163,7 @@ export default function LoginScreen({ navigation }: Props) {
 							{/* Password Input */}
 							<View style={styles.inputContainer}>
 								<Text style={styles.inputLabel}>Password</Text>
-								<View style={styles.inputWrapper}>
+								<View style={[styles.inputWrapper, passwordFocused && styles.inputWrapperFocused]}>
 									<Ionicons
 										name="lock-closed-outline"
 										size={20}
@@ -165,6 +174,8 @@ export default function LoginScreen({ navigation }: Props) {
 										style={[styles.textInput, styles.passwordInput]}
 										value={password}
 										onChangeText={setPassword}
+										onFocus={() => setPasswordFocused(true)}
+										onBlur={() => setPasswordFocused(false)}
 										placeholder="Enter your password"
 										placeholderTextColor={Colors.gray[400]}
 										secureTextEntry={!showPassword}
@@ -270,6 +281,7 @@ export default function LoginScreen({ navigation }: Props) {
 							<Text style={styles.signUpText}>Sign Up</Text>
 						</TouchableOpacity>
 					</View>
+					</View>
 				</ScrollView>
 			</KeyboardAvoidingView>
 		</SafeAreaView>
@@ -297,7 +309,14 @@ const styles = StyleSheet.create({
 	scrollContent: {
 		flexGrow: 1,
 		justifyContent: "center",
-		padding: Spacing[5],
+		paddingHorizontal: screenWidth > 768 ? Spacing[8] : Spacing[5],
+		paddingVertical: Spacing[5],
+	},
+
+	responsiveContainer: {
+		width: "100%",
+		maxWidth: screenWidth > 768 ? 480 : "100%",
+		alignSelf: "center",
 	},
 
 	header: {
@@ -379,6 +398,15 @@ const styles = StyleSheet.create({
 		paddingHorizontal: Spacing[4],
 		height: 56,
 		...Shadows.sm,
+		...(Platform.OS === "web" && {
+			outline: "none",
+			WebkitTapHighlightColor: "transparent",
+		}),
+	},
+
+	inputWrapperFocused: {
+		borderColor: Colors.primary[500],
+		borderWidth: 2,
 	},
 
 	inputIcon: {
@@ -390,6 +418,12 @@ const styles = StyleSheet.create({
 		fontSize: Typography.fontSize.base,
 		color: Colors.text.primary,
 		height: "100%",
+		...(Platform.OS === "web" && {
+			outline: "none", // Remove default web outline
+			WebkitAppearance: "none", // Remove webkit styling
+			border: "none", // Ensure no border
+			boxShadow: "none", // Remove any box shadow
+		}),
 	},
 
 	passwordInput: {
@@ -423,6 +457,10 @@ const styles = StyleSheet.create({
 		overflow: "hidden",
 		marginTop: Spacing[2],
 		...Shadows.md,
+		...(Platform.OS === "web" && {
+			outline: "none",
+			WebkitTapHighlightColor: "transparent",
+		}),
 	},
 
 	loginButtonDisabled: {

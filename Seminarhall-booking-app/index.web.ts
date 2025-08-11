@@ -2,6 +2,9 @@
 import { registerRootComponent } from "expo";
 import App from "./App";
 
+// Import web-specific styles to remove outlines
+import "./web-styles.css";
+
 // Set up import.meta polyfill for web
 (globalThis as any).importMeta = {
 	env: process.env,
