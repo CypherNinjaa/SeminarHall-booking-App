@@ -502,38 +502,52 @@ const BookedCalendarScreen: React.FC<BookedCalendarScreenProps> = ({
 						📍 Showing all bookings from all users
 					</Text>
 					<View style={styles.legendItems}>
-						<View style={styles.legendItem}>
-							<View
-								style={[
-									styles.legendDot,
-									{ backgroundColor: theme.colors.success },
-								]}
-							/>
-							<Text style={styles.legendText}>1 booking</Text>
+						<View style={styles.legendRow}>
+							<View style={styles.legendItem}>
+								<View
+									style={[
+										styles.legendDot,
+										{ backgroundColor: theme.colors.primary },
+									]}
+								/>
+								<Text style={styles.legendText}>Current date</Text>
+							</View>
+							<View style={styles.legendItem}>
+								<View
+									style={[
+										styles.legendDot,
+										{ backgroundColor: theme.colors.success },
+									]}
+								/>
+								<Text style={styles.legendText}>1 booking</Text>
+							</View>
+							<View style={styles.legendItem}>
+								<View
+									style={[
+										styles.legendDot,
+										{ backgroundColor: theme.colors.warning },
+									]}
+								/>
+								<Text style={styles.legendText}>2-3 bookings</Text>
+							</View>
 						</View>
-						<View style={styles.legendItem}>
-							<View
-								style={[
-									styles.legendDot,
-									{ backgroundColor: theme.colors.warning },
-								]}
-							/>
-							<Text style={styles.legendText}>2-3 bookings</Text>
-						</View>
-						<View style={styles.legendItem}>
-							<View
-								style={[
-									styles.legendDot,
-									{ backgroundColor: theme.colors.error },
-								]}
-							/>
-							<Text style={styles.legendText}>4+ bookings</Text>
-						</View>
-						<View style={styles.legendItem}>
-							<View
-								style={[styles.legendDot, { backgroundColor: "#FF69B4" }]}
-							/>
-							<Text style={styles.legendText}>Fully booked (9AM-6PM)</Text>
+						<View style={styles.legendRow}>
+							<View style={styles.legendItem}>
+								<View
+									style={[
+										styles.legendDot,
+										{ backgroundColor: theme.colors.error },
+									]}
+								/>
+								<Text style={styles.legendText}>4+ bookings</Text>
+							</View>
+							<View style={styles.legendItem}>
+								<View
+									style={[styles.legendDot, { backgroundColor: "#FF69B4" }]}
+								/>
+								<Text style={styles.legendText}>Fully booked (9AM-6PM)</Text>
+							</View>
+							<View style={styles.legendItemSpacer} />
 						</View>
 					</View>
 				</View>
@@ -773,15 +787,27 @@ const createStyles = (theme: any) =>
 			marginBottom: theme.spacing.sm,
 		},
 		legendItems: {
+			flexDirection: "column",
+			gap: theme.spacing.sm,
+		},
+		legendRow: {
 			flexDirection: "row",
-			flexWrap: "wrap",
 			justifyContent: "space-around",
+			flexWrap: "wrap",
 			gap: theme.spacing.sm,
 		},
 		legendItem: {
 			flexDirection: "row",
 			alignItems: "center",
 			gap: theme.spacing.xs,
+			flex: 1,
+			minWidth: 120,
+			maxWidth: 150,
+		},
+		legendItemSpacer: {
+			flex: 1,
+			minWidth: 120,
+			maxWidth: 150,
 		},
 		legendDot: {
 			width: 12,
