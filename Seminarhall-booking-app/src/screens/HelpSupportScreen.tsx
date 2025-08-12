@@ -185,7 +185,7 @@ const HelpSupportScreen: React.FC<HelpSupportScreenProps> = () => {
 						</View>
 						<View style={styles.infoRow}>
 							<Text style={styles.infoLabel}>Developers</Text>
-							<Text style={styles.infoValue}>Vikash Kumar{'\n'}Nikhil Anand</Text>
+							<Text style={styles.infoValue}>Vikash Kumar{'\n'}Nikhil Anand{'\n'}Sushant Kumar{'\n'}Harsh Raj Shristava</Text>
 						</View>
 						<View style={styles.infoRow}>
 							<Text style={styles.infoLabel}>Contact</Text>
