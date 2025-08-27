@@ -1168,6 +1168,10 @@ export default function HomeScreen({ navigation }: { navigation: any }) {
 			<Animated.View
 				style={[
 					styles.fabContainer,
+					// On web override position to `fixed` so the FAB stays in viewport.
+					Platform.OS === 'web'
+						? ({ position: 'fixed' as any, zIndex: 10000 } as any)
+						: {},
 					{
 						opacity: fadeAnim,
 						transform: [{ scale: scaleAnim }],
@@ -1605,10 +1609,14 @@ const styles = StyleSheet.create({
 
 	// Floating Action Button
 	fabContainer: {
-		position: "absolute",
+		// Keep `absolute` here for TypeScript compatibility.
+		// For web we apply `position: fixed` inline where the component is used.
+		position: 'absolute',
 		bottom: Spacing[6],
 		right: Spacing[5],
-		zIndex: 1000,
+		zIndex: 10000, // high zIndex so it appears above other content
+		// Ensure pointer events work as expected
+		pointerEvents: 'auto',
 	},
 
 	fab: {

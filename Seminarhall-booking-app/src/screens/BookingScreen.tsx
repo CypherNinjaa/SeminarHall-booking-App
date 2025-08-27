@@ -1677,6 +1677,7 @@ const BookingScreen: React.FC<BookingScreenProps> = ({ navigation }) => {
 			<Animated.View
 				style={[
 					styles.fabContainer,
+					Platform.OS === 'web' ? ({ position: 'fixed' as any, zIndex: 10000 } as any) : {},
 					{
 						opacity: fadeAnim,
 						transform: [{ scale: scaleAnim }],

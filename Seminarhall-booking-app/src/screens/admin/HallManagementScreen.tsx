@@ -11,6 +11,7 @@ import {
 	RefreshControl,
 	Dimensions,
 	Image,
+	Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
@@ -657,7 +658,11 @@ export default function HallManagementScreen({
 
 			{/* Floating Action Button */}
 			<TouchableOpacity
-				style={[styles.fabButton, isDark && styles.fabButtonDark]}
+				style={[
+					styles.fabButton,
+					isDark && styles.fabButtonDark,
+					Platform.OS === 'web' ? ({ position: 'fixed' as any, zIndex: 10000 } as any) : {},
+				]}
 				onPress={handleAddHall}
 				activeOpacity={0.8}
 			>
