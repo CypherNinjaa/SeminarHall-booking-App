@@ -49,7 +49,7 @@ class AdminLoggingService {
         console.error('Error logging admin action:', error);
         // Don't throw here as this is just logging
       } else {
-        console.log(`📝 Admin action logged: ${logData.action} on ${logData.targetType}${logData.targetId ? ` (${logData.targetId})` : ''}`);
+        console.log(`Admin action logged: ${logData.action} on ${logData.targetType}${logData.targetId ? ` (${logData.targetId})` : ''}`);
       }
     } catch (error) {
       console.error('Error in admin action logging:', error);

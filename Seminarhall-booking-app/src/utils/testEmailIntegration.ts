@@ -9,7 +9,7 @@ export const testEmailIntegration = async (): Promise<{
   details?: any;
 }> => {
   try {
-    console.log('🧪 Starting email integration test...');
+    console.log('Starting email integration test...');
 
     // Test data
     const testEmailData = {
@@ -24,7 +24,7 @@ export const testEmailIntegration = async (): Promise<{
     };
 
     // Test booking confirmation email
-    console.log('📧 Testing booking confirmation email...');
+    console.log('Testing booking confirmation email...');
     const result = await emailService.sendBookingConfirmation(
       testEmailData.to,
       testEmailData.name,
@@ -39,14 +39,14 @@ export const testEmailIntegration = async (): Promise<{
     );
 
     if (result) {
-      console.log('✅ Email integration test PASSED!');
+      console.log('Email integration test PASSED!');
       return {
         success: true,
         message: 'Email integration test successful! Check your email inbox.',
         details: testEmailData,
       };
     } else {
-      console.log('❌ Email integration test FAILED!');
+      console.log('Email integration test FAILED!');
       return {
         success: false,
         message: 'Email sending failed - check logs for details',
@@ -54,7 +54,7 @@ export const testEmailIntegration = async (): Promise<{
       };
     }
   } catch (error) {
-    console.error('❌ Email integration test ERROR:', error);
+    console.error('Email integration test ERROR:', error);
     return {
       success: false,
       message: `Email integration test error: ${error}`,
@@ -144,8 +144,8 @@ export const testAllEmailTemplates = async (): Promise<{
 
   const overallSuccess = results.every(r => r.success);
   
-  console.log('📊 Email template test results:', results);
-  console.log(`🎯 Overall success: ${overallSuccess}`);
+  console.log('Email template test results:', results);
+  console.log(`Overall success: ${overallSuccess}`);
 
   return { results, overallSuccess };
 };

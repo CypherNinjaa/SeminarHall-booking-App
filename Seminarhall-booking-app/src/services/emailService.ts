@@ -60,7 +60,7 @@ class EmailService {
    */
   async sendEmail(template: EmailNotification['template_type'], emailData: EmailData): Promise<boolean> {
     try {
-      console.log(`📧 Sending ${template} email to ${emailData.to}`);
+      console.log(`Sending ${template} email to ${emailData.to}`);
 
       // Prepare email data for your website's API format
       const emailPayload = {
@@ -81,7 +81,7 @@ class EmailService {
       };
 
       const apiUrl = `${this.getEmailApiUrl()}/api/send-email`;
-      console.log(`📤 Using email API: ${apiUrl}`);
+      console.log(`Using email API: ${apiUrl}`);
 
       // Call your website's Email API
       const response = await fetch(apiUrl, {
@@ -94,28 +94,28 @@ class EmailService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('❌ Email API error:', errorText);
+        console.error('Email API error:', errorText);
         throw new Error(`Email service error: ${response.status} - ${errorText}`);
       }
 
       const result = await response.json();
       
       if (!result.success) {
-        console.error('❌ Email sending failed:', result);
+        console.error('Email sending failed:', result);
         throw new Error(result.message || 'Failed to send email');
       }
 
-      console.log('✅ Email sent successfully:', result.message);
+      console.log('Email sent successfully:', result.message);
       return true;
     } catch (error) {
-      console.error('❌ Error in sendEmail:', error);
+      console.error('Error in sendEmail:', error);
       
       // Fallback to Vercel API if website API fails
       try {
-        console.log('📧 Attempting fallback to Vercel API...');
+        console.log('Attempting fallback to Vercel API...');
         return await this.sendEmailFallback(template, emailData);
       } catch (fallbackError) {
-        console.error('❌ Fallback email also failed:', fallbackError);
+        console.error('Fallback email also failed:', fallbackError);
         return false;
       }
     }
@@ -159,7 +159,7 @@ class EmailService {
       const result = await response.json();
       return result.success;
     } catch (error) {
-      console.error('❌ Fallback email error:', error);
+      console.error('Fallback email error:', error);
       return false;
     }
   }
@@ -180,7 +180,7 @@ class EmailService {
       };
 
       const apiUrl = this.getForgotPasswordApiUrl();
-      console.log(`📤 Using forgot password API: ${apiUrl}`);
+      console.log(`Using forgot password API: ${apiUrl}`);
 
       const response = await fetch(apiUrl, {
         method: 'POST',
@@ -192,21 +192,21 @@ class EmailService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('❌ Password reset API error:', errorText);
+        console.error('Password reset API error:', errorText);
         throw new Error(`Password reset service error: ${response.status} - ${errorText}`);
       }
 
       const result = await response.json();
       
       if (!result.success) {
-        console.error('❌ Password reset failed:', result);
+        console.error('Password reset failed:', result);
         throw new Error(result.message || 'Failed to send password reset email');
       }
 
-      console.log('✅ Password reset email sent successfully:', result.message);
+      console.log('Password reset email sent successfully:', result.message);
       return { success: true, message: result.message };
     } catch (error) {
-      console.error('❌ Error in sendPasswordResetEmail:', error);
+      console.error('Error in sendPasswordResetEmail:', error);
       return { 
         success: false, 
         message: error instanceof Error ? error.message : 'Failed to send password reset email'
@@ -223,7 +223,7 @@ class EmailService {
     message: string = 'This is a test email from the Amity Seminar Hall Booking App'
   ): Promise<{ success: boolean; message: string }> {
     try {
-      console.log(`🧪 Testing email configuration with ${testEmail}`);
+      console.log(`Testing email configuration with ${testEmail}`);
 
       const testPayload = {
         to: testEmail,
@@ -232,7 +232,7 @@ class EmailService {
       };
 
       const apiUrl = `${this.getEmailApiUrl()}/api/test-email`;
-      console.log(`📤 Using test email API: ${apiUrl}`);
+      console.log(`Using test email API: ${apiUrl}`);
 
       const response = await fetch(apiUrl, {
         method: 'POST',
@@ -244,21 +244,21 @@ class EmailService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('❌ Test email API error:', errorText);
+        console.error('Test email API error:', errorText);
         throw new Error(`Test email service error: ${response.status} - ${errorText}`);
       }
 
       const result = await response.json();
       
       if (!result.success) {
-        console.error('❌ Test email failed:', result);
+        console.error('Test email failed:', result);
         throw new Error(result.message || 'Failed to send test email');
       }
 
-      console.log('✅ Test email sent successfully:', result.message);
+      console.log('Test email sent successfully:', result.message);
       return { success: true, message: result.message };
     } catch (error) {
-      console.error('❌ Error in testEmailConfiguration:', error);
+      console.error('Error in testEmailConfiguration:', error);
       return { 
         success: false, 
         message: error instanceof Error ? error.message : 'Failed to send test email'
@@ -295,7 +295,7 @@ class EmailService {
 
       return await this.sendEmail('booking_confirmation', emailData);
     } catch (error) {
-      console.error('❌ Error sending booking confirmation:', error);
+      console.error('Error sending booking confirmation:', error);
       return false;
     }
   }
@@ -331,7 +331,7 @@ class EmailService {
 
       return await this.sendEmail('booking_approved', emailData);
     } catch (error) {
-      console.error('❌ Error sending booking approval:', error);
+      console.error('Error sending booking approval:', error);
       return false;
     }
   }
@@ -367,7 +367,7 @@ class EmailService {
 
       return await this.sendEmail('booking_rejected', emailData);
     } catch (error) {
-      console.error('❌ Error sending booking rejection:', error);
+      console.error('Error sending booking rejection:', error);
       return false;
     }
   }
@@ -403,7 +403,7 @@ class EmailService {
 
       return await this.sendEmail('booking_cancelled', emailData);
     } catch (error) {
-      console.error('❌ Error sending booking cancellation:', error);
+      console.error('Error sending booking cancellation:', error);
       return false;
     }
   }
@@ -437,7 +437,7 @@ class EmailService {
 
       return await this.sendEmail('booking_reminder', emailData);
     } catch (error) {
-      console.error('❌ Error sending booking reminder:', error);
+      console.error('Error sending booking reminder:', error);
       return false;
     }
   }
@@ -447,14 +447,14 @@ class EmailService {
    */
   async sendTomorrowBookingReminders(): Promise<{ sent: number; failed: number }> {
     try {
-      console.log('📧 Starting bulk reminder emails for tomorrow\'s bookings...');
+      console.log('Starting bulk reminder emails for tomorrow\'s bookings...');
 
       // Calculate tomorrow's date in DDMMYYYY format
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
       const tomorrowString = this.formatDateForDatabase(tomorrow);
 
-      console.log(`📅 Looking for bookings on: ${tomorrowString}`);
+      console.log(`Looking for bookings on: ${tomorrowString}`);
 
       // Get all approved bookings for tomorrow
       const { data: tomorrowBookings, error } = await supabase
@@ -464,7 +464,7 @@ class EmailService {
         .eq('status', 'approved');
 
       if (error) {
-        console.error('❌ Error fetching tomorrow\'s bookings:', error);
+        console.error('Error fetching tomorrow\'s bookings:', error);
         throw error;
       }
 
@@ -473,7 +473,7 @@ class EmailService {
         return { sent: 0, failed: 0 };
       }
 
-      console.log(`📧 Found ${tomorrowBookings.length} bookings for tomorrow`);
+      console.log(`Found ${tomorrowBookings.length} bookings for tomorrow`);
 
       let sentCount = 0;
       let failedCount = 0;
@@ -496,24 +496,24 @@ class EmailService {
 
           if (success) {
             sentCount++;
-            console.log(`✅ Reminder sent to ${booking.user_email} for booking ${booking.id}`);
+            console.log(`Reminder sent to ${booking.user_email} for booking ${booking.id}`);
           } else {
             failedCount++;
-            console.log(`❌ Failed to send reminder to ${booking.user_email} for booking ${booking.id}`);
+            console.log(`Failed to send reminder to ${booking.user_email} for booking ${booking.id}`);
           }
 
           // Add small delay between emails to avoid rate limiting
           await new Promise(resolve => setTimeout(resolve, 1000));
         } catch (error) {
           failedCount++;
-          console.error(`❌ Error sending reminder for booking ${booking.id}:`, error);
+          console.error(`Error sending reminder for booking ${booking.id}:`, error);
         }
       }
 
-      console.log(`📧 Reminder email summary: ${sentCount} sent, ${failedCount} failed`);
+      console.log(`Reminder email summary: ${sentCount} sent, ${failedCount} failed`);
       return { sent: sentCount, failed: failedCount };
     } catch (error) {
-      console.error('❌ Error in sendTomorrowBookingReminders:', error);
+      console.error('Error in sendTomorrowBookingReminders:', error);
       return { sent: 0, failed: 0 };
     }
   }
@@ -546,10 +546,10 @@ class EmailService {
         ]);
 
       if (error) {
-        console.error('❌ Error logging email notification:', error);
+        console.error('Error logging email notification:', error);
       }
     } catch (error) {
-      console.error('❌ Error in logEmailNotification:', error);
+      console.error('Error in logEmailNotification:', error);
     }
   }
 
@@ -609,7 +609,7 @@ class EmailService {
         return minutesLeft <= 1 ? 'a few minutes' : `${minutesLeft} minutes`;
       }
     } catch (error) {
-      console.error('❌ Error calculating time until booking:', error);
+      console.error('Error calculating time until booking:', error);
       return 'soon';
     }
   }
@@ -631,7 +631,7 @@ class EmailService {
         day: 'numeric',
       });
     } catch (error) {
-      console.error('❌ Error formatting date for email:', error);
+      console.error('Error formatting date for email:', error);
       return dateString;
     }
   }
@@ -684,7 +684,7 @@ class EmailService {
         .limit(10);
 
       if (totalSentError || totalFailedError || todaySentError || recentFailuresError) {
-        console.error('❌ Error fetching email stats');
+        console.error('Error fetching email stats');
         return { totalSent: 0, totalFailed: 0, todaySent: 0, recentFailures: [] };
       }
 
@@ -695,7 +695,7 @@ class EmailService {
         recentFailures: recentFailuresData || [],
       };
     } catch (error) {
-      console.error('❌ Error getting email stats:', error);
+      console.error('Error getting email stats:', error);
       return { totalSent: 0, totalFailed: 0, todaySent: 0, recentFailures: [] };
     }
   }

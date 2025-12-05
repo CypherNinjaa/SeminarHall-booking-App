@@ -21,7 +21,7 @@ export const debugAuthState = async () => {
 // Helper to test database connection
 export const testDatabaseConnection = async () => {
 	// Completely disabled for troubleshooting
-	console.log("✅ Database connection test bypassed - assuming connection is working");
+	console.log("Database connection test bypassed - assuming connection is working");
 	return true;
 };
 

@@ -81,7 +81,7 @@ class EnhancedAdminReportsService {
    */
   async testDatabaseConnection() {
     try {
-      console.log("🔍 Testing database connection...");
+      console.log("Testing database connection...");
       
       // Test basic connection
       const { data: testData, error: testError } = await supabase
@@ -89,13 +89,13 @@ class EnhancedAdminReportsService {
         .select('count(*)')
         .single();
       
-      console.log("🔍 Basic connection test:", { testData, testError });
+      console.log("Basic connection test:", { testData, testError });
       
       // Test if we can list tables (this might fail due to permissions, but worth trying)
       const { data: tablesData, error: tablesError } = await supabase
         .rpc('get_table_names');
       
-      console.log("🔍 Available tables:", { tablesData, tablesError });
+      console.log("Available tables:", { tablesData, tablesError });
       
       return { success: !testError, error: testError };
     } catch (error) {
@@ -109,7 +109,7 @@ class EnhancedAdminReportsService {
    */
   async getDashboardStats(): Promise<AdminDashboardStats> {
     try {
-      console.log('📊 Fetching comprehensive dashboard statistics...');
+      console.log('Fetching comprehensive dashboard statistics...');
 
       // Fetch all required data in parallel
       const [
@@ -198,7 +198,7 @@ class EnhancedAdminReportsService {
     const todayFormatted = `${today.split('-')[2]}${today.split('-')[1]}${today.split('-')[0]}`;
     const tomorrowFormatted = `${tomorrow.split('-')[2]}${tomorrow.split('-')[1]}${tomorrow.split('-')[0]}`;
 
-    console.log("🔍 Booking stats: Date formats:", {
+    console.log("Booking stats: Date formats:", {
       today,
       todayFormatted,
       tomorrow,
@@ -208,21 +208,21 @@ class EnhancedAdminReportsService {
     });
 
     // First, let's check if the table exists and has any data at all
-    console.log("🔍 Checking smart_bookings table...");
+    console.log("Checking smart_bookings table...");
     
     // Try a simple count query first
     const { count, error: countError } = await supabase
       .from('smart_bookings')
       .select('*', { count: 'exact', head: true });
 
-    console.log("🔍 Table count result:", { count, countError });
+    console.log("Table count result:", { count, countError });
 
     // Now get actual data
     const { data: bookings, error } = await supabase
       .from('smart_bookings')
       .select('*');
 
-    console.log("🔍 Booking stats: Raw data from database:", {
+    console.log("Booking stats: Raw data from database:", {
       count: bookings?.length || 0,
       error,
       sampleBookings: bookings?.slice(0, 3), // Show first 3 bookings
@@ -235,14 +235,14 @@ class EnhancedAdminReportsService {
         acc[booking.status] = (acc[booking.status] || 0) + 1;
         return acc;
       }, {});
-      console.log("🔍 Status breakdown:", statusBreakdown);
+      console.log("Status breakdown:", statusBreakdown);
       
       // Check booking dates
       const dateBreakdown = bookings.reduce((acc, booking) => {
         acc[booking.booking_date] = (acc[booking.booking_date] || 0) + 1;
         return acc;
       }, {});
-      console.log("🔍 Date breakdown:", dateBreakdown);
+      console.log("Date breakdown:", dateBreakdown);
     }
 
     if (error) {
@@ -270,7 +270,7 @@ class EnhancedAdminReportsService {
       }).length || 0,
     };
 
-    console.log("🔍 Booking stats: Calculated statistics:", stats);
+    console.log("Booking stats: Calculated statistics:", stats);
 
     return stats;
   }

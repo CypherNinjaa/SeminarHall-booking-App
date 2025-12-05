@@ -150,13 +150,13 @@ export const userManagementService = {
 	 */
 	getUserAnalytics: async () => {
 		try {
-			console.log("📊 Attempting to get analytics via RPC function...");
+			console.log("Attempting to get analytics via RPC function...");
 			
 			// First, try the RPC function
 			const { data: rpcData, error: rpcError } = await supabase.rpc("get_user_analytics");
 
 			if (!rpcError && rpcData) {
-				console.log("✅ Analytics from RPC:", rpcData);
+				console.log("Analytics from RPC:", rpcData);
 				
 				// Handle both JSON object format and table format
 				if (Array.isArray(rpcData) && rpcData.length > 0) {
@@ -168,7 +168,7 @@ export const userManagementService = {
 				}
 			}
 			
-			console.log("⚠️ RPC failed or returned invalid data, using direct query fallback...");
+			console.log("RPC failed or returned invalid data, using direct query fallback...");
 			console.log("RPC Error:", rpcError);
 			
 			// Fallback: Direct query approach
@@ -177,14 +177,14 @@ export const userManagementService = {
 				.select("role, is_active, created_at");
 
 			if (queryError) {
-				console.error("❌ Direct query also failed:", queryError);
+				console.error("Direct query also failed:", queryError);
 				throw queryError;
 			}
 
-			console.log("📊 Profiles data for analytics:", profiles?.length, "users found");
+			console.log("Profiles data for analytics:", profiles?.length, "users found");
 
 			if (!profiles || profiles.length === 0) {
-				console.log("⚠️ No profiles found, returning zeros");
+				console.log("No profiles found, returning zeros");
 				return {
 					total_users: 0,
 					super_admins: 0,
@@ -216,11 +216,11 @@ export const userManagementService = {
 				).length
 			};
 
-			console.log("✅ Calculated analytics:", analytics);
+			console.log("Calculated analytics:", analytics);
 			return analytics;
 
 		} catch (error) {
-			console.error("❌ Error getting user analytics:", error);
+			console.error("Error getting user analytics:", error);
 			
 			// Return zero values as absolute fallback
 			return {

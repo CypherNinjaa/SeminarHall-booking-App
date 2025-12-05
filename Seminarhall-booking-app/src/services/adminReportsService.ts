@@ -1,4 +1,4 @@
-import { supabase } from '../utils/supabaseSetup';
+﻿import { supabase } from '../utils/supabaseSetup';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { Alert, Platform } from 'react-native';
@@ -260,7 +260,7 @@ class AdminReportsService {
    */
   private async getTotalHalls(): Promise<number> {
     try {
-      console.log('[AdminReports] Getting total halls count');
+      console.log('$3AdminReports] Getting total halls count');
       
       const { count, error } = await supabase
         .from('halls')
@@ -455,7 +455,7 @@ class AdminReportsService {
       console.log(`[AdminReports] Found ${bookings?.length || 0} bookings for user activity`);
 
       if (!bookings || bookings.length === 0) {
-        console.log('[AdminReports] No bookings found for user activity');
+        console.log('$3AdminReports] No bookings found for user activity');
         return [];
       }
 
@@ -566,7 +566,7 @@ class AdminReportsService {
       console.log(`[AdminReports] Found ${bookings?.length || 0} detailed bookings`);
 
       if (!bookings || bookings.length === 0) {
-        console.log('[AdminReports] No bookings found for detailed analysis');
+        console.log('$3AdminReports] No bookings found for detailed analysis');
         return [];
       }
 
@@ -720,7 +720,7 @@ class AdminReportsService {
 </head>
 <body>
     <div class="header">
-        <h1>📊 Seminar Hall Analytics Report</h1>
+        <h1>Seminar Hall Analytics Report</h1>
         <p>Period: ${timeRangeLabel} | Generated: ${currentDate}</p>
     </div>
 
@@ -792,7 +792,7 @@ class AdminReportsService {
     </div>
 
     <div class="section">
-        <h2>📋 Detailed Booking Records</h2>
+        <h2>Detailed Booking Records</h2>
         <p style="color: #666; margin-bottom: 15px;">Complete booking information for data analysis</p>
         <table>
             <thead>
@@ -849,7 +849,7 @@ class AdminReportsService {
             </tbody>
         </table>
         <p style="color: #666; font-size: 12px; margin-top: 15px;">
-            📊 Total Records: ${metrics.detailed_bookings.length} | 
+            Total Records: ${metrics.detailed_bookings.length} | 
             Approved: ${metrics.detailed_bookings.filter(b => b.status === 'approved').length} | 
             Pending: ${metrics.detailed_bookings.filter(b => b.status === 'pending').length} | 
             Cancelled: ${metrics.detailed_bookings.filter(b => b.status === 'cancelled').length}
@@ -966,7 +966,7 @@ class AdminReportsService {
    */
   async debugDatabaseContents(): Promise<void> {
     try {
-      console.log('[DEBUG] Checking database contents...');
+      console.log('$3DEBUG] Checking database contents...');
       
       // Check smart_bookings
       const { data: bookings, error: bookingsError } = await supabase
@@ -974,7 +974,7 @@ class AdminReportsService {
         .select('id, user_id, hall_id, booking_date, status, created_at')
         .limit(5);
       
-      console.log('[DEBUG] Smart bookings sample:', bookings);
+      console.log('$3DEBUG] Smart bookings sample:', bookings);
       if (bookingsError) console.error('[DEBUG] Bookings error:', bookingsError);
       
       // Check halls
@@ -983,7 +983,7 @@ class AdminReportsService {
         .select('id, name, is_active')
         .limit(5);
       
-      console.log('[DEBUG] Halls sample:', halls);
+      console.log('$3DEBUG] Halls sample:', halls);
       if (hallsError) console.error('[DEBUG] Halls error:', hallsError);
       
       // Check profiles
@@ -992,7 +992,7 @@ class AdminReportsService {
         .select('id, name, role, is_active')
         .limit(5);
       
-      console.log('[DEBUG] Profiles sample:', profiles);
+      console.log('$3DEBUG] Profiles sample:', profiles);
       if (profilesError) console.error('[DEBUG] Profiles error:', profilesError);
       
       // Count totals
@@ -1008,7 +1008,7 @@ class AdminReportsService {
         .from('profiles')
         .select('*', { count: 'exact', head: true });
       
-      console.log('[DEBUG] Total counts:', {
+      console.log('$3DEBUG] Total counts:', {
         bookings: bookingsCount,
         halls: hallsCount,
         profiles: profilesCount

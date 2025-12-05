@@ -233,18 +233,18 @@ class SmartBookingService {
     excludeBookingId?: string
   ): Promise<AvailabilityCheck> {
     try {
-      console.log(`🔍 Checking availability for ${hallId} on ${date} from ${startTime} to ${endTime}`);
+      console.log(`Checking availability for ${hallId} on ${date} from ${startTime} to ${endTime}`);
       
       // Get all existing bookings for this hall and date
       const existingBookings = await this.getBookingsForHallAndDate(hallId, date);
-      console.log(`📋 Found ${existingBookings.length} existing bookings`);
+      console.log(`Found ${existingBookings.length} existing bookings`);
 
       // Filter out the booking being edited if provided
       const relevantBookings = excludeBookingId 
         ? existingBookings.filter(booking => booking.id !== excludeBookingId)
         : existingBookings;
 
-      console.log(`📋 Checking against ${relevantBookings.length} relevant bookings`);
+      console.log(`Checking against ${relevantBookings.length} relevant bookings`);
 
       // Check for conflicts with improved logic
       const conflictingBookings: SmartBooking[] = [];
@@ -255,7 +255,7 @@ class SmartBookingService {
         const existingStartMinutes = this.timeToMinutes(booking.start_time);
         const existingEndMinutes = this.timeToMinutes(booking.end_time);
 
-        console.log(`⏰ Comparing with booking: ${booking.start_time}-${booking.end_time} (${booking.purpose})`);
+        console.log(`Comparing with booking: ${booking.start_time}-${booking.end_time} (${booking.purpose})`);
 
         // Check if there's at least 44 minutes gap between bookings
         const gapAfterExisting = startMinutes - existingEndMinutes;
@@ -280,7 +280,7 @@ class SmartBookingService {
       }
 
       const isAvailable = conflictingBookings.length === 0;
-      console.log(`✅ Final result: ${isAvailable ? 'AVAILABLE' : 'NOT AVAILABLE'}`);
+      console.log(`Final result: ${isAvailable ? 'AVAILABLE' : 'NOT AVAILABLE'}`);
 
       // Generate suggested slots if not available
       let suggestedSlots: TimeSlotWithBuffer[] = [];
@@ -528,9 +528,9 @@ class SmartBookingService {
             purpose: completeBooking.purpose,
           }
         );
-        console.log('✅ Booking confirmation email sent successfully');
+        console.log('Booking confirmation email sent successfully');
       } catch (emailError) {
-        console.error('❌ Failed to send booking confirmation email:', emailError);
+        console.error('Failed to send booking confirmation email:', emailError);
         // Don't fail the booking creation if email fails
       }
 
@@ -538,7 +538,7 @@ class SmartBookingService {
       try {
         await notificationService.createNotification({
           userId: completeBooking.user_id,
-          title: '🎉 Booking Confirmed!',
+          title: 'Booking Confirmed!',
           message: `Your booking for ${completeBooking.hall_name} on ${this.formatDateForDisplay(completeBooking.booking_date)} from ${completeBooking.start_time} to ${completeBooking.end_time} has been submitted and is pending approval.`,
           type: 'booking',
           data: {
@@ -548,9 +548,9 @@ class SmartBookingService {
             status: completeBooking.status
           }
         });
-        console.log('✅ Booking confirmation notification created successfully');
+        console.log('Booking confirmation notification created successfully');
       } catch (notificationError) {
-        console.error('❌ Failed to create booking confirmation notification:', notificationError);
+        console.error('Failed to create booking confirmation notification:', notificationError);
         // Don't fail the booking creation if notification fails
       }
 
@@ -905,19 +905,19 @@ class SmartBookingService {
       // Check if user is authenticated before proceeding
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       if (authError || !user) {
-        console.log('🔄 No authenticated user, skipping expired booking check');
+        console.log('No authenticated user, skipping expired booking check');
         return 0;
       }
 
       // Throttle the expired booking checks to prevent too frequent calls
       const now = Date.now();
       if (now - this.lastExpiredBookingCheck < this.EXPIRED_BOOKING_CHECK_INTERVAL) {
-        console.log('🔄 Skipping expired booking check (throttled)');
+        console.log('Skipping expired booking check (throttled)');
         return 0;
       }
       this.lastExpiredBookingCheck = now;
 
-      console.log('🔄 Checking for expired bookings to mark as completed...');
+      console.log('Checking for expired bookings to mark as completed...');
       console.log('🕐 Current time:', new Date().toLocaleString());
       
       // Get all approved bookings
@@ -932,25 +932,25 @@ class SmartBookingService {
       }
 
       if (!approvedBookings || approvedBookings.length === 0) {
-        console.log('🔄 No approved bookings found');
+        console.log('No approved bookings found');
         return 0;
       }
 
-      console.log(`🔄 Found ${approvedBookings.length} approved bookings to check`);
+      console.log(`Found ${approvedBookings.length} approved bookings to check`);
 
       // Find bookings that should be completed
       const expiredBookings = approvedBookings.filter(booking => {
         const isCompleted = this.isBookingCompleted(booking);
-        console.log(`📋 Booking ${booking.id}: ${booking.booking_date} ${booking.end_time} - ${isCompleted ? 'EXPIRED' : 'ACTIVE'}`);
+        console.log(`Booking ${booking.id}: ${booking.booking_date} ${booking.end_time} - ${isCompleted ? 'EXPIRED' : 'ACTIVE'}`);
         return isCompleted;
       });
       
       if (expiredBookings.length === 0) {
-        console.log('🔄 No expired bookings found');
+        console.log('No expired bookings found');
         return 0;
       }
 
-      console.log(`🔄 Found ${expiredBookings.length} expired bookings to mark as completed`);
+      console.log(`Found ${expiredBookings.length} expired bookings to mark as completed`);
 
       // Update expired bookings to completed status
       const updatePromises = expiredBookings.map(booking => 
@@ -972,7 +972,7 @@ class SmartBookingService {
       }
 
       const successCount = results.filter(result => !result.error).length;
-      console.log(`✅ Successfully marked ${successCount} bookings as completed`);
+      console.log(`Successfully marked ${successCount} bookings as completed`);
       
       return successCount;
     } catch (error) {
@@ -1172,7 +1172,7 @@ class SmartBookingService {
     booking_type: string 
   }> {
     try {
-      console.log(`🔍 Multi-date availability check for ${hallId}:`, {
+      console.log(`Multi-date availability check for ${hallId}:`, {
         dates: dates.length,
         timeSlot: `${startTime}-${endTime}`,
         bookingType
@@ -1205,7 +1205,7 @@ class SmartBookingService {
       const suggestedSlots = results.find(r => r.suggested_slots.length > 0)?.suggested_slots || [];
       const nextAvailableSlot = results.find(r => r.next_available_slot)?.next_available_slot;
 
-      console.log(`✅ Multi-date check complete:`, {
+      console.log(`Multi-date check complete:`, {
         totalDates: dates.length,
         availableDates: results.filter(r => r.is_available).length,
         conflictDates: results.filter(r => !r.is_available).length,

@@ -481,14 +481,14 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 
 				Alert.alert(
 					"Availability Check Results",
-					`📅 Dates checked: ${
+					`Dates checked: ${
 						datesToCheck.length
-					}\n✅ Available: ${availableDates}\n❌ Conflicts: ${conflictDates}\n\n${
+					}\nAvailable: ${availableDates}\nConflicts: ${conflictDates}\n\n${
 						isWholeDayBooking ? "🌅 Whole day booking (9 AM - 6 PM)\n" : ""
 					}${
 						result.is_available
-							? "🎉 All selected dates are available!"
-							: "⚠️ Some dates have conflicts. Check details below."
+							? "All selected dates are available!"
+							: "Some dates have conflicts. Check details below."
 					}`,
 					[{ text: "OK" }]
 				);
@@ -1447,13 +1447,13 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 										"🌅 Checking whole day availability (9 AM - 6 PM)"}
 									{!isWholeDayBooking &&
 										bookingMode === "single" &&
-										"📅 Checking single date availability"}
+										"Checking single date availability"}
 									{!isWholeDayBooking &&
 										bookingMode === "multiple" &&
-										`📅 Checking ${selectedDates.length} selected dates`}
+										`Checking ${selectedDates.length} selected dates`}
 									{!isWholeDayBooking &&
 										bookingMode === "recurring" &&
-										`🔄 Checking ${recurringDays} recurring dates`}
+										`Checking ${recurringDays} recurring dates`}
 								</Text>
 							</View>
 
@@ -1526,8 +1526,8 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 												]}
 											>
 												{availabilityCheck.is_available
-													? "✅ Available!"
-													: "❌ Not Available"}
+													? "Available!"
+													: "Not Available"}
 											</Text>
 											{/* Show booking type and date info */}
 											{(availabilityCheck as any).booking_type && (
@@ -1536,16 +1536,16 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 														"whole_day" && "🌅 Whole Day Booking (9 AM - 6 PM)"}
 													{(availabilityCheck as any).booking_type ===
 														"multi_date" &&
-														`📅 ${
+														`${
 															(availabilityCheck as any).dates_checked?.length
 														} dates checked`}
 													{(availabilityCheck as any).booking_type ===
 														"recurring" &&
-														`🔄 ${
+														`${
 															(availabilityCheck as any).dates_checked?.length
 														} recurring dates`}
 													{(availabilityCheck as any).booking_type ===
-														"single" && "📅 Single date booking"}
+														"single" && "Single date booking"}
 												</Text>
 											)}
 										</View>
@@ -1557,7 +1557,7 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 											1 && (
 											<View style={styles.multiDateSummary}>
 												<Text style={styles.multiDateTitle}>
-													📊 Date-by-Date Results:
+													Date-by-Date Results:
 												</Text>
 												{(availabilityCheck as any).multi_date_results.map(
 													(result: any, index: number) => (
@@ -1605,7 +1605,7 @@ const BookingFormScreen: React.FC<BookingFormScreenProps> = ({
 										availabilityCheck.conflicting_bookings.length > 0 && (
 											<View style={styles.conflictInfo}>
 												<Text style={styles.conflictTitle}>
-													⚠️ Booking Conflicts:
+													Booking Conflicts:
 												</Text>
 												{availabilityCheck.conflicting_bookings.map(
 													(conflict, index) => (

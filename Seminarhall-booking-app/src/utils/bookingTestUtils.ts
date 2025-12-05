@@ -41,18 +41,18 @@ export const createTestBooking = (
 };
 
 export const testBookingCompletion = () => {
-  console.log('🧪 Testing automatic booking completion...');
+  console.log('Testing automatic booking completion...');
   
   const expiredBooking = createTestBooking(60); // Ended 1 hour ago
   const activeBooking = createTestBooking(-60); // Will end in 1 hour
   
-  console.log('📅 Expired booking:', {
+  console.log('Expired booking:', {
     date: expiredBooking.booking_date,
     endTime: expiredBooking.end_time,
     status: expiredBooking.status
   });
   
-  console.log('📅 Active booking:', {
+  console.log('Active booking:', {
     date: activeBooking.booking_date,
     endTime: activeBooking.end_time,
     status: activeBooking.status
@@ -62,5 +62,5 @@ export const testBookingCompletion = () => {
   // const expiredShouldComplete = smartBookingService.isBookingCompleted(expiredBooking);
   // const activeShouldNotComplete = smartBookingService.isBookingCompleted(activeBooking);
   
-  console.log('✅ Test setup complete');
+  console.log('Test setup complete');
 };

@@ -19,15 +19,15 @@ export default function App() {
 	useEffect(() => {
 		const initializeNotifications = async () => {
 			if (user && !notificationInitRef.current) {
-				console.log("🔔 Initializing notification service for user:", user.id);
+				console.log("Initializing notification service for user:", user.id);
 				const success = await notificationService.initialize(user.id);
 				if (success) {
 					notificationInitRef.current = true;
-					console.log("✅ Notification service initialized for user");
+					console.log("Notification service initialized for user");
 				}
 			} else if (!user && notificationInitRef.current) {
 				// User logged out, cleanup notifications
-				console.log("🔔 Cleaning up notification service");
+				console.log("Cleaning up notification service");
 				notificationService.cleanup();
 				notificationInitRef.current = false;
 			}
@@ -75,9 +75,9 @@ export default function App() {
 				await initializeAuth();
 
 				// Initialize basic notification service (without user-specific features)
-				console.log("🔔 Initializing basic notification service...");
+				console.log("Initializing basic notification service...");
 				await notificationService.initialize();
-				console.log("✅ Basic notification service initialized");
+				console.log("Basic notification service initialized");
 			} catch (error) {
 				console.error("App initialization error:", error);
 				Alert.alert(

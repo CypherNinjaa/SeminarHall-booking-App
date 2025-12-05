@@ -24,7 +24,7 @@ export class NotificationTester {
    * Run comprehensive notification system tests
    */
   async runCompleteTest(userId: string): Promise<NotificationTestResults> {
-    console.log('🧪 Starting comprehensive notification system test...');
+    console.log('Starting comprehensive notification system test...');
     
     try {
       // Test 1: Check permissions
@@ -42,10 +42,10 @@ export class NotificationTester {
       // Test 5: Test email service
       await this.testEmailService(userId);
       
-      console.log('🧪 Notification system test completed:', this.results);
+      console.log('Notification system test completed:', this.results);
       return this.results;
     } catch (error) {
-      console.error('🧪 Notification test failed:', error);
+      console.error('Notification test failed:', error);
       this.results.errors.push(`Test execution failed: ${error}`);
       return this.results;
     }
@@ -56,14 +56,14 @@ export class NotificationTester {
    */
   private async testPermissions(): Promise<void> {
     try {
-      console.log('🧪 Testing notification permissions...');
+      console.log('Testing notification permissions...');
       const hasPermissions = await notificationService.requestPermissions();
       this.results.permissionsGranted = hasPermissions;
       
       if (!hasPermissions) {
         this.results.errors.push('Notification permissions not granted');
       } else {
-        console.log('✅ Notification permissions granted');
+        console.log('Notification permissions granted');
       }
     } catch (error) {
       this.results.errors.push(`Permission test failed: ${error}`);
@@ -75,14 +75,14 @@ export class NotificationTester {
    */
   private async testPushTokenGeneration(userId: string): Promise<void> {
     try {
-      console.log('🧪 Testing push token generation...');
+      console.log('Testing push token generation...');
       const token = await notificationService.registerForPushNotifications(userId);
       this.results.pushTokenGenerated = token !== null;
       
       if (!token) {
         this.results.errors.push('Failed to generate push token');
       } else {
-        console.log('✅ Push token generated successfully');
+        console.log('Push token generated successfully');
       }
     } catch (error) {
       this.results.errors.push(`Push token test failed: ${error}`);
@@ -94,12 +94,12 @@ export class NotificationTester {
    */
   private async testDatabaseConnection(userId: string): Promise<void> {
     try {
-      console.log('🧪 Testing database connection...');
+      console.log('Testing database connection...');
       
       // Test creating a notification
       const testNotification = await notificationService.createNotification({
         userId,
-        title: '🧪 Test Notification',
+        title: 'Test Notification',
         message: 'This is a test notification to verify database connectivity.',
         type: 'system',
         sendPush: false,
@@ -107,7 +107,7 @@ export class NotificationTester {
       });
       
       if (testNotification) {
-        console.log('✅ Database connection working');
+        console.log('Database connection working');
         this.results.databaseConnectionWorking = true;
         
         // Clean up test notification
@@ -125,17 +125,17 @@ export class NotificationTester {
    */
   private async testLocalNotifications(): Promise<void> {
     try {
-      console.log('🧪 Testing local notifications...');
+      console.log('Testing local notifications...');
       
       // Schedule a test notification for 5 seconds from now
       await notificationService.scheduleLocalNotification({
-        title: '🧪 Test Local Notification',
+        title: 'Test Local Notification',
         body: 'This is a test local notification scheduled 5 seconds ago.',
         data: { testType: 'local_notification_test' },
       }, 5); // 5 seconds
       
       this.results.localNotificationWorking = true;
-      console.log('✅ Local notification scheduled successfully');
+      console.log('Local notification scheduled successfully');
     } catch (error) {
       this.results.errors.push(`Local notification test failed: ${error}`);
     }
@@ -146,7 +146,7 @@ export class NotificationTester {
    */
   private async testEmailService(userId: string): Promise<void> {
     try {
-      console.log('🧪 Testing email service...');
+      console.log('Testing email service...');
       
       // Get user settings to check if email is enabled
       const settings = await notificationService.getNotificationSettings(userId);
@@ -155,7 +155,7 @@ export class NotificationTester {
         // Note: We don't actually send a test email to avoid spam
         // Instead, we just verify the email service configuration
         this.results.emailServiceWorking = true;
-        console.log('✅ Email service configuration verified');
+        console.log('Email service configuration verified');
       } else {
         this.results.errors.push('Email notifications are disabled for this user');
       }
@@ -169,7 +169,7 @@ export class NotificationTester {
    */
   async testNotificationSettings(userId: string): Promise<boolean> {
     try {
-      console.log('🧪 Testing notification settings...');
+      console.log('Testing notification settings...');
       
       // Get current settings
       const currentSettings = await notificationService.getNotificationSettings(userId);
@@ -187,14 +187,14 @@ export class NotificationTester {
       const updated = await notificationService.updateNotificationSettings(userId, testSettings);
       
       if (updated) {
-        console.log('✅ Notification settings test passed');
+        console.log('Notification settings test passed');
         return true;
       } else {
-        console.log('❌ Failed to update notification settings');
+        console.log('Failed to update notification settings');
         return false;
       }
     } catch (error) {
-      console.error('❌ Notification settings test failed:', error);
+      console.error('Notification settings test failed:', error);
       return false;
     }
   }
@@ -204,12 +204,12 @@ export class NotificationTester {
    */
   async testFullNotificationFlow(userId: string): Promise<boolean> {
     try {
-      console.log('🧪 Testing full notification flow...');
+      console.log('Testing full notification flow...');
       
       // Create a comprehensive test notification
       const notification = await notificationService.createNotification({
         userId,
-        title: '🎉 Booking Approved - Test Hall',
+        title: 'Booking Approved - Test Hall',
         message: 'Your test booking has been approved for demonstration purposes.',
         type: 'booking',
         sendPush: true,
@@ -225,7 +225,7 @@ export class NotificationTester {
       });
       
       if (notification) {
-        console.log('✅ Full notification flow test passed');
+        console.log('Full notification flow test passed');
         
         // Test marking as read
         await notificationService.markAsRead(notification.id);
@@ -233,16 +233,16 @@ export class NotificationTester {
         // Clean up test notification after 30 seconds
         setTimeout(async () => {
           await notificationService.deleteNotification(notification.id);
-          console.log('🧹 Test notification cleaned up');
+          console.log('Test notification cleaned up');
         }, 30000);
         
         return true;
       } else {
-        console.log('❌ Failed to create full notification');
+        console.log('Failed to create full notification');
         return false;
       }
     } catch (error) {
-      console.error('❌ Full notification flow test failed:', error);
+      console.error('Full notification flow test failed:', error);
       return false;
     }
   }
@@ -252,19 +252,19 @@ export class NotificationTester {
    */
   async runBasicTest(userId: string): Promise<boolean> {
     try {
-      console.log('🧪 Running basic notification test...');
+      console.log('Running basic notification test...');
       
       // Test initialization
       const initialized = await notificationService.initialize(userId);
       if (!initialized) {
-        console.log('❌ Failed to initialize notification service');
+        console.log('Failed to initialize notification service');
         return false;
       }
       
       // Test creating a simple notification
       const notification = await notificationService.createNotification({
         userId,
-        title: '🧪 Basic Test',
+        title: 'Basic Test',
         message: 'Basic notification test successful!',
         type: 'system',
         sendPush: false,
@@ -272,16 +272,16 @@ export class NotificationTester {
       });
       
       if (notification) {
-        console.log('✅ Basic notification test passed');
+        console.log('Basic notification test passed');
         // Clean up
         await notificationService.deleteNotification(notification.id);
         return true;
       } else {
-        console.log('❌ Basic notification test failed');
+        console.log('Basic notification test failed');
         return false;
       }
     } catch (error) {
-      console.error('❌ Basic test failed:', error);
+      console.error('Basic test failed:', error);
       return false;
     }
   }
@@ -301,17 +301,17 @@ export class NotificationTester {
     ].filter(Boolean).length;
 
     const summary = `
-🧪 Notification System Test Results
+Notification System Test Results
 ==================================
-Permissions: ${results.permissionsGranted ? '✅' : '❌'}
-Push Token: ${results.pushTokenGenerated ? '✅' : '❌'}
-Database: ${results.databaseConnectionWorking ? '✅' : '❌'}
-Local Notifications: ${results.localNotificationWorking ? '✅' : '❌'}
-Email Service: ${results.emailServiceWorking ? '✅' : '❌'}
+Permissions: ${results.permissionsGranted ? '' : ''}
+Push Token: ${results.pushTokenGenerated ? '' : ''}
+Database: ${results.databaseConnectionWorking ? '' : ''}
+Local Notifications: ${results.localNotificationWorking ? '' : ''}
+Email Service: ${results.emailServiceWorking ? '' : ''}
 
 Score: ${passedTests}/${totalTests} tests passed
 
-${results.errors.length > 0 ? '❌ Errors:\n' + results.errors.map(e => `- ${e}`).join('\n') : '✅ No errors detected'}
+${results.errors.length > 0 ? 'Errors:\n' + results.errors.map(e => `- ${e}`).join('\n') : 'No errors detected'}
     `;
 
     return summary;

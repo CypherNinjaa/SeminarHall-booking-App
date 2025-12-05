@@ -51,7 +51,7 @@ export default async function handler(req, res) {
 		// Send email
 		const info = await transporter.sendMail(mailOptions);
 
-		console.log("📧 Email sent successfully:", info.messageId);
+		console.log("Email sent successfully:", info.messageId);
 
 		return res.status(200).json({
 			success: true,

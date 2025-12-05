@@ -87,9 +87,9 @@ class NotificationService {
       // Check if running in Expo Go
       const isExpoGo = await this.isRunningInExpoGo();
       if (isExpoGo) {
-        console.warn('📱 Running in Expo Go - Push notifications not supported in SDK 53+');
-        console.warn('📱 Use a development build for full push notification functionality');
-        console.log('✅ Notification service initialized (Expo Go mode - limited functionality)');
+        console.warn('Running in Expo Go - Push notifications not supported in SDK 53+');
+        console.warn('Use a development build for full push notification functionality');
+        console.log('Notification service initialized (Expo Go mode - limited functionality)');
         this.isInitialized = true;
         return true;
       }
@@ -113,10 +113,10 @@ class NotificationService {
       this.setupNotificationListeners();
       
       this.isInitialized = true;
-      console.log('✅ Notification service initialized successfully (Development Build)');
+      console.log('Notification service initialized successfully (Development Build)');
       return true;
     } catch (error) {
-      console.error('❌ Failed to initialize notification service:', error);
+      console.error('Failed to initialize notification service:', error);
       return false;
     }
   }
@@ -243,22 +243,22 @@ class NotificationService {
   async registerForPushNotifications(userId: string): Promise<string | null> {
     try {
       if (!Device.isDevice) {
-        console.log('📱 Push notifications only work on physical devices');
+        console.log('Push notifications only work on physical devices');
         return null;
       }
 
       // Check if running in Expo Go
       const isExpoGo = await this.isRunningInExpoGo();
       if (isExpoGo) {
-        console.warn('📱 Push notifications not available in Expo Go (SDK 53+)');
-        console.warn('📱 Use EAS development build: npx expo run:android or npx expo run:ios');
+        console.warn('Push notifications not available in Expo Go (SDK 53+)');
+        console.warn('Use EAS development build: npx expo run:android or npx expo run:ios');
         return null;
       }
 
       // Get project ID from environment variable or use hardcoded value
       const projectId = process.env.EXPO_PUBLIC_PROJECT_ID || '3474eaee-01b2-4e2c-8ba1-83ac94ced14e';
       
-      console.log('📱 Registering for push notifications with project ID:', projectId);
+      console.log('Registering for push notifications with project ID:', projectId);
 
       const token = await Notifications.getExpoPushTokenAsync({
         projectId: projectId,
@@ -269,11 +269,11 @@ class NotificationService {
       // Save token to database
       await this.savePushToken(userId, token.data);
 
-      console.log('✅ Push token registered:', token.data);
+      console.log('Push token registered:', token.data);
       return token.data;
     } catch (error) {
-      console.error('❌ Error registering for push notifications:', error);
-      console.error('💡 If using Expo Go, switch to development build for push notifications');
+      console.error('Error registering for push notifications:', error);
+      console.error('If using Expo Go, switch to development build for push notifications');
       return null;
     }
   }
@@ -300,7 +300,7 @@ class NotificationService {
       if (error) {
         console.error('Error saving push token:', error);
       } else {
-        console.log('✅ Push token saved successfully');
+        console.log('Push token saved successfully');
       }
     } catch (error) {
       console.error('Error saving push token:', error);
@@ -314,7 +314,7 @@ class NotificationService {
     // Listen for notifications when app is in foreground
     this.notificationListener = Notifications.addNotificationReceivedListener(
       (notification: Notifications.Notification) => {
-        console.log('🔔 Notification received:', notification);
+        console.log('Notification received:', notification);
         this.handleInAppNotification(notification);
       }
     );
@@ -333,7 +333,7 @@ class NotificationService {
    */
   handleInAppNotification(notification: Notifications.Notification) {
     // Implement custom in-app notification display logic here
-    console.log('📱 Showing in-app notification:', notification.request.content.title);
+    console.log('Showing in-app notification:', notification.request.content.title);
     
     // You can implement a custom toast/banner component here
     // or trigger a state update in your app to show the notification
@@ -348,11 +348,11 @@ class NotificationService {
 
     switch (actionIdentifier) {
       case 'view-booking':
-        console.log('📱 Navigating to booking:', data?.bookingId);
+        console.log('Navigating to booking:', data?.bookingId);
         // Implement navigation logic here
         break;
       case 'cancel-booking':
-        console.log('❌ Canceling booking:', data?.bookingId);
+        console.log('Canceling booking:', data?.bookingId);
         // Implement booking cancellation logic here
         break;
       case 'snooze-reminder':
@@ -361,7 +361,7 @@ class NotificationService {
         }
         break;
       default:
-        console.log('📱 Opening app from notification');
+        console.log('Opening app from notification');
         break;
     }
   }
@@ -374,7 +374,7 @@ class NotificationService {
       // Check if running in Expo Go
       const isExpoGo = await this.isRunningInExpoGo();
       if (isExpoGo) {
-        console.warn('📱 Push notifications not supported in Expo Go. Notification skipped.');
+        console.warn('Push notifications not supported in Expo Go. Notification skipped.');
         return false;
       }
 
@@ -426,14 +426,14 @@ class NotificationService {
       const result = await response.json();
       
       if (result.data && result.data[0] && result.data[0].status === 'ok') {
-        console.log('✅ Push notification sent successfully');
+        console.log('Push notification sent successfully');
         return true;
       } else {
-        console.error('❌ Failed to send push notification:', result);
+        console.error('Failed to send push notification:', result);
         return false;
       }
     } catch (error) {
-      console.error('❌ Error sending push notification:', error);
+      console.error('Error sending push notification:', error);
       return false;
     }
   }
@@ -488,9 +488,9 @@ class NotificationService {
         trigger,
       });
 
-      console.log('⏰ Notification scheduled:', payload.title);
+      console.log('Notification scheduled:', payload.title);
     } catch (error) {
-      console.error('❌ Error scheduling notification:', error);
+      console.error('Error scheduling notification:', error);
     }
   }
 
@@ -524,7 +524,7 @@ class NotificationService {
       // Only schedule if reminder time is in the future
       if (reminderTime > new Date()) {
         await this.scheduleLocalNotification({
-          title: '⏰ Upcoming Booking Reminder',
+          title: 'Upcoming Booking Reminder',
           body: `Your booking at ${booking.hall?.name} starts in ${minutesBefore} minutes`,
           data: { 
             bookingId, 
@@ -537,10 +537,10 @@ class NotificationService {
           categoryId: 'reminder-actions',
         }, reminderTime);
 
-        console.log(`⏰ Reminder scheduled for booking ${bookingId} at ${reminderTime}`);
+        console.log(`Reminder scheduled for booking ${bookingId} at ${reminderTime}`);
       }
     } catch (error) {
-      console.error('❌ Error scheduling reminder:', error);
+      console.error('Error scheduling reminder:', error);
     }
   }
 
@@ -587,7 +587,7 @@ class NotificationService {
         return false;
       }
 
-      console.log('✅ Notification settings updated');
+      console.log('Notification settings updated');
       return true;
     } catch (error) {
       console.error('Error updating notification settings:', error);
@@ -623,14 +623,14 @@ class NotificationService {
     try {
       // Use your existing emailService instead of Supabase function
       // This integrates with your existing email infrastructure
-      console.log('📧 Email notification will be handled by existing emailService');
+      console.log('Email notification will be handled by existing emailService');
       console.log('Subject:', subject);
       console.log('To:', userEmail);
       
       // Return true since your emailService handles the actual sending
       return true;
     } catch (error) {
-      console.error('❌ Error in email notification preparation:', error);
+      console.error('Error in email notification preparation:', error);
       return false;
     }
   }
@@ -685,7 +685,7 @@ class NotificationService {
         }, params.scheduleTime);
       }
 
-      console.log('✅ Notification created:', { 
+      console.log('Notification created:', { 
         id: data.id, 
         title: params.title, 
         userId: params.userId 
@@ -736,7 +736,7 @@ class NotificationService {
       // Check if user has email notifications enabled
       const settings = await this.getNotificationSettings(userId);
       if (!settings?.email_enabled) {
-        console.log('📧 Email notifications disabled for user:', userId);
+        console.log('Email notifications disabled for user:', userId);
         return;
       }
 
@@ -1085,7 +1085,7 @@ class NotificationService {
         return false;
       }
 
-      console.log('🗑️ Notification deleted:', notificationId);
+      console.log('Notification deleted:', notificationId);
       return true;
     } catch (error) {
       console.error('Error in deleteNotification:', error);
@@ -1114,7 +1114,7 @@ class NotificationService {
       }
 
       const deletedCount = data?.length || 0;
-      console.log(`🗑️ Deleted ${deletedCount} old notifications for user:`, userId);
+      console.log(`Deleted ${deletedCount} old notifications for user:`, userId);
       return deletedCount;
     } catch (error) {
       console.error('Error in deleteOldNotifications:', error);
@@ -1140,7 +1140,7 @@ class NotificationService {
           filter: `user_id=eq.${userId}`,
         },
         (payload) => {
-          console.log('🔔 New notification received:', payload.new);
+          console.log('New notification received:', payload.new);
           callback(payload.new as NotificationData);
         }
       )

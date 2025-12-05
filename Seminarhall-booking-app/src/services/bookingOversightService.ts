@@ -278,9 +278,9 @@ class BookingOversightService {
                 },
                 adminName
               );
-              console.log('✅ Booking approval email sent successfully');
+              console.log('Booking approval email sent successfully');
             } catch (emailError) {
-              console.error('❌ Failed to send booking approval email:', emailError);
+              console.error('Failed to send booking approval email:', emailError);
               // Don't fail the entire operation if email fails
             }
             break;
@@ -308,9 +308,9 @@ class BookingOversightService {
                 },
                 rejectedReason || adminNotes
               );
-              console.log('✅ Booking rejection email sent successfully');
+              console.log('Booking rejection email sent successfully');
             } catch (emailError) {
-              console.error('❌ Failed to send booking rejection email:', emailError);
+              console.error('Failed to send booking rejection email:', emailError);
               // Don't fail the entire operation if email fails
             }
             break;
@@ -338,9 +338,9 @@ class BookingOversightService {
                 },
                 adminNotes
               );
-              console.log('✅ Booking cancellation email sent successfully');
+              console.log('Booking cancellation email sent successfully');
             } catch (emailError) {
-              console.error('❌ Failed to send booking cancellation email:', emailError);
+              console.error('Failed to send booking cancellation email:', emailError);
               // Don't fail the entire operation if email fails
             }
             break;

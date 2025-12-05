@@ -715,7 +715,7 @@ export default function SuperAdminScreen({
 	useEffect(() => {
 		const checkAuthState = async () => {
 			try {
-				console.log("🔐 SuperAdmin: Checking authentication state...");
+				console.log("SuperAdmin: Checking authentication state...");
 
 				// First, try to get current session
 				const {
@@ -724,11 +724,11 @@ export default function SuperAdminScreen({
 				} = await supabase.auth.getSession();
 
 				if (sessionError) {
-					console.error("🔐 SuperAdmin: Session error:", sessionError);
+					console.error("SuperAdmin: Session error:", sessionError);
 				}
 
 				if (session?.user) {
-					console.log("🔐 SuperAdmin: Valid session found:", {
+					console.log("SuperAdmin: Valid session found:", {
 						userId: session.user.id,
 						email: session.user.email,
 					});
@@ -738,14 +738,14 @@ export default function SuperAdminScreen({
 				}
 
 				// If no session, try getUser()
-				console.log("🔐 SuperAdmin: No session found, trying getUser...");
+				console.log("SuperAdmin: No session found, trying getUser...");
 				const {
 					data: { user: authUser },
 					error: userError,
 				} = await supabase.auth.getUser();
 
 				if (authUser && !userError) {
-					console.log("🔐 SuperAdmin: User found via getUser:", {
+					console.log("SuperAdmin: User found via getUser:", {
 						userId: authUser.id,
 						email: authUser.email,
 					});
@@ -756,10 +756,10 @@ export default function SuperAdminScreen({
 
 				// If still no user, check auth store as fallback
 				console.log(
-					"🔐 SuperAdmin: No user from Supabase, checking auth store..."
+					"SuperAdmin: No user from Supabase, checking auth store..."
 				);
 				if (user?.id) {
-					console.log("🔐 SuperAdmin: User found in auth store:", {
+					console.log("SuperAdmin: User found in auth store:", {
 						userId: user.id,
 						email: user.email,
 					});
@@ -768,13 +768,13 @@ export default function SuperAdminScreen({
 					return;
 				}
 
-				console.log("🔐 SuperAdmin: No authenticated user found anywhere");
+				console.log("SuperAdmin: No authenticated user found anywhere");
 				setCurrentUser(null);
 				setAuthChecked(true);
 				// Show login modal instead of blocking screen
 				setShowLoginModal(true);
 			} catch (error) {
-				console.error("🔐 SuperAdmin: Auth check error:", error);
+				console.error("SuperAdmin: Auth check error:", error);
 				setCurrentUser(null);
 				setAuthChecked(true);
 				setShowLoginModal(true);
@@ -788,7 +788,7 @@ export default function SuperAdminScreen({
 			data: { subscription },
 		} = supabase.auth.onAuthStateChange((event, session) => {
 			console.log(
-				"🔐 SuperAdmin: Auth state changed:",
+				"SuperAdmin: Auth state changed:",
 				event,
 				session?.user?.id
 			);
@@ -820,7 +820,7 @@ export default function SuperAdminScreen({
 			setIsLoggingIn(true);
 			setLoginError("");
 
-			console.log("🔐 SuperAdmin: Attempting login...");
+			console.log("SuperAdmin: Attempting login...");
 
 			const { data, error } = await supabase.auth.signInWithPassword({
 				email: loginEmail,
@@ -828,13 +828,13 @@ export default function SuperAdminScreen({
 			});
 
 			if (error) {
-				console.error("🔐 SuperAdmin: Login error:", error);
+				console.error("SuperAdmin: Login error:", error);
 				setLoginError(error.message || "Login failed");
 				return;
 			}
 
 			if (data?.user) {
-				console.log("🔐 SuperAdmin: Login successful:", data.user.id);
+				console.log("SuperAdmin: Login successful:", data.user.id);
 				setCurrentUser(data.user);
 				setShowLoginModal(false);
 				setLoginEmail("");
@@ -842,7 +842,7 @@ export default function SuperAdminScreen({
 				setLoginError("");
 			}
 		} catch (error: any) {
-			console.error("🔐 SuperAdmin: Login exception:", error);
+			console.error("SuperAdmin: Login exception:", error);
 			setLoginError("Login failed. Please try again.");
 		} finally {
 			setIsLoggingIn(false);
@@ -865,7 +865,7 @@ export default function SuperAdminScreen({
 			// Only proceed if we have a valid authenticated user
 			if (!currentUser?.id) {
 				console.log(
-					"🔐 SuperAdmin: No authenticated user found, skipping user load"
+					"SuperAdmin: No authenticated user found, skipping user load"
 				);
 				setIsLoading(false);
 				return;
@@ -873,7 +873,7 @@ export default function SuperAdminScreen({
 
 			try {
 				setIsLoading(true);
-				console.log("🔐 SuperAdmin: Loading users...");
+				console.log("SuperAdmin: Loading users...");
 				const response = await userManagementService.getAllUsers(
 					page,
 					pagination.pageSize,
@@ -915,7 +915,7 @@ export default function SuperAdminScreen({
 				return;
 			}
 
-			console.log('📋 Pending approvals loaded:', pendingUsers?.length || 0);
+			console.log('Pending approvals loaded:', pendingUsers?.length || 0);
 			return pendingUsers || [];
 		} catch (error) {
 			console.error('Error loading pending approvals:', error);
@@ -926,7 +926,7 @@ export default function SuperAdminScreen({
 	// Handle approve user
 	const handleApproveUser = async (userEmail: string, userName: string) => {
 		try {
-			console.log(`✅ Approving user: ${userName} (${userEmail})`);
+			console.log(`Approving user: ${userName} (${userEmail})`);
 			
 			const { data, error } = await supabase.rpc('approve_user', {
 				user_email: userEmail,
@@ -937,20 +937,20 @@ export default function SuperAdminScreen({
 				throw new Error(error.message);
 			}
 
-			console.log('✅ User approved successfully:', data);
+			console.log('User approved successfully:', data);
 			
 			// Refresh data
 			await Promise.all([loadUsers(), loadAnalytics()]);
 			
 			Alert.alert(
-				'✅ User Approved',
+				'User Approved',
 				`${userName} has been approved and can now access the app.`,
 				[{ text: 'OK' }]
 			);
 			
 			Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 		} catch (error) {
-			console.error('❌ Error approving user:', error);
+			console.error('Error approving user:', error);
 			Alert.alert(
 				'Approval Failed',
 				`Failed to approve ${userName}. ${error instanceof Error ? error.message : 'Please try again.'}`
@@ -970,7 +970,7 @@ export default function SuperAdminScreen({
 					style: 'destructive',
 					onPress: async () => {
 						try {
-							console.log(`❌ Rejecting user: ${userName} (${userEmail})`);
+							console.log(`Rejecting user: ${userName} (${userEmail})`);
 							
 							const { data, error } = await supabase.rpc('revoke_user_approval', {
 								user_email: userEmail,
@@ -982,20 +982,20 @@ export default function SuperAdminScreen({
 								throw new Error(error.message);
 							}
 
-							console.log('❌ User rejected successfully:', data);
+							console.log('User rejected successfully:', data);
 							
 							// Refresh data
 							await Promise.all([loadUsers(), loadAnalytics()]);
 							
 							Alert.alert(
-								'❌ User Rejected',
+								'User Rejected',
 								`${userName}'s account approval has been rejected.`,
 								[{ text: 'OK' }]
 							);
 							
 							Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
 						} catch (error) {
-							console.error('❌ Error rejecting user:', error);
+							console.error('Error rejecting user:', error);
 							Alert.alert(
 								'Rejection Failed',
 								`Failed to reject ${userName}. ${error instanceof Error ? error.message : 'Please try again.'}`
@@ -1012,18 +1012,18 @@ export default function SuperAdminScreen({
 		// Only proceed if we have a valid authenticated user
 		if (!currentUser?.id) {
 			console.log(
-				"🔐 SuperAdmin: No authenticated user found, skipping analytics load"
+				"SuperAdmin: No authenticated user found, skipping analytics load"
 			);
 			return;
 		}
 
 		try {
-			console.log("🔐 SuperAdmin: Loading analytics...");
+			console.log("SuperAdmin: Loading analytics...");
 			const data = await userManagementService.getUserAnalytics();
 
-			console.log("📊 Raw analytics data received:", data);
-			console.log("📊 Data type:", typeof data);
-			console.log("📊 Is array:", Array.isArray(data));
+			console.log("Raw analytics data received:", data);
+			console.log("Data type:", typeof data);
+			console.log("Is array:", Array.isArray(data));
 
 			// Provide fallback values if the API returns invalid data
 			const safeAnalytics = {
@@ -1036,7 +1036,7 @@ export default function SuperAdminScreen({
 				new_users_last_30_days: Number(data?.new_users_last_30_days) || 0,
 			};
 
-			console.log("📊 Safe analytics after processing:", safeAnalytics);
+			console.log("Safe analytics after processing:", safeAnalytics);
 			setAnalytics(safeAnalytics);
 		} catch (error) {
 			console.error("Error loading analytics:", error);
@@ -1057,11 +1057,11 @@ export default function SuperAdminScreen({
 	useFocusEffect(
 		useCallback(() => {
 			if (authChecked && currentUser) {
-				console.log("🔐 SuperAdmin: Auth confirmed, loading data");
+				console.log("SuperAdmin: Auth confirmed, loading data");
 				loadUsers();
 				loadAnalytics();
 			} else if (authChecked && !currentUser) {
-				console.log("🔐 SuperAdmin: No user authenticated, stopping loading");
+				console.log("SuperAdmin: No user authenticated, stopping loading");
 				setIsLoading(false);
 			}
 		}, [loadUsers, loadAnalytics, authChecked, currentUser])
@@ -1070,11 +1070,11 @@ export default function SuperAdminScreen({
 	// Load data when authentication is confirmed and user is available
 	useEffect(() => {
 		if (authChecked && currentUser) {
-			console.log("🔐 SuperAdmin: Auth confirmed, loading initial data");
+			console.log("SuperAdmin: Auth confirmed, loading initial data");
 			loadUsers();
 			loadAnalytics();
 		} else if (authChecked && !currentUser) {
-			console.log("🔐 SuperAdmin: No user authenticated, stopping loading");
+			console.log("SuperAdmin: No user authenticated, stopping loading");
 			setIsLoading(false);
 		}
 	}, [authChecked, currentUser, loadUsers, loadAnalytics]);
@@ -1112,7 +1112,7 @@ export default function SuperAdminScreen({
 		const isDeactivating = user.is_active;
 		const actionText = isDeactivating ? "deactivate" : "activate";
 		const warningText = isDeactivating
-			? `\n\n⚠️ When deactivated:\n• User will be signed out immediately\n• User cannot login until reactivated\n• User will see "Contact admin" message`
+			? `\n\nWhen deactivated:\n• User will be signed out immediately\n• User cannot login until reactivated\n• User will see "Contact admin" message`
 			: "";
 
 		Alert.alert(
@@ -1126,7 +1126,7 @@ export default function SuperAdminScreen({
 					onPress: async () => {
 						try {
 							console.log(
-								`🔄 ${isDeactivating ? "Deactivating" : "Activating"} user: ${
+								`${isDeactivating ? "Deactivating" : "Activating"} user: ${
 									user.name
 								}`
 							);
@@ -1137,7 +1137,7 @@ export default function SuperAdminScreen({
 							);
 
 							console.log(
-								"✅ User status updated successfully, refreshing data..."
+								"User status updated successfully, refreshing data..."
 							);
 
 							// Force refresh all data to ensure consistency
@@ -1158,7 +1158,7 @@ export default function SuperAdminScreen({
 								}`
 							);
 						} catch (error) {
-							console.error("❌ Error toggling active status:", error);
+							console.error("Error toggling active status:", error);
 
 							const errorMessage =
 								error instanceof Error
@@ -1195,12 +1195,12 @@ export default function SuperAdminScreen({
 					style: "destructive",
 					onPress: async () => {
 						try {
-							console.log(`🗑️ Deleting user: ${user.name} (${user.id})`);
+							console.log(`Deleting user: ${user.name} (${user.id})`);
 
 							// Delete the user using the improved service
 							await userManagementService.deleteUser(user.id);
 
-							console.log("✅ User deleted successfully, refreshing data...");
+							console.log("User deleted successfully, refreshing data...");
 
 							// Force refresh all data
 							await Promise.all([loadUsers(), loadAnalytics()]);
@@ -1214,7 +1214,7 @@ export default function SuperAdminScreen({
 								`${user.name} has been deleted successfully`
 							);
 						} catch (error) {
-							console.error("❌ Error deleting user:", error);
+							console.error("Error deleting user:", error);
 
 							// Show detailed error message
 							const errorMessage =
@@ -1372,7 +1372,7 @@ export default function SuperAdminScreen({
 		if (pendingUsers.length === 0) {
 			return (
 				<View style={styles.pendingSection}>
-					<Text style={styles.pendingSectionTitle}>✅ No Pending Approvals</Text>
+					<Text style={styles.pendingSectionTitle}>No Pending Approvals</Text>
 					<Text style={styles.pendingEmptyText}>All users have been approved</Text>
 				</View>
 			);

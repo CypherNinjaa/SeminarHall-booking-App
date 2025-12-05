@@ -529,7 +529,7 @@ export const useAuthStore = create<AuthState>()(
 
 			checkEmailVerification: async (email: string): Promise<{ isVerified: boolean; message: string }> => {
 				try {
-					console.log('🔍 Checking email verification status for:', email);
+					console.log('Checking email verification status for:', email);
 
 					// Get user from Supabase Auth
 					const { data: { users }, error } = await supabase.auth.admin.listUsers();
@@ -549,7 +549,7 @@ export const useAuthStore = create<AuthState>()(
 
 					const isVerified = user.email_confirmed_at !== null;
 					
-					console.log(`✅ Email verification status for ${email}:`, isVerified);
+					console.log(`Email verification status for ${email}:`, isVerified);
 					
 					return {
 						isVerified,
@@ -558,7 +558,7 @@ export const useAuthStore = create<AuthState>()(
 							: 'Email not verified. Please check your email and click the verification link.'
 					};
 				} catch (error) {
-					console.error("❌ Email verification check error:", error);
+					console.error("Email verification check error:", error);
 					return {
 						isVerified: false,
 						message: error instanceof Error ? error.message : 'Failed to check email verification status'
@@ -570,7 +570,7 @@ export const useAuthStore = create<AuthState>()(
 				set({ isLoading: true, error: null });
 
 				try {
-					console.log('📧 Resending verification email to:', email);
+					console.log('Resending verification email to:', email);
 
 					const { error } = await supabase.auth.resend({
 						type: 'signup',
@@ -582,17 +582,15 @@ export const useAuthStore = create<AuthState>()(
 
 					if (error) {
 						throw new Error(error.message);
-					}
+				}
 
-					console.log('✅ Verification email resent successfully');
-					set({ isLoading: false, error: null });
-					
-					return {
+				console.log('Verification email resent successfully');
+				set({ isLoading: false, error: null });					return {
 						success: true,
 						message: 'Verification email has been resent. Please check your email and click the verification link.',
 					};
 				} catch (error) {
-					console.error("❌ Resend verification email error:", error);
+					console.error("Resend verification email error:", error);
 					const errorMessage = error instanceof Error 
 						? error.message 
 						: "Failed to resend verification email";
@@ -801,7 +799,7 @@ export const useAuthStore = create<AuthState>()(
 				set({ isLoading: true, error: null });
 
 				try {
-					console.log('🔄 Requesting password reset for:', email);
+					console.log('Requesting password reset for:', email);
 
 					// Send password reset email using Supabase Auth with website redirect
 					const { error: resetError } = await supabase.auth.resetPasswordForEmail(
@@ -814,18 +812,16 @@ export const useAuthStore = create<AuthState>()(
 					);
 
 					if (resetError) {
-						throw new Error(resetError.message);
-					}
+					throw new Error(resetError.message);
+				}
 
-					console.log('✅ Password reset email sent successfully');
-					set({ isLoading: false, error: null });
-					
-					return {
+				console.log('Password reset email sent successfully');
+				set({ isLoading: false, error: null });					return {
 						success: true,
 						message: 'Password reset link has been sent to your email address. Please check your email and follow the link to reset your password on our website.',
 					};
 				} catch (error) {
-					console.error("❌ Password reset error:", error);
+					console.error("Password reset error:", error);
 					const errorMessage = error instanceof Error 
 						? error.message 
 						: "Failed to send password reset email";
