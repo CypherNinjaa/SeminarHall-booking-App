@@ -298,6 +298,53 @@ const BookingScreen: React.FC<BookingScreenProps> = ({ navigation }) => {
 	const fadeAnim = useRef(new Animated.Value(0)).current;
 	const scaleAnim = useRef(new Animated.Value(0.9)).current;
 
+	// Helper function to parse date and time for sorting
+	const parseBookingDateTime = (booking: SmartBooking): Date => {
+		const dateStr = booking.booking_date; // Format: DDMMYYYY
+		const day = parseInt(dateStr.substring(0, 2));
+		const month = parseInt(dateStr.substring(2, 4)) - 1; // Month is 0-indexed
+		const year = parseInt(dateStr.substring(4, 8));
+
+		const [hours, minutes] = booking.start_time.split(":").map(Number);
+
+		return new Date(year, month, day, hours, minutes);
+	};
+
+	// Sort bookings: upcoming bookings first (sorted by date ascending), then past bookings (sorted by date descending)
+	const sortBookingsByDateTime = (bookings: SmartBooking[]): SmartBooking[] => {
+		const now = new Date();
+
+		// Separate upcoming and past bookings
+		const upcomingBookings: SmartBooking[] = [];
+		const pastBookings: SmartBooking[] = [];
+
+		bookings.forEach((booking) => {
+			const bookingDateTime = parseBookingDateTime(booking);
+			if (bookingDateTime >= now) {
+				upcomingBookings.push(booking);
+			} else {
+				pastBookings.push(booking);
+			}
+		});
+
+		// Sort upcoming bookings: nearest date first (ascending)
+		upcomingBookings.sort((a, b) => {
+			const dateA = parseBookingDateTime(a);
+			const dateB = parseBookingDateTime(b);
+			return dateA.getTime() - dateB.getTime();
+		});
+
+		// Sort past bookings: most recent first (descending)
+		pastBookings.sort((a, b) => {
+			const dateA = parseBookingDateTime(a);
+			const dateB = parseBookingDateTime(b);
+			return dateB.getTime() - dateA.getTime();
+		});
+
+		// Combine: upcoming first, then past
+		return [...upcomingBookings, ...pastBookings];
+	};
+
 	const fetchData = useCallback(async () => {
 		if (!user) return;
 
@@ -308,7 +355,9 @@ const BookingScreen: React.FC<BookingScreenProps> = ({ navigation }) => {
 				hallManagementService.getAllHalls(),
 			]);
 
-			setBookings(bookingsData);
+			// Sort bookings: upcoming first, then past
+			const sortedBookings = sortBookingsByDateTime(bookingsData);
+			setBookings(sortedBookings);
 			setHalls(hallsData);
 		} catch (error) {
 			console.error("Error fetching data:", error);
