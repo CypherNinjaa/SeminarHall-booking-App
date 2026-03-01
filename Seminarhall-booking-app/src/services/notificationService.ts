@@ -1,18 +1,40 @@
-import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
-import { Platform } from "react-native";
+import Constants from "expo-constants";
+import { Platform, LogBox } from "react-native";
 import { supabase } from "../utils/supabaseSetup";
 
-// Configure notification behavior
-Notifications.setNotificationHandler({
-	handleNotification: async () => ({
-		shouldShowAlert: true,
-		shouldPlaySound: true,
-		shouldSetBadge: true,
-		shouldShowBanner: true,
-		shouldShowList: true,
-	}),
-});
+// Suppress known expo-notifications Expo Go warnings
+LogBox.ignoreLogs([
+	"expo-notifications",
+	"`expo-notifications` functionality is not fully supported in Expo Go",
+]);
+
+// Conditionally import and configure expo-notifications
+// Only set up the handler when NOT running in Expo Go to avoid the SDK 53 error
+let Notifications: typeof import("expo-notifications") extends (
+	Promise<infer T>
+) ?
+	T
+:	never;
+
+const isExpoGoEnvironment = Constants.executionEnvironment === "storeClient";
+
+if (!isExpoGoEnvironment && Platform.OS !== "web") {
+	// Safe to use expo-notifications in development builds / production
+	Notifications = require("expo-notifications") as any;
+	Notifications.setNotificationHandler({
+		handleNotification: async () => ({
+			shouldShowAlert: true,
+			shouldPlaySound: true,
+			shouldSetBadge: true,
+			shouldShowBanner: true,
+			shouldShowList: true,
+		}),
+	});
+} else {
+	// In Expo Go or web: use a no-op stub so the rest of the code doesn't crash
+	Notifications = null as any;
+}
 
 export interface NotificationData {
 	id: string;
@@ -73,15 +95,8 @@ class NotificationService {
 	/**
 	 * Check if running in Expo Go
 	 */
-	async isRunningInExpoGo(): Promise<boolean> {
-		try {
-			// In Expo Go, Constants.executionEnvironment is 'storeClient'
-			const Constants = require("expo-constants");
-			return Constants.default?.executionEnvironment === "storeClient";
-		} catch (error) {
-			// If expo-constants is not available, assume not Expo Go
-			return false;
-		}
+	isRunningInExpoGo(): boolean {
+		return isExpoGoEnvironment;
 	}
 
 	/**
@@ -94,27 +109,18 @@ class NotificationService {
 			// Skip push notification setup on web platform
 			if (Platform.OS === "web") {
 				console.log(
-					"🌐 Running on web platform - Push notifications not supported"
+					"🌐 Running on web platform - Push notifications not supported",
 				);
 				console.log(
-					"✅ Notification service initialized (Web mode - limited functionality)"
+					"✅ Notification service initialized (Web mode - limited functionality)",
 				);
 				this.isInitialized = true;
 				return true;
 			}
 
 			// Check if running in Expo Go
-			const isExpoGo = await this.isRunningInExpoGo();
-			if (isExpoGo) {
-				console.warn(
-					"📱 Running in Expo Go - Push notifications not supported in SDK 53+"
-				);
-				console.warn(
-					"📱 Use a development build for full push notification functionality"
-				);
-				console.log(
-					"✅ Notification service initialized (Expo Go mode - limited functionality)"
-				);
+			if (this.isRunningInExpoGo()) {
+				// Silently skip push notification setup in Expo Go
 				this.isInitialized = true;
 				return true;
 			}
@@ -139,7 +145,7 @@ class NotificationService {
 
 			this.isInitialized = true;
 			console.log(
-				"✅ Notification service initialized successfully (Development Build)"
+				"✅ Notification service initialized successfully (Development Build)",
 			);
 			return true;
 		} catch (error) {
@@ -275,15 +281,7 @@ class NotificationService {
 				return null;
 			}
 
-			// Check if running in Expo Go
-			const isExpoGo = await this.isRunningInExpoGo();
-			if (isExpoGo) {
-				console.warn(
-					"📱 Push notifications not available in Expo Go (SDK 53+)"
-				);
-				console.warn(
-					"📱 Use EAS development build: npx expo run:android or npx expo run:ios"
-				);
+			if (this.isRunningInExpoGo()) {
 				return null;
 			}
 
@@ -294,7 +292,7 @@ class NotificationService {
 
 			console.log(
 				"📱 Registering for push notifications with project ID:",
-				projectId
+				projectId,
 			);
 
 			const token = await Notifications.getExpoPushTokenAsync({
@@ -311,7 +309,7 @@ class NotificationService {
 		} catch (error) {
 			console.error("❌ Error registering for push notifications:", error);
 			console.error(
-				"💡 If using Expo Go, switch to development build for push notifications"
+				"💡 If using Expo Go, switch to development build for push notifications",
 			);
 			return null;
 		}
@@ -340,7 +338,7 @@ class NotificationService {
 				},
 				{
 					onConflict: "user_id,platform",
-				}
+				},
 			);
 
 			if (error) {
@@ -362,7 +360,7 @@ class NotificationService {
 			(notification: Notifications.Notification) => {
 				console.log("🔔 Notification received:", notification);
 				this.handleInAppNotification(notification);
-			}
+			},
 		);
 
 		// Listen for notification responses (user tapped notification)
@@ -371,7 +369,7 @@ class NotificationService {
 				(response: Notifications.NotificationResponse) => {
 					console.log("👆 Notification response:", response);
 					this.handleNotificationResponse(response);
-				}
+				},
 			);
 	}
 
@@ -382,7 +380,7 @@ class NotificationService {
 		// Implement custom in-app notification display logic here
 		console.log(
 			"📱 Showing in-app notification:",
-			notification.request.content.title
+			notification.request.content.title,
 		);
 
 		// You can implement a custom toast/banner component here
@@ -421,15 +419,10 @@ class NotificationService {
 	 */
 	async sendPushNotification(
 		userId: string,
-		payload: PushNotificationPayload
+		payload: PushNotificationPayload,
 	): Promise<boolean> {
 		try {
-			// Check if running in Expo Go
-			const isExpoGo = await this.isRunningInExpoGo();
-			if (isExpoGo) {
-				console.warn(
-					"📱 Push notifications not supported in Expo Go. Notification skipped."
-				);
+			if (this.isRunningInExpoGo()) {
 				return false;
 			}
 
@@ -514,9 +507,11 @@ class NotificationService {
 	 */
 	async scheduleLocalNotification(
 		payload: PushNotificationPayload,
-		scheduledTime: Date | number
+		scheduledTime: Date | number,
 	) {
 		try {
+			if (!Notifications) return;
+
 			let trigger: Notifications.NotificationTriggerInput;
 
 			if (typeof scheduledTime === "number") {
@@ -562,7 +557,7 @@ class NotificationService {
           *,
           hall:halls(name),
           user:profiles(full_name, email)
-        `
+        `,
 				)
 				.eq("id", bookingId)
 				.single();
@@ -576,14 +571,14 @@ class NotificationService {
 			const bookingDateTime = new Date(
 				`${booking.booking_date.substring(
 					4,
-					8
+					8,
 				)}-${booking.booking_date.substring(
 					2,
-					4
-				)}-${booking.booking_date.substring(0, 2)}T${booking.start_time}:00`
+					4,
+				)}-${booking.booking_date.substring(0, 2)}T${booking.start_time}:00`,
 			);
 			const reminderTime = new Date(
-				bookingDateTime.getTime() - minutesBefore * 60 * 1000
+				bookingDateTime.getTime() - minutesBefore * 60 * 1000,
 			);
 
 			// Only schedule if reminder time is in the future
@@ -602,11 +597,11 @@ class NotificationService {
 						priority: "high",
 						categoryId: "reminder-actions",
 					},
-					reminderTime
+					reminderTime,
 				);
 
 				console.log(
-					`⏰ Reminder scheduled for booking ${bookingId} at ${reminderTime}`
+					`⏰ Reminder scheduled for booking ${bookingId} at ${reminderTime}`,
 				);
 			}
 		} catch (error) {
@@ -618,7 +613,7 @@ class NotificationService {
 	 * Get notification settings for user
 	 */
 	async getNotificationSettings(
-		userId: string
+		userId: string,
 	): Promise<NotificationSettings | null> {
 		try {
 			const { data, error } = await supabase
@@ -645,7 +640,7 @@ class NotificationService {
 	 */
 	async updateNotificationSettings(
 		userId: string,
-		settings: Partial<NotificationSettings>
+		settings: Partial<NotificationSettings>,
 	) {
 		try {
 			const { error } = await supabase
@@ -658,7 +653,7 @@ class NotificationService {
 					},
 					{
 						onConflict: "user_id",
-					}
+					},
 				);
 
 			if (error) {
@@ -697,13 +692,13 @@ class NotificationService {
 		userEmail: string,
 		subject: string,
 		htmlContent: string,
-		textContent?: string
+		textContent?: string,
 	): Promise<boolean> {
 		try {
 			// Use your existing emailService instead of Supabase function
 			// This integrates with your existing email infrastructure
 			console.log(
-				"📧 Email notification will be handled by existing emailService"
+				"📧 Email notification will be handled by existing emailService",
 			);
 			console.log("Subject:", subject);
 			console.log("To:", userEmail);
@@ -720,7 +715,7 @@ class NotificationService {
 	 * Create a new notification with enhanced features
 	 */
 	async createNotification(
-		params: CreateNotificationParams
+		params: CreateNotificationParams,
 	): Promise<NotificationData | null> {
 		try {
 			// Create database notification
@@ -767,7 +762,7 @@ class NotificationService {
 						data: { notificationId: data.id, ...params.data },
 						categoryId: this.getCategoryForType(params.type),
 					},
-					params.scheduleTime
+					params.scheduleTime,
 				);
 			}
 
@@ -807,7 +802,7 @@ class NotificationService {
 	 */
 	async sendEmailForNotification(
 		userId: string,
-		notification: NotificationData
+		notification: NotificationData,
 	) {
 		try {
 			// Get user email
@@ -831,14 +826,14 @@ class NotificationService {
 
 			const htmlContent = this.generateEmailTemplate(
 				notification,
-				user.full_name
+				user.full_name,
 			);
 
 			await this.sendEmailNotification(
 				user.email,
 				notification.title,
 				htmlContent,
-				notification.message
+				notification.message,
 			);
 		} catch (error) {
 			console.error("Error sending email for notification:", error);
@@ -850,7 +845,7 @@ class NotificationService {
 	 */
 	generateEmailTemplate(
 		notification: NotificationData,
-		userName: string
+		userName: string,
 	): string {
 		return `
       <!DOCTYPE html>
@@ -875,13 +870,13 @@ class NotificationService {
             <p>${notification.message}</p>
             
             ${
-							notification.data?.booking_id
-								? `
+							notification.data?.booking_id ?
+								`
               <a href="your-app-deep-link://booking/${notification.data.booking_id}" class="button">
                 View Booking Details
               </a>
             `
-								: ""
+							:	""
 						}
             
             <p style="margin-top: 30px; color: #666;">
@@ -903,6 +898,7 @@ class NotificationService {
 	 */
 	async clearBadge() {
 		try {
+			if (!Notifications) return;
 			await Notifications.setBadgeCountAsync(0);
 		} catch (error) {
 			console.error("Error clearing badge:", error);
@@ -914,6 +910,7 @@ class NotificationService {
 	 */
 	async updateBadgeCount(userId: string) {
 		try {
+			if (!Notifications) return;
 			const unreadCount = await this.getUnreadCount(userId);
 			await Notifications.setBadgeCountAsync(unreadCount);
 		} catch (error) {
@@ -925,10 +922,10 @@ class NotificationService {
 	 * Cleanup listeners
 	 */
 	cleanup() {
-		if (this.notificationListener) {
+		if (Notifications && this.notificationListener) {
 			Notifications.removeNotificationSubscription(this.notificationListener);
 		}
-		if (this.responseListener) {
+		if (Notifications && this.responseListener) {
 			Notifications.removeNotificationSubscription(this.responseListener);
 		}
 		this.isInitialized = false;
@@ -948,7 +945,7 @@ class NotificationService {
 			purpose: string;
 		},
 		rejectionReason: string,
-		adminName?: string
+		adminName?: string,
 	): Promise<NotificationData | null> {
 		const title = `Booking Rejected - ${bookingDetails.hall_name}`;
 		const message = `Your booking for ${bookingDetails.hall_name} on ${
@@ -994,7 +991,7 @@ class NotificationService {
 			purpose: string;
 		},
 		cancellationReason: string,
-		adminName?: string
+		adminName?: string,
 	): Promise<NotificationData | null> {
 		const title = `Booking Cancelled - ${bookingDetails.hall_name}`;
 		const message = `Your booking for ${bookingDetails.hall_name} on ${
@@ -1039,7 +1036,7 @@ class NotificationService {
 			end_time: string;
 			purpose: string;
 		},
-		adminName?: string
+		adminName?: string,
 	): Promise<NotificationData | null> {
 		const title = `Booking Approved - ${bookingDetails.hall_name}`;
 		const message = `Your booking for ${bookingDetails.hall_name} on ${
@@ -1073,7 +1070,7 @@ class NotificationService {
 	 */
 	async getUserNotifications(
 		userId: string,
-		limit = 50
+		limit = 50,
 	): Promise<NotificationData[]> {
 		try {
 			const { data, error } = await supabase
@@ -1135,7 +1132,7 @@ class NotificationService {
 
 			console.log(
 				"📖 Multiple notifications marked as read:",
-				notificationIds.length
+				notificationIds.length,
 			);
 			return true;
 		} catch (error) {
@@ -1219,7 +1216,7 @@ class NotificationService {
 	 */
 	async deleteOldNotifications(
 		userId: string,
-		olderThanDays = 30
+		olderThanDays = 30,
 	): Promise<number> {
 		try {
 			const cutoffDate = new Date();
@@ -1240,7 +1237,7 @@ class NotificationService {
 			const deletedCount = data?.length || 0;
 			console.log(
 				`🗑️ Deleted ${deletedCount} old notifications for user:`,
-				userId
+				userId,
 			);
 			return deletedCount;
 		} catch (error) {
@@ -1254,7 +1251,7 @@ class NotificationService {
 	 */
 	subscribeToUserNotifications(
 		userId: string,
-		callback: (notification: NotificationData) => void
+		callback: (notification: NotificationData) => void,
 	) {
 		return supabase
 			.channel(`notifications_${userId}`)
@@ -1269,7 +1266,7 @@ class NotificationService {
 				(payload) => {
 					console.log("🔔 New notification received:", payload.new);
 					callback(payload.new as NotificationData);
-				}
+				},
 			)
 			.subscribe();
 	}

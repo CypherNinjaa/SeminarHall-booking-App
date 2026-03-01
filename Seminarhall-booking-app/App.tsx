@@ -22,7 +22,7 @@ export default function App() {
 			if (!envValid) {
 				Alert.alert(
 					"Configuration Error",
-					"Missing required environment variables. Please check your .env file."
+					"Missing required environment variables. Please check your .env file.",
 				);
 				return;
 			}
@@ -34,7 +34,7 @@ export default function App() {
 			const dbConnected = await testDatabaseConnection();
 			if (!dbConnected) {
 				console.warn(
-					"Database connection test failed - app may have limited functionality"
+					"Database connection test failed - app may have limited functionality",
 				);
 			}
 
@@ -45,16 +45,14 @@ export default function App() {
 			await initializeAuth();
 
 			// Initialize basic notification service (without user-specific features)
-			console.log("🔔 Initializing basic notification service...");
 			await notificationService.initialize();
-			console.log("✅ Basic notification service initialized");
 
 			console.log("✅ App initialization complete");
 		} catch (error) {
 			console.error("❌ App initialization failed:", error);
 			Alert.alert(
 				"Initialization Error",
-				"Failed to initialize the app. Please restart the application."
+				"Failed to initialize the app. Please restart the application.",
 			);
 		}
 	};
